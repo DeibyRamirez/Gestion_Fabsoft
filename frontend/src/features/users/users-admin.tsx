@@ -11,6 +11,23 @@ import {
 } from '@fabsoft/shared';
 import { ApiError, apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
+import { cn } from '@/shared/lib/utils';
+import { Button } from '@/shared/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
+import { Input } from '@/shared/ui/input';
+import { Label } from '@/shared/ui/label';
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/shared/ui/table';
+
+const selectClassName =
+  'flex h-10 w-full rounded-md border border-border-input bg-bg px-3 py-2 text-sm text-fg shadow-sm focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 
 /** Gestión de usuarios (sólo admin; la API devuelve 403 a otros roles). */
 export function UsersAdmin() {
@@ -81,70 +98,142 @@ export function UsersAdmin() {
   }
 
   return (
-    <section style={{ display: 'grid', gap: 24 }}>
-      <h1>Usuarios</h1>
-      {message && <p role="status">{message}</p>}
-      <form onSubmit={create} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <input name="email" type="email" placeholder="email" required />
-        <input name="fullName" placeholder="Nombre completo" required />
-        <select name="role" defaultValue="operator">
-          {USER_ROLES.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
-        <input name="clientId" placeholder="clientId (sólo rol client)" />
-        <button type="submit">Crear</button>
-      </form>
-      <table>
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Email</th>
-            <th>Rol</th>
-            <th>Estado</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {page?.data.map((u) => (
-            <tr key={u.id}>
-              <td>{u.fullName}</td>
-              <td>{u.email}</td>
-              <td>
-                <select
-                  value={u.role}
-                  disabled={u.id === me?.id || u.role === 'client'}
-                  onChange={(e) => void patch(u, { role: e.target.value as UserRole })}
-                >
-                  {USER_ROLES.filter((r) => r !== 'client' || u.role === 'client').map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td>{u.status}</td>
-              <td style={{ display: 'flex', gap: 4 }}>
-                {u.id !== me?.id && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void patch(u, { status: u.status === 'active' ? 'disabled' : 'active' })
-                    }
-                  >
-                    {u.status === 'active' ? 'Desactivar' : 'Activar'}
-                  </button>
-                )}
-                <button type="button" onClick={() => void reset(u)}>
-                  Resetear contraseña
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
+    <div className="mx-auto flex max-w-6xl flex-col gap-8">
+      <header>
+        <h1 className="text-2xl leading-tight font-semibold tracking-tight text-fg">Usuarios</h1>
+        <p className="mt-1 text-sm text-fg-muted">Alta, roles y restablecimiento de contraseñas.</p>
+      </header>
+
+      {message ? (
+        <div
+          role="status"
+          className="rounded-md border border-border bg-surface px-4 py-3 text-sm text-fg"
+        >
+          {message}
+        </div>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Nuevo usuario</CardTitle>
+          <CardDescription>
+            La contraseña temporal se muestra una sola vez al crear o resetear.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={create} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-2">
+              <Label htmlFor="user-email">Email</Label>
+              <Input
+                id="user-email"
+                name="email"
+                type="email"
+                placeholder="nombre@empresa.com"
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="user-fullName">Nombre completo</Label>
+              <Input id="user-fullName" name="fullName" placeholder="Nombre completo" required />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="user-role">Rol</Label>
+              <select
+                id="user-role"
+                name="role"
+                defaultValue="operator"
+                className={selectClassName}
+              >
+                {USER_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-2 md:col-span-2 lg:col-span-3">
+              <Label htmlFor="user-clientId">ID de cliente (sólo rol client)</Label>
+              <Input id="user-clientId" name="clientId" placeholder="UUID del cliente" />
+            </div>
+            <div className="md:col-span-2 lg:col-span-3">
+              <Button type="submit">Crear usuario</Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Usuarios registrados</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableCaption>Listado de cuentas internas y de portal.</TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">Nombre</TableHead>
+                <TableHead scope="col">Email</TableHead>
+                <TableHead scope="col">Rol</TableHead>
+                <TableHead scope="col">Estado</TableHead>
+                <TableHead scope="col">
+                  <span className="sr-only">Acciones</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {page?.data.map((u) => (
+                <TableRow key={u.id}>
+                  <TableCell>{u.fullName}</TableCell>
+                  <TableCell>{u.email}</TableCell>
+                  <TableCell>
+                    <label className="sr-only" htmlFor={`role-${u.id}`}>
+                      Rol de {u.fullName}
+                    </label>
+                    <select
+                      id={`role-${u.id}`}
+                      value={u.role}
+                      disabled={u.id === me?.id || u.role === 'client'}
+                      className={cn(selectClassName, 'max-w-[10rem]')}
+                      onChange={(e) => void patch(u, { role: e.target.value as UserRole })}
+                    >
+                      {USER_ROLES.filter((r) => r !== 'client' || u.role === 'client').map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  </TableCell>
+                  <TableCell className="capitalize">{u.status}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-2">
+                      {u.id !== me?.id ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            void patch(u, { status: u.status === 'active' ? 'disabled' : 'active' })
+                          }
+                        >
+                          {u.status === 'active' ? 'Desactivar' : 'Activar'}
+                        </Button>
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void reset(u)}
+                      >
+                        Resetear contraseña
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

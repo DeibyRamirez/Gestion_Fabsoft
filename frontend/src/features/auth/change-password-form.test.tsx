@@ -37,7 +37,10 @@ describe('ChangePasswordForm', () => {
     render(<ChangePasswordForm />);
     await fill('Temporal-123456', 'Nueva-Contraseña-OK');
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/dashboard'));
-    expect(apiFetch).toHaveBeenCalledWith('/auth/change-password', expect.objectContaining({ method: 'POST', token: 'tkn' }));
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/auth/change-password',
+      expect.objectContaining({ method: 'POST', token: 'tkn' }),
+    );
     expect(setUser).toHaveBeenCalledWith(expect.objectContaining({ mustChangePassword: false }));
   });
 

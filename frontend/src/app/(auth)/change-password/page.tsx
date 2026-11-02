@@ -1,10 +1,12 @@
 import { ChangePasswordForm } from '@/features/auth/change-password-form';
+import { AuthPageLayout } from '@/shared/components/auth-page-layout';
+
+export const metadata = { title: 'Cambiar contraseña · FabSoft' };
 
 export default function ChangePasswordPage() {
   return (
-    <main style={{ padding: 24 }}>
-      <h1>Cambiar contraseña</h1>
+    <AuthPageLayout title="Cambiar contraseña" description="Actualiza tu contraseña de acceso.">
       <ChangePasswordForm />
-    </main>
+    </AuthPageLayout>
   );
 }
