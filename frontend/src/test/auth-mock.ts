@@ -2,7 +2,10 @@ import { vi } from 'vitest';
 import type { Me } from '@fabsoft/shared';
 
 export const router = { replace: vi.fn(), push: vi.fn() };
-vi.mock('next/navigation', () => ({ useRouter: () => router }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => router,
+  usePathname: () => '/dashboard',
+}));
 
 export const me = (over: Partial<Me> = {}): Me => ({
   id: '00000000-0000-4000-8000-000000000101',

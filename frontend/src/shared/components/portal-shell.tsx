@@ -1,18 +1,13 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { useAuth } from '@/features/auth/auth-provider';
 import { cn } from '@/shared/lib/utils';
+import { PORTAL_NAV } from '@/shared/navigation/nav-items';
+import { ShellNavItem } from '@/shared/navigation/shell-nav-item';
 import { Button } from '@/shared/ui/button';
 import { Separator } from '@/shared/ui/separator';
-
-const PORTAL_NAV = [
-  { href: '/portal', label: 'Mis suscripciones' },
-  { href: '/portal/requests', label: 'Mis solicitudes' },
-  { href: '/portal/contact', label: 'Contacto' },
-] as const;
 
 export function PortalShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -22,6 +17,17 @@ export function PortalShell({ children }: { children: ReactNode }) {
   async function signOut() {
     await logout();
     router.replace('/login');
+  }
+
+  function linkClass(href: string, implemented: boolean) {
+    const active = pathname === href;
+    return cn(
+      'inline-flex rounded-md px-3 py-2 text-sm font-medium transition-colors',
+      !implemented && 'pointer-events-none',
+      active && implemented
+        ? 'bg-primary text-primary-fg'
+        : 'text-fg-muted hover:bg-surface hover:text-fg',
+    );
   }
 
   return (
@@ -43,24 +49,11 @@ export function PortalShell({ children }: { children: ReactNode }) {
         </div>
         <nav aria-label="Portal" className="mx-auto max-w-3xl px-4 pb-3">
           <ul className="flex flex-wrap gap-2">
-            {PORTAL_NAV.map((item) => {
-              const active = pathname === item.href;
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      'inline-flex rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                      active
-                        ? 'bg-primary text-primary-fg'
-                        : 'text-fg-muted hover:bg-surface hover:text-fg',
-                    )}
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
+            {PORTAL_NAV.map((item) => (
+              <li key={item.href}>
+                <ShellNavItem item={item} className={linkClass(item.href, item.implemented)} />
+              </li>
+            ))}
           </ul>
         </nav>
         <Separator />

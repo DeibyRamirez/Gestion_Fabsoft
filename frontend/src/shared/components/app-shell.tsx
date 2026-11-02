@@ -6,27 +6,11 @@ import { MenuIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useAuth } from '@/features/auth/auth-provider';
 import { cn } from '@/shared/lib/utils';
+import { INTERNAL_ADMIN_NAV, INTERNAL_MAIN_NAV } from '@/shared/navigation/nav-items';
+import { ShellNavItem } from '@/shared/navigation/shell-nav-item';
 import { Button } from '@/shared/ui/button';
 import { Separator } from '@/shared/ui/separator';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/shared/ui/sheet';
-
-const MAIN_NAV = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/clients', label: 'Clientes' },
-  { href: '/subscriptions', label: 'Suscripciones' },
-  { href: '/renewal-requests', label: 'Solicitudes' },
-  { href: '/tasks', label: 'Tareas' },
-  { href: '/notifications', label: 'Alertas' },
-] as const;
-
-const ADMIN_NAV = [
-  { href: '/admin/users', label: 'Usuarios' },
-  { href: '/admin/products', label: 'Productos' },
-  { href: '/admin/integrations', label: 'Integraciones' },
-  { href: '/admin/alert-rules', label: 'Reglas de alerta' },
-  { href: '/admin/audit', label: 'Auditoría' },
-  { href: '/admin/settings', label: 'Configuración' },
-] as const;
 
 function NavLinks({
   pathname,
@@ -47,15 +31,13 @@ function NavLinks({
 
   return (
     <nav aria-label="Principal" className="flex flex-col gap-1 p-3">
-      {MAIN_NAV.map((item) => (
-        <Link
+      {INTERNAL_MAIN_NAV.map((item) => (
+        <ShellNavItem
           key={item.href}
-          href={item.href}
+          item={item}
           className={linkClass(item.href)}
-          {...(onNavigate ? { onClick: onNavigate } : {})}
-        >
-          {item.label}
-        </Link>
+          {...(onNavigate ? { onNavigate } : {})}
+        />
       ))}
       {isAdmin ? (
         <>
@@ -63,15 +45,13 @@ function NavLinks({
           <p className="px-3 py-1 text-xs font-semibold tracking-wide text-fg-muted uppercase">
             Admin
           </p>
-          {ADMIN_NAV.map((item) => (
-            <Link
+          {INTERNAL_ADMIN_NAV.map((item) => (
+            <ShellNavItem
               key={item.href}
-              href={item.href}
+              item={item}
               className={linkClass(item.href)}
-              {...(onNavigate ? { onClick: onNavigate } : {})}
-            >
-              {item.label}
-            </Link>
+              {...(onNavigate ? { onNavigate } : {})}
+            />
           ))}
         </>
       ) : null}
