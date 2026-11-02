@@ -1,0 +1,2988 @@
+openapi: 3.1.0
+info:
+  title: FabSoft API
+  version: 1.0.0
+  summary: API REST v1 de la plataforma de gestión de clientes, licencias/suscripciones y renovaciones.
+  description: |
+    API versionada bajo `/api/v1`. Fuente de verdad del contrato; los esquemas se generan/contrastan
+    desde Zod (`@fabsoft/shared`) con `@asteasolutions/zod-to-openapi` (ver `docs/stack.md`).
+
+    ## Autenticación
+    - **Humanos** (`admin`, `operator`, `client`): `Authorization: Bearer <JWT>` (EdDSA, 15 min).
+      El refresh token viaja en la cookie `fs_rt` (HttpOnly, Secure, SameSite=Strict, Path=/api/v1/auth). Ver ADR-001.
+    - **Integraciones**: cabecera `X-Api-Key: fsk_live_xxxxxxxx_...`. Permisos por *scope*. Enviar ambas credenciales → `400 ambiguous_credentials`.
+    - La extensión `x-roles` de cada operación indica los roles humanos permitidos. En los requisitos
+      `apiKeyAuth` se listan los *scopes* necesarios (OpenAPI 3.1 permite nombres de rol en esquemas no OAuth).
+
+    ## Scopes de integración
+    `clients:read`, `products:read`, `subscriptions:read`, `renewal-tasks:read`, `renewal-requests:read`, `renewal-requests:write`.
+    Además del scope, el alcance de datos se limita por `client_scope` del manifest (`all` | `own`).
+
+    ## Convenciones
+    - JSON `camelCase`. Fechas de negocio `YYYY-MM-DD` (America/Bogota, fin de periodo **inclusivo**). Instantes ISO-8601 UTC.
+    - Importes como string decimal con 2 decimales y `currency: "COP"`.
+    - Paginación: `page` (≥1) y `pageSize` (1–100, por defecto 20). Respuesta `{ data, meta }`.
+    - Ordenación: `sort=campo` (asc) o `sort=-campo` (desc) sobre la lista blanca de cada operación.
+    - Filtros multivalor separados por comas (`status=active,in_renewal`).
+    - Errores: RFC 9457 `application/problem+json` con `code` estable y `requestId`.
+    - Idempotencia: cabecera `Idempotency-Key` (8–255 caracteres) en POST de escritura. Misma clave + mismo cuerpo
+      durante 24 h → se devuelve la respuesta original (cabecera `Idempotency-Replayed: true`); misma clave con cuerpo distinto → `422 idempotency_key_reused`;
+      petición original aún en curso → `409 idempotency_in_progress`. **Obligatoria** para integraciones en `POST /renewal-requests`.
+    - Bloqueo optimista: campo `version` en el cuerpo de PATCH/acciones de suscripciones y tareas → `409 version_conflict`.
+    - Límites de consumo: cabeceras `RateLimit` y `RateLimit-Policy` (draft IETF); exceso → `429` con `Retry-After`.
+    - Cada respuesta incluye `X-Request-Id` (se respeta el recibido si es un UUID válido).
+  contact:
+    name: Equipo FabSoft
+  license:
+    name: Propietario — uso interno FabSoft
+    identifier: LicenseRef-FabSoft-Proprietary
+servers:
+  - url: http://localhost:4000
+    description: Desarrollo local
+  - url: https://api.fabsoft.example
+    description: Producción (dominio a definir)
+tags:
+  - name: Auth
+    description: Sesión de usuarios humanos
+  - name: Users
+    description: Usuarios internos y de portal
+  - name: Clients
+    description: Clientes, contactos y notas
+  - name: Products
+    description: Catálogo
+  - name: Subscriptions
+    description: Licencias/suscripciones, periodos y transiciones
+  - name: RenewalRequests
+    description: Solicitudes de renovación
+  - name: RenewalTasks
+    description: Tareas de seguimiento (tabla tasks)
+  - name: Notifications
+    description: Alertas in-app y registro de envíos
+  - name: AlertRules
+    description: Política de alertas
+  - name: Dashboard
+    description: Indicadores operativos
+  - name: Portal
+    description: Vistas restringidas para usuarios cliente
+  - name: Integrations
+    description: Integraciones y credenciales API
+  - name: Audit
+    description: Auditoría
+  - name: Settings
+    description: Configuración general
+  - name: Health
+    description: Salud del servicio
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      summary: Liveness del proceso API
+      security: []
+      responses:
+        '200':
+          description: Proceso vivo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/health/ready:
+    get:
+      tags: [Health]
+      operationId: getReadiness
+      summary: Readiness (conexión a BD y migraciones al día)
+      security: []
+      responses:
+        '200':
+          description: Listo para recibir tráfico
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Inicia sesión con email y contraseña
+      description: 'Límite: 5 intentos/min por IP+email y 20/min por IP. Respuesta idéntica para email inexistente o contraseña errónea.'
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginInput' }
+      responses:
+        '200':
+          description: Sesión iniciada. Fija la cookie `fs_rt`.
+          headers:
+            Set-Cookie:
+              description: '`fs_rt=<refresh>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; Max-Age=1209600`'
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshSession
+      summary: Rota el refresh token y emite un nuevo access token
+      description: Reutilizar un refresh ya rotado revoca toda la familia de sesión (`reuse_detected`). Exige la cabecera `X-Requested-With` (defensa CSRF adicional a SameSite=Strict).
+      security:
+        - refreshCookie: []
+      parameters:
+        - name: X-Requested-With
+          in: header
+          required: true
+          schema: { type: string, const: fabsoft-web }
+      responses:
+        '200':
+          description: Nuevo access token y nueva cookie `fs_rt`
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Cierra la sesión (revoca la familia del refresh token)
+      security:
+        - refreshCookie: []
+      responses:
+        '204':
+          description: Sesión cerrada; cookie eliminada
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      operationId: getMe
+      summary: Usuario autenticado
+      x-roles: [admin, operator, client]
+      responses:
+        '200':
+          description: Perfil
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/auth/change-password:
+    post:
+      tags: [Auth]
+      operationId: changePassword
+      summary: Cambia la contraseña propia (revoca las demás sesiones)
+      x-roles: [admin, operator, client]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordInput' }
+      responses:
+        '204':
+          description: Contraseña cambiada
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/v1/users:
+    get:
+      tags: [Users]
+      operationId: listUsers
+      summary: Lista usuarios (internos y de portal)
+      x-roles: [admin]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Q'
+        - name: role
+          in: query
+          description: Filtro multivalor por `UserRole`
+          schema: { type: string, examples: ['admin,operator'] }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/UserStatus' }
+        - name: clientId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [fullName, -fullName, createdAt, -createdAt], default: fullName }
+      responses:
+        '200':
+          description: Página de usuarios
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Users]
+      operationId: createUser
+      summary: Crea un usuario interno o de portal
+      description: Devuelve una contraseña temporal **una sola vez**; el usuario debe cambiarla en el primer acceso. Auditado (`user.created`).
+      x-roles: [admin]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserCreate' }
+      responses:
+        '201':
+          description: Usuario creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserCreated' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Users]
+      operationId: getUser
+      summary: Detalle de usuario
+      x-roles: [admin]
+      responses:
+        '200':
+          description: Usuario
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Users]
+      operationId: updateUser
+      summary: Cambia nombre, rol, cliente o estado (desactivar revoca sesiones)
+      description: Auditado (`user.updated`, `user.role_changed`, `user.disabled`). Un admin no puede desactivarse ni quitarse el rol a sí mismo.
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserUpdate' }
+      responses:
+        '200':
+          description: Usuario actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/users/{id}/reset-password:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Users]
+      operationId: resetUserPassword
+      summary: Genera una contraseña temporal y revoca las sesiones del usuario
+      x-roles: [admin]
+      responses:
+        '200':
+          description: Contraseña temporal (se muestra una sola vez)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [temporaryPassword]
+                properties:
+                  temporaryPassword: { type: string, minLength: 16 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/clients:
+    get:
+      tags: [Clients]
+      operationId: listClients
+      summary: Lista clientes dentro del alcance autorizado
+      x-roles: [admin, operator]
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: ['clients:read']
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Q'
+        - name: status
+          in: query
+          description: 'Multivalor `ClientStatus`. Por defecto `active,inactive`.'
+          schema: { type: string, examples: ['active,inactive'] }
+        - name: taxId
+          in: query
+          description: Búsqueda exacta por identificación (normalizada) para evitar duplicados.
+          schema: { type: string }
+        - name: ownerUserId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [legalName, -legalName, createdAt, -createdAt], default: legalName }
+      responses:
+        '200':
+          description: Página de clientes
+          headers:
+            RateLimit: { $ref: '#/components/headers/RateLimit' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      tags: [Clients]
+      operationId: createClient
+      summary: Crea un cliente (Flujo A)
+      description: Rechaza identificaciones fiscales duplicadas (`409 duplicate_tax_id`). Auditado (`client.created`).
+      x-roles: [admin, operator]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientCreate' }
+      responses:
+        '201':
+          description: Cliente creado
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Client' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/clients/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Clients]
+      operationId: getClient
+      summary: Detalle de un cliente autorizado (con contactos y resumen)
+      description: Las integraciones reciben el cliente sin `summary`. Cliente fuera de alcance → `404` (no se revela su existencia).
+      x-roles: [admin, operator]
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: ['clients:read']
+      responses:
+        '200':
+          description: Cliente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Clients]
+      operationId: updateClient
+      summary: Actualiza datos del cliente
+      description: Auditado (`client.updated`) con antes/después. `status` sólo admite `active`/`inactive`; archivar usa `/archive`.
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientUpdate' }
+      responses:
+        '200':
+          description: Cliente actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Client' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/clients/{id}/archive:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Clients]
+      operationId: archiveClient
+      summary: Archiva un cliente (sin borrar historial)
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReasonInput' }
+      responses:
+        '200':
+          description: Cliente archivado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Client' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/clients/{id}/reactivate:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Clients]
+      operationId: reactivateClient
+      summary: Reactiva un cliente archivado o inactivo
+      x-roles: [admin]
+      responses:
+        '200':
+          description: Cliente activo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Client' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/clients/{id}/contacts:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Clients]
+      operationId: listClientContacts
+      summary: Contactos del cliente
+      x-roles: [admin, operator]
+      parameters:
+        - name: includeArchived
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Contactos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ClientContact' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Clients]
+      operationId: createClientContact
+      summary: Añade un contacto (marcar `isPrimary` desmarca el anterior)
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientContactCreate' }
+      responses:
+        '201':
+          description: Contacto creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientContact' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/clients/{id}/contacts/{contactId}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+      - name: contactId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Clients]
+      operationId: updateClientContact
+      summary: Actualiza o archiva (`archived=true`) un contacto
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ClientContactUpdate' }
+      responses:
+        '200':
+          description: Contacto actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientContact' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/clients/{id}/notes:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Clients]
+      operationId: listClientNotes
+      summary: Notas internas de seguimiento (más recientes primero)
+      x-roles: [admin, operator]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Página de notas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientNotePage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Clients]
+      operationId: createClientNote
+      summary: Añade una nota interna (inmutable)
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              additionalProperties: false
+              properties:
+                body: { type: string, minLength: 1, maxLength: 5000 }
+      responses:
+        '201':
+          description: Nota creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientNote' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/clients/{id}/activity:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Clients]
+      operationId: listClientActivity
+      summary: Historial relacionado con el cliente (auditoría filtrada por cliente)
+      x-roles: [admin, operator]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Página de eventos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditLogPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/products:
+    get:
+      tags: [Products]
+      operationId: listProducts
+      summary: Catálogo de productos y servicios
+      x-roles: [admin, operator]
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: ['products:read']
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Q'
+        - name: productType
+          in: query
+          schema: { type: string, examples: ['third_party,own'] }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ProductStatus' }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [name, -name, createdAt, -createdAt], default: name }
+      responses:
+        '200':
+          description: Página de productos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      tags: [Products]
+      operationId: createProduct
+      summary: Crea un producto del catálogo
+      x-roles: [admin]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductCreate' }
+      responses:
+        '201':
+          description: Producto creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/products/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Products]
+      operationId: getProduct
+      summary: Detalle de producto
+      x-roles: [admin, operator]
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: ['products:read']
+      responses:
+        '200':
+          description: Producto
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Products]
+      operationId: updateProduct
+      summary: Actualiza o desactiva (`status=inactive`) un producto
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductUpdate' }
+      responses:
+        '200':
+          description: Producto actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/subscriptions:
+    get:
+      tags: [Subscriptions]
+      operationId: listSubscriptions
+      summary: Lista suscripciones con filtros y paginación
+      description: Las integraciones nunca reciben `supplierCostAmount` ni `notes`.
+      x-roles: [admin, operator]
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: ['subscriptions:read']
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/Q'
+        - name: clientId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: productId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: ownerUserId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          description: Multivalor `SubscriptionStatus`
+          schema: { type: string, examples: ['active,in_renewal'] }
+        - name: followUpStatus
+          in: query
+          schema: { $ref: '#/components/schemas/FollowUpStatus' }
+        - name: paymentStatus
+          in: query
+          description: Estado de pago del periodo vigente
+          schema: { $ref: '#/components/schemas/PaymentStatus' }
+        - name: expiresFrom
+          in: query
+          schema: { type: string, format: date }
+        - name: expiresTo
+          in: query
+          schema: { type: string, format: date }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [currentPeriodEnd, -currentPeriodEnd, createdAt, -createdAt, clientName, -clientName], default: currentPeriodEnd }
+      responses:
+        '200':
+          description: Página de suscripciones
+          headers:
+            RateLimit: { $ref: '#/components/headers/RateLimit' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubscriptionPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      tags: [Subscriptions]
+      operationId: createSubscription
+      summary: Crea una suscripción y su periodo 1 (Flujo A)
+      description: |
+        Valida cliente no archivado y producto activo. Crea el periodo 1, programa las alertas y audita `subscription.created`.
+        `supplierCostAmount` sólo puede fijarlo un admin.
+      x-roles: [admin, operator]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SubscriptionCreate' }
+      responses:
+        '201':
+          description: Suscripción creada
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubscriptionDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/subscriptions/expiring:
+    get:
+      tags: [Subscriptions]
+      operationId: listExpiringSubscriptions
+      summary: Suscripciones activas o en renovación que vencen en los próximos N días (Flujo D)
+      description: 'Rango: hoy ≤ currentPeriodEnd ≤ hoy + withinDays, con "hoy" en America/Bogota. Orden ascendente por vencimiento.'
+      x-roles: [admin, operator]
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: ['subscriptions:read']
+      parameters:
+        - name: withinDays
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 365, default: 30 }
+        - name: clientId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: ownerUserId
+          in: query
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Página de suscripciones por vencer
+          headers:
+            RateLimit: { $ref: '#/components/headers/RateLimit' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExpiringSubscriptionPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/subscriptions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Subscriptions]
+      operationId: getSubscription
+      summary: Detalle de una suscripción
+      x-roles: [admin, operator]
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: ['subscriptions:read']
+      responses:
+        '200':
+          description: Suscripción
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubscriptionDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Subscriptions]
+      operationId: updateSubscription
+      summary: Actualiza campos no estructurales
+      description: |
+        No cambia estado ni fechas (usar acciones). `priceAmount` y `supplierCostAmount` sólo admin, con `changeReason`
+        (afectan al periodo **vigente** y quedan auditados con antes/después; los periodos cerrados no cambian).
+        Cambiar `isRenewable` revisa las alertas pendientes (RN-09, RN-10).
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SubscriptionUpdate' }
+      responses:
+        '200':
+          description: Suscripción actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubscriptionDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /api/v1/subscriptions/{id}/activate:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Subscriptions]
+      operationId: activateSubscription
+      summary: pending_activation → active
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VersionInput' }
+      responses:
+        '200': { $ref: '#/components/responses/SubscriptionDetailOk' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/subscriptions/{id}/start-renewal:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Subscriptions]
+      operationId: startSubscriptionRenewal
+      summary: active → in_renewal y followUpStatus = in_progress
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VersionInput' }
+      responses:
+        '200': { $ref: '#/components/responses/SubscriptionDetailOk' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/subscriptions/{id}/renew:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Subscriptions]
+      operationId: renewSubscription
+      summary: Confirma la renovación y registra el nuevo periodo (§6.5, Flujo B)
+      description: |
+        Atómico: marca el periodo actual `renewed`, crea el periodo siguiente (por defecto empieza el día siguiente al fin
+        actual y su fin se calcula con el ciclo), actualiza `currentPeriodEnd`, deja el estado `active`, cancela alertas del
+        periodo anterior y programa las nuevas, cierra tareas abiertas de renovación, resuelve solicitudes abiertas y audita
+        `subscription.renewed`. El nuevo periodo nace con `paymentStatus=pending` salvo que se indique `not_tracked` (RN-06).
+      x-roles: [admin, operator]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RenewInput' }
+      responses:
+        '200': { $ref: '#/components/responses/SubscriptionDetailOk' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/subscriptions/{id}/not-renewed:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Subscriptions]
+      operationId: markSubscriptionNotRenewed
+      summary: Registra la decisión de no renovar (motivo obligatorio)
+      description: Si la suscripción sigue vigente, el estado cambia a `not_renewed` al terminar el periodo (job); si está `expired`, cambia inmediatamente. Cancela las alertas de renovación pendientes.
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VersionReasonInput' }
+      responses:
+        '200': { $ref: '#/components/responses/SubscriptionDetailOk' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/subscriptions/{id}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Subscriptions]
+      operationId: cancelSubscription
+      summary: Cancela la suscripción (terminal, sólo admin)
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VersionReasonInput' }
+      responses:
+        '200': { $ref: '#/components/responses/SubscriptionDetailOk' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/subscriptions/{id}/correct-expiration:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Subscriptions]
+      operationId: correctSubscriptionExpiration
+      summary: Corrige la fecha de vencimiento del periodo vigente (Flujo E)
+      description: Motivo obligatorio. Conserva el valor anterior en auditoría (`subscription.expiration_corrected`), recalcula alertas futuras y cancela las que no correspondan. No admite una fecha anterior al inicio del periodo vigente.
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CorrectExpirationInput' }
+      responses:
+        '200': { $ref: '#/components/responses/SubscriptionDetailOk' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/subscriptions/{id}/periods:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Subscriptions]
+      operationId: listSubscriptionPeriods
+      summary: Historial de periodos (más reciente primero)
+      x-roles: [admin, operator]
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: ['subscriptions:read']
+      responses:
+        '200':
+          description: Periodos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/SubscriptionPeriod' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/subscriptions/{id}/periods/{periodId}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+      - name: periodId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Subscriptions]
+      operationId: updateSubscriptionPeriodPayment
+      summary: Actualiza la dimensión de pago (y referencia contractual) de un periodo
+      description: Única forma de cambiar `paymentStatus` (RN-06, RN-07). Auditado (`subscription_period.payment_updated`).
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PeriodPaymentUpdate' }
+      responses:
+        '200':
+          description: Periodo actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubscriptionPeriod' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/subscriptions/{id}/notifications:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Subscriptions]
+      operationId: listSubscriptionNotifications
+      summary: Alertas de la suscripción (cualquier estado)
+      x-roles: [admin, operator]
+      responses:
+        '200':
+          description: Alertas
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Notification' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/renewal-requests:
+    get:
+      tags: [RenewalRequests]
+      operationId: listRenewalRequests
+      summary: Lista solicitudes de renovación
+      x-roles: [admin, operator]
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: ['renewal-requests:read']
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema: { type: string, examples: ['pending_review,in_progress'] }
+        - name: clientId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: subscriptionId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: assignedUserId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [createdAt, -createdAt], default: -createdAt }
+      responses:
+        '200':
+          description: Página de solicitudes
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RenewalRequestPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      tags: [RenewalRequests]
+      operationId: createRenewalRequest
+      summary: Registra una solicitud de renovación (integración o equipo interno)
+      description: |
+        Crea la solicitud en `pending_review` (no es una renovación confirmada, RN-05). El worker crea la tarea
+        `review_renewal_request` y notifica al equipo. `Idempotency-Key` obligatoria para integraciones.
+        Los usuarios cliente usan `POST /api/v1/portal/renewal-requests`.
+      x-roles: [admin, operator]
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: ['renewal-requests:write']
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RenewalRequestCreate' }
+      responses:
+        '201':
+          description: Solicitud creada
+          headers:
+            Location:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RenewalRequest' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/renewal-requests/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [RenewalRequests]
+      operationId: getRenewalRequest
+      summary: Detalle de solicitud
+      x-roles: [admin, operator]
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: ['renewal-requests:read']
+      responses:
+        '200':
+          description: Solicitud
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RenewalRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [RenewalRequests]
+      operationId: updateRenewalRequest
+      summary: Asigna responsable o pasa a `in_progress`
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RenewalRequestUpdate' }
+      responses:
+        '200':
+          description: Solicitud actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RenewalRequest' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/renewal-requests/{id}/resolve:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [RenewalRequests]
+      operationId: resolveRenewalRequest
+      summary: Resuelve la solicitud (renewed | not_renewed | other)
+      description: Resolver como `renewed` exige un periodo renovado confirmado posterior a la solicitud (usar antes `/subscriptions/{id}/renew`; si no, `422 renewal_not_confirmed`). La solicitud nunca renueva por sí misma (RN-05).
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RenewalRequestResolve' }
+      responses:
+        '200':
+          description: Solicitud resuelta
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RenewalRequest' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /api/v1/renewal-tasks:
+    get:
+      tags: [RenewalTasks]
+      operationId: listRenewalTasks
+      summary: Lista tareas de seguimiento con filtros (§6.6)
+      x-roles: [admin, operator]
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: ['renewal-tasks:read']
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: assigneeUserId
+          in: query
+          description: UUID o `me`
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string, examples: ['pending,in_progress'] }
+        - name: priority
+          in: query
+          schema: { type: string, examples: ['high,urgent'] }
+        - name: taskType
+          in: query
+          schema: { $ref: '#/components/schemas/TaskType' }
+        - name: clientId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: subscriptionId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: dueFrom
+          in: query
+          schema: { type: string, format: date }
+        - name: dueTo
+          in: query
+          schema: { type: string, format: date }
+        - name: overdue
+          in: query
+          description: '`true` = abiertas con dueDate < hoy (Bogotá)'
+          schema: { type: boolean }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [dueDate, -dueDate, priority, -priority, createdAt, -createdAt], default: dueDate }
+      responses:
+        '200':
+          description: Página de tareas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    post:
+      tags: [RenewalTasks]
+      operationId: createRenewalTask
+      summary: Crea una tarea manual
+      x-roles: [admin, operator]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskCreate' }
+      responses:
+        '201':
+          description: Tarea creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/renewal-tasks/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [RenewalTasks]
+      operationId: getRenewalTask
+      summary: Detalle de tarea
+      x-roles: [admin, operator]
+      security:
+        - bearerAuth: []
+        - apiKeyAuth: ['renewal-tasks:read']
+      responses:
+        '200':
+          description: Tarea
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [RenewalTasks]
+      operationId: updateRenewalTask
+      summary: Reasigna, reprograma, cambia prioridad, estado abierto o notas
+      description: '`status` sólo admite `pending` o `in_progress`; cerrar usa `/complete` o `/cancel`.'
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskUpdate' }
+      responses:
+        '200':
+          description: Tarea actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/renewal-tasks/{id}/complete:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [RenewalTasks]
+      operationId: completeRenewalTask
+      summary: Completa la tarea con resultado
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskClose' }
+      responses:
+        '200':
+          description: Tarea completada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/renewal-tasks/{id}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [RenewalTasks]
+      operationId: cancelRenewalTask
+      summary: Cancela la tarea con motivo
+      x-roles: [admin, operator]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskClose' }
+      responses:
+        '200':
+          description: Tarea cancelada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /api/v1/notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      summary: Alertas in-app y registro de envíos
+      x-roles: [admin, operator]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: mine
+          in: query
+          description: '`true` = sólo alertas in-app del usuario autenticado ya visibles (`sent`)'
+          schema: { type: boolean, default: false }
+        - name: unread
+          in: query
+          schema: { type: boolean }
+        - name: status
+          in: query
+          schema: { type: string, examples: ['failed'] }
+        - name: channel
+          in: query
+          schema: { $ref: '#/components/schemas/NotificationChannel' }
+        - name: subscriptionId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [scheduledFor, -scheduledFor], default: -scheduledFor }
+      responses:
+        '200':
+          description: Página de alertas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/notifications/{id}/read:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Notifications]
+      operationId: markNotificationRead
+      summary: Marca como leída una alerta in-app propia
+      x-roles: [admin, operator]
+      responses:
+        '204':
+          description: Marcada como leída
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/notifications/{id}/retry:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Notifications]
+      operationId: retryNotification
+      summary: Reintenta una alerta `failed` (vuelve a `pending` y reinicia intentos)
+      description: Sólo si la alerta sigue siendo válida para el periodo vigente; si no, `422 notification_obsolete`. Auditado (`notification.retried`).
+      x-roles: [admin]
+      responses:
+        '200':
+          description: Alerta reprogramada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Notification' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /api/v1/alert-rules:
+    get:
+      tags: [AlertRules]
+      operationId: listAlertRules
+      summary: Política de alertas
+      x-roles: [admin, operator]
+      responses:
+        '200':
+          description: Reglas
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AlertRule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/alert-rules/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    patch:
+      tags: [AlertRules]
+      operationId: updateAlertRule
+      summary: Configura una regla (encola `alerts.reconcile`)
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlertRuleUpdate' }
+      responses:
+        '200':
+          description: Regla actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertRule' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/v1/dashboard/summary:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboardSummary
+      summary: Indicadores operativos derivados de datos reales (§6.1)
+      description: Cada indicador incluye `resource` y `filter`, los parámetros del listado que compone la cifra.
+      x-roles: [admin, operator]
+      parameters:
+        - name: ownerUserId
+          in: query
+          description: UUID o `me` para ver sólo lo propio
+          schema: { type: string }
+      responses:
+        '200':
+          description: Indicadores
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/dashboard/activity:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboardActivity
+      summary: Actividad reciente relevante
+      x-roles: [admin, operator]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        '200':
+          description: Eventos recientes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditLog' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/portal/me:
+    get:
+      tags: [Portal]
+      operationId: getPortalMe
+      summary: Organización del usuario cliente y canal de contacto de FabSoft
+      x-roles: [client]
+      responses:
+        '200':
+          description: Perfil de portal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PortalMe' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/portal/subscriptions:
+    get:
+      tags: [Portal]
+      operationId: listPortalSubscriptions
+      summary: Suscripciones visibles de la organización del usuario
+      x-roles: [client]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema: { type: string, examples: ['active,in_renewal,expired'] }
+      responses:
+        '200':
+          description: Página de suscripciones
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PortalSubscriptionPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/portal/subscriptions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Portal]
+      operationId: getPortalSubscription
+      summary: Detalle visible de una suscripción propia
+      x-roles: [client]
+      responses:
+        '200':
+          description: Suscripción
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PortalSubscription' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/portal/subscriptions/{id}/periods:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Portal]
+      operationId: listPortalSubscriptionPeriods
+      summary: Historial visible de periodos y renovaciones
+      x-roles: [client]
+      responses:
+        '200':
+          description: Periodos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/PortalPeriod' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/portal/renewal-requests:
+    get:
+      tags: [Portal]
+      operationId: listPortalRenewalRequests
+      summary: Solicitudes de la organización
+      x-roles: [client]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: subscriptionId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Página de solicitudes
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PortalRenewalRequestPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Portal]
+      operationId: createPortalRenewalRequest
+      summary: Crea una solicitud de renovación (Flujo C)
+      x-roles: [client]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RenewalRequestCreate' }
+      responses:
+        '201':
+          description: Solicitud creada en `pending_review`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PortalRenewalRequest' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/portal/renewal-requests/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Portal]
+      operationId: getPortalRenewalRequest
+      summary: Estado de una solicitud propia
+      x-roles: [client]
+      responses:
+        '200':
+          description: Solicitud
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PortalRenewalRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/integrations:
+    get:
+      tags: [Integrations]
+      operationId: listIntegrations
+      summary: Lista integraciones
+      x-roles: [admin]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/IntegrationStatus' }
+      responses:
+        '200':
+          description: Página de integraciones
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Integrations]
+      operationId: createIntegration
+      summary: Crea una integración a partir de su manifest (Flujo D)
+      description: El manifest se valida en servidor (ver `docs/integrations/README.md`). Auditado (`integration.created`).
+      x-roles: [admin]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IntegrationCreate' }
+      responses:
+        '201':
+          description: Integración creada (sin credenciales; se emiten aparte)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Integration' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/integrations/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Integrations]
+      operationId: getIntegration
+      summary: Detalle de integración
+      x-roles: [admin]
+      responses:
+        '200':
+          description: Integración
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Integration' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Integrations]
+      operationId: updateIntegration
+      summary: Cambia nombre, descripción o estado (`disabled` corta el acceso de inmediato)
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IntegrationUpdate' }
+      responses:
+        '200':
+          description: Integración actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Integration' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/integrations/{id}/manifest:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    put:
+      tags: [Integrations]
+      operationId: replaceIntegrationManifest
+      summary: Sustituye el manifest (versión semver estrictamente mayor)
+      description: Recalcula `scopes`, `clientScope`, clientes asignados y límite. Auditado con diff (`integration.manifest_updated`).
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IntegrationManifest' }
+      responses:
+        '200':
+          description: Manifest aplicado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Integration' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/integrations/{id}/credentials:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Integrations]
+      operationId: listIntegrationCredentials
+      summary: Credenciales (sólo prefijo y metadatos; nunca el secreto)
+      x-roles: [admin]
+      responses:
+        '200':
+          description: Credenciales
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ApiCredential' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Integrations]
+      operationId: createIntegrationCredential
+      summary: Emite una API key (se muestra UNA vez). Máximo 2 activas.
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApiCredentialCreate' }
+      responses:
+        '201':
+          description: Credencial creada
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiCredentialCreated' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/integrations/{id}/credentials/{credentialId}/revoke:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+      - name: credentialId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Integrations]
+      operationId: revokeIntegrationCredential
+      summary: Revoca una credencial (efecto inmediato, auditado)
+      x-roles: [admin]
+      responses:
+        '200':
+          description: Credencial revocada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiCredential' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/v1/audit-logs:
+    get:
+      tags: [Audit]
+      operationId: listAuditLogs
+      summary: Registro de auditoría (más reciente primero)
+      x-roles: [admin]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: actorType
+          in: query
+          schema: { $ref: '#/components/schemas/ActorType' }
+        - name: actorId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: action
+          in: query
+          schema: { type: string, examples: ['subscription.renewed'] }
+        - name: resourceType
+          in: query
+          schema: { type: string }
+        - name: resourceId
+          in: query
+          schema: { type: string }
+        - name: clientId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Página de eventos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditLogPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/v1/settings:
+    get:
+      tags: [Settings]
+      operationId: getSettings
+      summary: Configuración general
+      x-roles: [admin, operator]
+      responses:
+        '200':
+          description: Configuración
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Settings' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    patch:
+      tags: [Settings]
+      operationId: updateSettings
+      summary: Actualiza la configuración general
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Settings' }
+      responses:
+        '200':
+          description: Configuración actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Settings' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token EdDSA de 15 minutos para usuarios humanos.
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: API key de integración (`fsk_live_<prefijo>_<secreto>`). Los scopes requeridos se listan en cada operación.
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: fs_rt
+      description: Refresh token opaco rotativo (HttpOnly).
+
+  headers:
+    RateLimit:
+      description: 'Cuota según el draft IETF RateLimit (p. ej. `limit=60, remaining=59, reset=42`).'
+      schema: { type: string }
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Q:
+      name: q
+      in: query
+      description: Búsqueda de texto (contiene, sin distinguir mayúsculas)
+      schema: { type: string, minLength: 2, maxLength: 100 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Clave única por intento lógico (UUID recomendado). Retención 24 h. Obligatoria para integraciones en POST.
+      schema: { type: string, minLength: 8, maxLength: 255 }
+
+  responses:
+    BadRequest:
+      description: Petición inválida (`validation_error`, `ambiguous_credentials`)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          example:
+            type: https://docs.fabsoft.example/errors/validation_error
+            title: La petición no es válida
+            status: 400
+            code: validation_error
+            detail: Hay campos con errores.
+            requestId: 6f1c2b8e-0d1e-4a7b-9c55-3a2f1e0d9b11
+            errors:
+              - path: currentPeriodEnd
+                message: Debe ser igual o posterior a startDate
+    Unauthorized:
+      description: Sin credenciales válidas (`unauthenticated`, `invalid_credentials`, `token_expired`, `password_change_required`)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Autenticado sin permiso (`forbidden`, `insufficient_scope`)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: No existe o está fuera del alcance del actor (`not_found`)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: Conflicto (`version_conflict`, `duplicate_tax_id`, `duplicate_email`, `duplicate_product`, `idempotency_in_progress`)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnprocessableEntity:
+      description: Regla de negocio incumplida (`invalid_state_transition`, `period_overlap`, `client_archived`, `product_inactive`, `idempotency_key_reused`, `notification_obsolete`, `credential_limit_reached`, `manifest_invalid`, `renewal_not_confirmed`)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TooManyRequests:
+      description: Límite de consumo superado (`rate_limited`)
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    ServiceUnavailable:
+      description: No disponible (`maintenance`, `dependency_unavailable`)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    SubscriptionDetailOk:
+      description: Suscripción tras la operación
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SubscriptionDetail' }
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code, requestId]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        code:
+          type: string
+          enum: [validation_error, ambiguous_credentials, unauthenticated, invalid_credentials, token_expired,
+                 password_change_required, forbidden, insufficient_scope, not_found, version_conflict,
+                 duplicate_tax_id, duplicate_email, duplicate_product, idempotency_in_progress,
+                 idempotency_key_reused, invalid_state_transition, period_overlap, client_archived,
+                 product_inactive, notification_obsolete, credential_limit_reached, manifest_invalid,
+                 renewal_not_confirmed, rate_limited, maintenance, dependency_unavailable, internal_error]
+        requestId: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [path, message]
+            properties:
+              path: { type: string }
+              message: { type: string }
+    PaginationMeta:
+      type: object
+      required: [page, pageSize, total, totalPages]
+      properties:
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+    Amount:
+      type: string
+      pattern: '^\d{1,12}\.\d{2}$'
+      description: Importe decimal en pesos colombianos con 2 decimales
+      examples: ['1200000.00']
+    Currency:
+      type: string
+      const: COP
+    UserRef:
+      type: object
+      required: [id, fullName]
+      properties:
+        id: { type: string, format: uuid }
+        fullName: { type: string }
+    ReasonInput:
+      type: object
+      required: [reason]
+      additionalProperties: false
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 1000 }
+    VersionInput:
+      type: object
+      required: [version]
+      additionalProperties: false
+      properties:
+        version: { type: integer, minimum: 1 }
+    VersionReasonInput:
+      type: object
+      required: [version, reason]
+      additionalProperties: false
+      properties:
+        version: { type: integer, minimum: 1 }
+        reason: { type: string, minLength: 3, maxLength: 1000 }
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ok, degraded, down] }
+        version: { type: string }
+        checks:
+          type: object
+          additionalProperties: { type: string, enum: [ok, fail] }
+
+    UserRole: { type: string, enum: [admin, operator, client] }
+    UserStatus: { type: string, enum: [active, disabled] }
+    ClientStatus: { type: string, enum: [active, inactive, archived] }
+    ProductType: { type: string, enum: [third_party, own, recurring_service] }
+    ProductStatus: { type: string, enum: [active, inactive] }
+    BillingCycle: { type: string, enum: [monthly, quarterly, semiannual, annual, biennial, custom] }
+    SubscriptionStatus: { type: string, enum: [pending_activation, active, in_renewal, expired, cancelled, not_renewed] }
+    PaymentStatus: { type: string, enum: [not_tracked, pending, received] }
+    FollowUpStatus: { type: string, enum: [none, in_progress, awaiting_client, closed] }
+    RenewalOutcome: { type: string, enum: [pending, renewed, not_renewed] }
+    RenewalRequestStatus: { type: string, enum: [pending_review, in_progress, resolved] }
+    RenewalRequestResolution: { type: string, enum: [renewed, not_renewed, other] }
+    TaskType: { type: string, enum: [contact_client, send_proposal, confirm_terms, verify_payment, confirm_renewal, record_non_renewal, review_renewal_request, review_expired, other] }
+    TaskPriority: { type: string, enum: [low, medium, high, urgent] }
+    TaskStatus: { type: string, enum: [pending, in_progress, completed, cancelled] }
+    NotificationType: { type: string, enum: [expiration_alert, renewal_request_created] }
+    NotificationChannel: { type: string, enum: [in_app, email] }
+    NotificationStatus: { type: string, enum: [pending, sent, failed, cancelled] }
+    IntegrationStatus: { type: string, enum: [active, disabled] }
+    ClientScope: { type: string, enum: [all, own] }
+    ActorType: { type: string, enum: [user, integration, system] }
+    Scope: { type: string, enum: ['clients:read', 'products:read', 'subscriptions:read', 'renewal-tasks:read', 'renewal-requests:read', 'renewal-requests:write'] }
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 1, maxLength: 256 }
+    TokenResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        tokenType: { type: string, const: Bearer }
+        expiresIn: { type: integer, description: Segundos de validez, examples: [900] }
+        user: { $ref: '#/components/schemas/Me' }
+    Me:
+      type: object
+      required: [id, email, fullName, role, mustChangePassword]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        fullName: { type: string }
+        role: { $ref: '#/components/schemas/UserRole' }
+        clientId: { type: [string, 'null'], format: uuid }
+        mustChangePassword: { type: boolean }
+    ChangePasswordInput:
+      type: object
+      required: [currentPassword, newPassword]
+      additionalProperties: false
+      properties:
+        currentPassword: { type: string, maxLength: 256 }
+        newPassword: { type: string, minLength: 12, maxLength: 256, description: Mínimo 12 caracteres; se rechaza si coincide con el email. }
+    User:
+      type: object
+      required: [id, email, fullName, role, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        fullName: { type: string }
+        role: { $ref: '#/components/schemas/UserRole' }
+        clientId: { type: [string, 'null'], format: uuid }
+        status: { $ref: '#/components/schemas/UserStatus' }
+        mustChangePassword: { type: boolean }
+        lastLoginAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    UserCreate:
+      type: object
+      required: [email, fullName, role]
+      additionalProperties: false
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        fullName: { type: string, minLength: 2, maxLength: 150 }
+        role: { $ref: '#/components/schemas/UserRole' }
+        clientId: { type: [string, 'null'], format: uuid, description: Obligatorio si role=client; prohibido en otro caso. }
+    UserUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        fullName: { type: string, minLength: 2, maxLength: 150 }
+        role: { $ref: '#/components/schemas/UserRole' }
+        clientId: { type: [string, 'null'], format: uuid }
+        status: { $ref: '#/components/schemas/UserStatus' }
+    UserCreated:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          required: [temporaryPassword]
+          properties:
+            temporaryPassword: { type: string, minLength: 16 }
+    UserPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/User' } }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    Client:
+      type: object
+      required: [id, legalName, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        legalName: { type: string }
+        taxId: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/ClientStatus' }
+        email: { type: [string, 'null'], format: email }
+        phone: { type: [string, 'null'] }
+        owner:
+          oneOf:
+            - $ref: '#/components/schemas/UserRef'
+            - type: 'null'
+        archivedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ClientDetail:
+      allOf:
+        - $ref: '#/components/schemas/Client'
+        - type: object
+          properties:
+            contacts:
+              type: array
+              items: { $ref: '#/components/schemas/ClientContact' }
+            summary:
+              type: object
+              description: Sólo para usuarios internos
+              properties:
+                activeSubscriptions: { type: integer }
+                expiringIn30Days: { type: integer }
+                expiredSubscriptions: { type: integer }
+                openTasks: { type: integer }
+                openRenewalRequests: { type: integer }
+    ClientCreate:
+      type: object
+      required: [legalName]
+      additionalProperties: false
+      properties:
+        legalName: { type: string, minLength: 2, maxLength: 200 }
+        taxId: { type: [string, 'null'], minLength: 3, maxLength: 30 }
+        email: { type: [string, 'null'], format: email }
+        phone: { type: [string, 'null'], maxLength: 30 }
+        ownerUserId: { type: [string, 'null'], format: uuid }
+        status: { type: string, enum: [active, inactive], default: active }
+    ClientUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        legalName: { type: string, minLength: 2, maxLength: 200 }
+        taxId: { type: [string, 'null'], minLength: 3, maxLength: 30 }
+        email: { type: [string, 'null'], format: email }
+        phone: { type: [string, 'null'], maxLength: 30 }
+        ownerUserId: { type: [string, 'null'], format: uuid }
+        status: { type: string, enum: [active, inactive] }
+    ClientPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Client' } }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    ClientContact:
+      type: object
+      required: [id, clientId, fullName, isPrimary]
+      properties:
+        id: { type: string, format: uuid }
+        clientId: { type: string, format: uuid }
+        fullName: { type: string }
+        email: { type: [string, 'null'], format: email }
+        phone: { type: [string, 'null'] }
+        roleTitle: { type: [string, 'null'] }
+        isPrimary: { type: boolean }
+        archivedAt: { type: [string, 'null'], format: date-time }
+    ClientContactCreate:
+      type: object
+      required: [fullName]
+      additionalProperties: false
+      description: Requiere email o teléfono.
+      properties:
+        fullName: { type: string, minLength: 2, maxLength: 150 }
+        email: { type: [string, 'null'], format: email }
+        phone: { type: [string, 'null'], maxLength: 30 }
+        roleTitle: { type: [string, 'null'], maxLength: 100 }
+        isPrimary: { type: boolean, default: false }
+    ClientContactUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        fullName: { type: string, minLength: 2, maxLength: 150 }
+        email: { type: [string, 'null'], format: email }
+        phone: { type: [string, 'null'], maxLength: 30 }
+        roleTitle: { type: [string, 'null'], maxLength: 100 }
+        isPrimary: { type: boolean }
+        archived: { type: boolean }
+    ClientNote:
+      type: object
+      required: [id, clientId, author, body, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        clientId: { type: string, format: uuid }
+        author: { $ref: '#/components/schemas/UserRef' }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+    ClientNotePage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/ClientNote' } }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    Product:
+      type: object
+      required: [id, name, productType, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        productType: { $ref: '#/components/schemas/ProductType' }
+        vendor: { type: [string, 'null'] }
+        referenceCode: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/ProductStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ProductCreate:
+      type: object
+      required: [name, productType]
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 2, maxLength: 150 }
+        description: { type: [string, 'null'], maxLength: 2000 }
+        productType: { $ref: '#/components/schemas/ProductType' }
+        vendor: { type: [string, 'null'], maxLength: 150 }
+        referenceCode: { type: [string, 'null'], maxLength: 100 }
+    ProductUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 2, maxLength: 150 }
+        description: { type: [string, 'null'], maxLength: 2000 }
+        productType: { $ref: '#/components/schemas/ProductType' }
+        vendor: { type: [string, 'null'], maxLength: 150 }
+        referenceCode: { type: [string, 'null'], maxLength: 100 }
+        status: { $ref: '#/components/schemas/ProductStatus' }
+    ProductPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Product' } }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    Subscription:
+      type: object
+      description: Vista de listado. `supplierCostAmount` y `notes` nunca se envían a integraciones.
+      required: [id, client, product, startDate, currentPeriodEnd, billingCycle, priceAmount, currency, status, followUpStatus, isRenewable, version]
+      properties:
+        id: { type: string, format: uuid }
+        client:
+          type: object
+          required: [id, legalName]
+          properties:
+            id: { type: string, format: uuid }
+            legalName: { type: string }
+        product:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        contractReference: { type: [string, 'null'] }
+        startDate: { type: string, format: date }
+        currentPeriodEnd: { type: string, format: date, description: Último día inclusivo de vigencia (America/Bogota) }
+        daysUntilExpiration: { type: integer, description: Negativo si ya venció }
+        billingCycle: { $ref: '#/components/schemas/BillingCycle' }
+        customCycleMonths: { type: [integer, 'null'], minimum: 1, maximum: 120 }
+        priceAmount: { $ref: '#/components/schemas/Amount' }
+        currency: { $ref: '#/components/schemas/Currency' }
+        status: { $ref: '#/components/schemas/SubscriptionStatus' }
+        followUpStatus: { $ref: '#/components/schemas/FollowUpStatus' }
+        currentPaymentStatus: { $ref: '#/components/schemas/PaymentStatus' }
+        isRenewable: { type: boolean }
+        owner:
+          oneOf:
+            - $ref: '#/components/schemas/UserRef'
+            - type: 'null'
+        version: { type: integer }
+    SubscriptionDetail:
+      allOf:
+        - $ref: '#/components/schemas/Subscription'
+        - type: object
+          properties:
+            supplierCostAmount:
+              oneOf:
+                - $ref: '#/components/schemas/Amount'
+                - type: 'null'
+            renewalTerms: { type: [string, 'null'] }
+            visibleInPortal: { type: boolean }
+            notes: { type: [string, 'null'] }
+            currentPeriod: { $ref: '#/components/schemas/SubscriptionPeriod' }
+            cancelledAt: { type: [string, 'null'], format: date-time }
+            cancellationReason: { type: [string, 'null'] }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    SubscriptionCreate:
+      type: object
+      required: [clientId, productId, startDate, currentPeriodEnd, billingCycle, priceAmount]
+      additionalProperties: false
+      properties:
+        clientId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        contractReference: { type: [string, 'null'], maxLength: 120 }
+        startDate: { type: string, format: date }
+        currentPeriodEnd: { type: string, format: date, description: 'Debe ser >= startDate' }
+        billingCycle: { $ref: '#/components/schemas/BillingCycle' }
+        customCycleMonths: { type: [integer, 'null'], minimum: 1, maximum: 120, description: Obligatorio si billingCycle=custom }
+        priceAmount: { $ref: '#/components/schemas/Amount' }
+        currency: { $ref: '#/components/schemas/Currency' }
+        supplierCostAmount:
+          oneOf:
+            - $ref: '#/components/schemas/Amount'
+            - type: 'null'
+        renewalTerms: { type: [string, 'null'], maxLength: 2000 }
+        isRenewable: { type: boolean, default: true }
+        visibleInPortal: { type: boolean, default: true }
+        ownerUserId: { type: [string, 'null'], format: uuid }
+        notes: { type: [string, 'null'], maxLength: 5000 }
+        activate: { type: boolean, default: false, description: 'true ⇒ nace `active`; false ⇒ `pending_activation`' }
+        initialPaymentStatus: { $ref: '#/components/schemas/PaymentStatus' }
+    SubscriptionUpdate:
+      type: object
+      required: [version]
+      additionalProperties: false
+      minProperties: 2
+      properties:
+        version: { type: integer, minimum: 1 }
+        contractReference: { type: [string, 'null'], maxLength: 120 }
+        renewalTerms: { type: [string, 'null'], maxLength: 2000 }
+        isRenewable: { type: boolean }
+        visibleInPortal: { type: boolean }
+        ownerUserId: { type: [string, 'null'], format: uuid }
+        notes: { type: [string, 'null'], maxLength: 5000 }
+        followUpStatus: { type: string, enum: [in_progress, awaiting_client] }
+        priceAmount: { $ref: '#/components/schemas/Amount' }
+        supplierCostAmount:
+          oneOf:
+            - $ref: '#/components/schemas/Amount'
+            - type: 'null'
+        changeReason: { type: string, minLength: 3, maxLength: 1000, description: Obligatorio si cambia precio o costo }
+    SubscriptionPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Subscription' } }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    ExpiringSubscriptionPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Subscription' } }
+        meta:
+          allOf:
+            - $ref: '#/components/schemas/PaginationMeta'
+            - type: object
+              required: [today, withinDays]
+              properties:
+                today: { type: string, format: date }
+                withinDays: { type: integer }
+    SubscriptionPeriod:
+      type: object
+      required: [id, periodNumber, startDate, endDate, billingCycle, priceAmount, currency, renewalOutcome, paymentStatus]
+      properties:
+        id: { type: string, format: uuid }
+        periodNumber: { type: integer, minimum: 1 }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        billingCycle: { $ref: '#/components/schemas/BillingCycle' }
+        priceAmount: { $ref: '#/components/schemas/Amount' }
+        currency: { $ref: '#/components/schemas/Currency' }
+        renewalOutcome: { $ref: '#/components/schemas/RenewalOutcome' }
+        outcomeReason: { type: [string, 'null'] }
+        paymentStatus: { $ref: '#/components/schemas/PaymentStatus' }
+        confirmedAt: { type: [string, 'null'], format: date-time }
+        confirmedBy:
+          oneOf:
+            - $ref: '#/components/schemas/UserRef'
+            - type: 'null'
+        contractReference: { type: [string, 'null'] }
+    RenewInput:
+      type: object
+      required: [version, newPeriod]
+      additionalProperties: false
+      properties:
+        version: { type: integer, minimum: 1 }
+        newPeriod:
+          type: object
+          additionalProperties: false
+          required: [priceAmount]
+          properties:
+            startDate: { type: string, format: date, description: 'Por defecto currentPeriodEnd + 1 día; no puede solapar' }
+            endDate: { type: string, format: date, description: Por defecto calculado con billingCycle }
+            billingCycle: { $ref: '#/components/schemas/BillingCycle' }
+            customCycleMonths: { type: [integer, 'null'], minimum: 1, maximum: 120 }
+            priceAmount: { $ref: '#/components/schemas/Amount' }
+            supplierCostAmount:
+              oneOf:
+                - $ref: '#/components/schemas/Amount'
+                - type: 'null'
+            contractReference: { type: [string, 'null'], maxLength: 120 }
+            paymentStatus: { type: string, enum: [pending, not_tracked], default: pending }
+        note: { type: [string, 'null'], maxLength: 1000 }
+    CorrectExpirationInput:
+      type: object
+      required: [version, newCurrentPeriodEnd, reason]
+      additionalProperties: false
+      properties:
+        version: { type: integer, minimum: 1 }
+        newCurrentPeriodEnd: { type: string, format: date }
+        reason: { type: string, minLength: 3, maxLength: 1000 }
+    PeriodPaymentUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        paymentStatus: { $ref: '#/components/schemas/PaymentStatus' }
+        contractReference: { type: [string, 'null'], maxLength: 120 }
+
+    RenewalRequestCreate:
+      type: object
+      required: [subscriptionId]
+      additionalProperties: false
+      properties:
+        subscriptionId: { type: string, format: uuid }
+        comment: { type: [string, 'null'], maxLength: 2000, description: Qué desea el cliente }
+    RenewalRequestUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        status: { type: string, enum: [in_progress] }
+        assignedUserId: { type: [string, 'null'], format: uuid }
+    RenewalRequestResolve:
+      type: object
+      required: [resolution]
+      additionalProperties: false
+      properties:
+        resolution: { $ref: '#/components/schemas/RenewalRequestResolution' }
+        resolutionNote: { type: [string, 'null'], maxLength: 2000 }
+    RenewalRequest:
+      type: object
+      required: [id, subscriptionId, clientId, status, requestedBy, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        subscriptionId: { type: string, format: uuid }
+        clientId: { type: string, format: uuid }
+        requestedBy:
+          type: object
+          required: [actorType, id]
+          properties:
+            actorType: { type: string, enum: [user, integration] }
+            id: { type: string, format: uuid }
+            name: { type: string }
+        comment: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/RenewalRequestStatus' }
+        assignedUser:
+          oneOf:
+            - $ref: '#/components/schemas/UserRef'
+            - type: 'null'
+        resolution:
+          oneOf:
+            - $ref: '#/components/schemas/RenewalRequestResolution'
+            - type: 'null'
+        resolutionNote: { type: [string, 'null'] }
+        resolvedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    RenewalRequestPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/RenewalRequest' } }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    Task:
+      type: object
+      required: [id, taskType, clientId, priority, dueDate, status, title, version, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        taskType: { $ref: '#/components/schemas/TaskType' }
+        title: { type: string }
+        clientId: { type: string, format: uuid }
+        subscriptionId: { type: [string, 'null'], format: uuid }
+        renewalRequestId: { type: [string, 'null'], format: uuid }
+        assignee:
+          oneOf:
+            - $ref: '#/components/schemas/UserRef'
+            - type: 'null'
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        dueDate: { type: string, format: date }
+        isOverdue: { type: boolean }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        notes: { type: [string, 'null'] }
+        nextAction: { type: [string, 'null'] }
+        outcome: { type: [string, 'null'] }
+        completedAt: { type: [string, 'null'], format: date-time }
+        origin: { type: string, enum: [manual, alert_rule, renewal_request] }
+        version: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    TaskCreate:
+      type: object
+      required: [taskType, clientId, dueDate, title]
+      additionalProperties: false
+      properties:
+        taskType: { $ref: '#/components/schemas/TaskType' }
+        title: { type: string, minLength: 2, maxLength: 200 }
+        clientId: { type: string, format: uuid }
+        subscriptionId: { type: [string, 'null'], format: uuid }
+        assigneeUserId: { type: [string, 'null'], format: uuid }
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        dueDate: { type: string, format: date }
+        notes: { type: [string, 'null'], maxLength: 5000 }
+        nextAction: { type: [string, 'null'], maxLength: 500 }
+    TaskUpdate:
+      type: object
+      required: [version]
+      additionalProperties: false
+      minProperties: 2
+      properties:
+        version: { type: integer, minimum: 1 }
+        title: { type: string, minLength: 2, maxLength: 200 }
+        assigneeUserId: { type: [string, 'null'], format: uuid }
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        dueDate: { type: string, format: date }
+        status: { type: string, enum: [pending, in_progress] }
+        notes: { type: [string, 'null'], maxLength: 5000 }
+        nextAction: { type: [string, 'null'], maxLength: 500 }
+    TaskClose:
+      type: object
+      required: [version, outcome]
+      additionalProperties: false
+      properties:
+        version: { type: integer, minimum: 1 }
+        outcome: { type: string, minLength: 2, maxLength: 2000 }
+    TaskPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Task' } }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    Notification:
+      type: object
+      required: [id, notificationType, channel, recipient, scheduledFor, status, attempts]
+      properties:
+        id: { type: string, format: uuid }
+        notificationType: { $ref: '#/components/schemas/NotificationType' }
+        subscriptionId: { type: [string, 'null'], format: uuid }
+        renewalRequestId: { type: [string, 'null'], format: uuid }
+        taskId: { type: [string, 'null'], format: uuid }
+        ruleCode: { type: [string, 'null'], examples: [D30] }
+        periodEnd: { type: [string, 'null'], format: date }
+        channel: { $ref: '#/components/schemas/NotificationChannel' }
+        recipient: { $ref: '#/components/schemas/UserRef' }
+        scheduledFor: { type: string, format: date-time }
+        status: { $ref: '#/components/schemas/NotificationStatus' }
+        attempts: { type: integer }
+        maxAttempts: { type: integer }
+        nextAttemptAt: { type: [string, 'null'], format: date-time }
+        lastError: { type: [string, 'null'] }
+        sentAt: { type: [string, 'null'], format: date-time }
+        readAt: { type: [string, 'null'], format: date-time }
+        cancelReason: { type: [string, 'null'] }
+        title: { type: string, description: Texto in-app ya renderizado }
+    NotificationPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Notification' } }
+        meta:
+          allOf:
+            - $ref: '#/components/schemas/PaginationMeta'
+            - type: object
+              properties:
+                unreadCount: { type: integer }
+    AlertRule:
+      type: object
+      required: [id, code, description, offsetDays, channels, createsTask, appliesWhenNotRenewable, isActive]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, examples: [D30] }
+        description: { type: string }
+        offsetDays: { type: integer, minimum: -90, maximum: 365, description: '>0 antes, 0 el día, <0 después del vencimiento' }
+        channels:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/NotificationChannel' }
+        createsTask: { type: boolean }
+        taskType:
+          oneOf:
+            - $ref: '#/components/schemas/TaskType'
+            - type: 'null'
+        taskPriority:
+          oneOf:
+            - $ref: '#/components/schemas/TaskPriority'
+            - type: 'null'
+        appliesWhenNotRenewable: { type: boolean }
+        isActive: { type: boolean }
+    AlertRuleUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        description: { type: string, minLength: 3, maxLength: 200 }
+        offsetDays: { type: integer, minimum: -90, maximum: 365 }
+        channels:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/NotificationChannel' }
+        createsTask: { type: boolean }
+        taskType:
+          oneOf:
+            - $ref: '#/components/schemas/TaskType'
+            - type: 'null'
+        taskPriority:
+          oneOf:
+            - $ref: '#/components/schemas/TaskPriority'
+            - type: 'null'
+        appliesWhenNotRenewable: { type: boolean }
+        isActive: { type: boolean }
+
+    DashboardIndicator:
+      type: object
+      required: [count, resource, filter]
+      properties:
+        count: { type: integer, minimum: 0 }
+        resource: { type: string, enum: [subscriptions, renewal-tasks, renewal-requests] }
+        filter:
+          type: object
+          additionalProperties: { type: string }
+          description: Parámetros de query del listado que compone la cifra
+          examples:
+            - status: active,in_renewal
+              expiresFrom: '2026-11-01'
+              expiresTo: '2026-11-08'
+    DashboardSummary:
+      type: object
+      required: [today, activeSubscriptions, expiringIn30Days, expiringIn15Days, expiringIn7Days, expiredSubscriptions, renewalsPendingResponse, overdueTasks, upcomingTasks, newRenewalRequests]
+      properties:
+        today: { type: string, format: date }
+        activeSubscriptions: { $ref: '#/components/schemas/DashboardIndicator' }
+        expiringIn30Days: { $ref: '#/components/schemas/DashboardIndicator' }
+        expiringIn15Days: { $ref: '#/components/schemas/DashboardIndicator' }
+        expiringIn7Days: { $ref: '#/components/schemas/DashboardIndicator' }
+        expiredSubscriptions: { $ref: '#/components/schemas/DashboardIndicator' }
+        renewalsPendingResponse: { $ref: '#/components/schemas/DashboardIndicator' }
+        overdueTasks: { $ref: '#/components/schemas/DashboardIndicator' }
+        upcomingTasks: { $ref: '#/components/schemas/DashboardIndicator' }
+        newRenewalRequests: { $ref: '#/components/schemas/DashboardIndicator' }
+
+    PortalMe:
+      type: object
+      required: [user, organization, contactChannel]
+      properties:
+        user: { $ref: '#/components/schemas/Me' }
+        organization:
+          type: object
+          required: [id, legalName]
+          properties:
+            id: { type: string, format: uuid }
+            legalName: { type: string }
+            taxId: { type: [string, 'null'] }
+        contactChannel:
+          type: object
+          properties:
+            email: { type: [string, 'null'], format: email }
+            phone: { type: [string, 'null'] }
+            hours: { type: [string, 'null'] }
+    PortalSubscription:
+      type: object
+      description: Sin costo de proveedor, notas internas, responsable ni estado de pago.
+      required: [id, productName, startDate, currentPeriodEnd, billingCycle, priceAmount, currency, status]
+      properties:
+        id: { type: string, format: uuid }
+        productName: { type: string }
+        contractReference: { type: [string, 'null'] }
+        startDate: { type: string, format: date }
+        currentPeriodEnd: { type: string, format: date }
+        daysUntilExpiration: { type: integer }
+        billingCycle: { $ref: '#/components/schemas/BillingCycle' }
+        priceAmount: { $ref: '#/components/schemas/Amount' }
+        currency: { $ref: '#/components/schemas/Currency' }
+        status: { $ref: '#/components/schemas/SubscriptionStatus' }
+        renewalTerms: { type: [string, 'null'] }
+        hasOpenRenewalRequest: { type: boolean }
+    PortalSubscriptionPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/PortalSubscription' } }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    PortalPeriod:
+      type: object
+      required: [periodNumber, startDate, endDate, billingCycle, priceAmount, currency, renewalOutcome]
+      properties:
+        periodNumber: { type: integer }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        billingCycle: { $ref: '#/components/schemas/BillingCycle' }
+        priceAmount: { $ref: '#/components/schemas/Amount' }
+        currency: { $ref: '#/components/schemas/Currency' }
+        renewalOutcome: { $ref: '#/components/schemas/RenewalOutcome' }
+    PortalRenewalRequest:
+      type: object
+      required: [id, subscriptionId, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        subscriptionId: { type: string, format: uuid }
+        productName: { type: string }
+        comment: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/RenewalRequestStatus' }
+        resolution:
+          oneOf:
+            - $ref: '#/components/schemas/RenewalRequestResolution'
+            - type: 'null'
+        resolutionNote: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        resolvedAt: { type: [string, 'null'], format: date-time }
+    PortalRenewalRequestPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/PortalRenewalRequest' } }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    IntegrationManifest:
+      type: object
+      description: 'Manifest versionado (claves snake_case, documento propio). Ver docs/integrations/README.md.'
+      required: [manifest_schema_version, integration, version, display_name, scopes, client_scope]
+      additionalProperties: false
+      properties:
+        $schema: { type: string, description: Ruta informativa al JSON Schema del manifest }
+        manifest_schema_version: { type: integer, const: 1 }
+        integration: { type: string, pattern: '^[a-z0-9][a-z0-9-]{1,62}$' }
+        version: { type: string, pattern: '^\d+\.\d+\.\d+$' }
+        display_name: { type: string, minLength: 2, maxLength: 120 }
+        description: { type: string, maxLength: 2000 }
+        owner:
+          type: object
+          additionalProperties: false
+          properties:
+            team: { type: string, maxLength: 120 }
+            contact_email: { type: string, format: email }
+        scopes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/Scope' }
+        client_scope: { $ref: '#/components/schemas/ClientScope' }
+        client_ids:
+          type: array
+          uniqueItems: true
+          items: { type: string, format: uuid }
+          description: Obligatorio y no vacío si client_scope=own; prohibido si all.
+        rate_limit_per_minute: { type: integer, minimum: 1, maximum: 6000, default: 60 }
+        credential_ttl_days: { type: [integer, 'null'], minimum: 1, maximum: 730 }
+    Integration:
+      type: object
+      required: [id, slug, name, status, scopes, clientScope, manifestVersion, rateLimitPerMinute, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/IntegrationStatus' }
+        scopes: { type: array, items: { $ref: '#/components/schemas/Scope' } }
+        clientScope: { $ref: '#/components/schemas/ClientScope' }
+        clientIds: { type: array, items: { type: string, format: uuid } }
+        manifestVersion: { type: string }
+        manifest: { $ref: '#/components/schemas/IntegrationManifest' }
+        rateLimitPerMinute: { type: integer }
+        activeCredentials: { type: integer }
+        lastUsedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    IntegrationCreate:
+      type: object
+      required: [manifest]
+      additionalProperties: false
+      properties:
+        manifest: { $ref: '#/components/schemas/IntegrationManifest' }
+    IntegrationUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 2000 }
+        status: { $ref: '#/components/schemas/IntegrationStatus' }
+    IntegrationPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/Integration' } }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    ApiCredential:
+      type: object
+      required: [id, integrationId, keyPrefix, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        integrationId: { type: string, format: uuid }
+        keyPrefix: { type: string, examples: [fsk_live_a1b2c3d4] }
+        label: { type: [string, 'null'] }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        revokedAt: { type: [string, 'null'], format: date-time }
+        lastUsedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+    ApiCredentialCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        label: { type: [string, 'null'], maxLength: 100 }
+        expiresAt: { type: [string, 'null'], format: date-time }
+    ApiCredentialCreated:
+      allOf:
+        - $ref: '#/components/schemas/ApiCredential'
+        - type: object
+          required: [apiKey]
+          properties:
+            apiKey: { type: string, description: Secreto completo. Se muestra una única vez; no se puede recuperar. }
+
+    AuditLog:
+      type: object
+      required: [id, occurredAt, actorType, action, resourceType, resourceId]
+      properties:
+        id: { type: string, description: bigint serializado como string }
+        occurredAt: { type: string, format: date-time }
+        actorType: { $ref: '#/components/schemas/ActorType' }
+        actor:
+          type: [object, 'null']
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        action: { type: string, examples: [subscription.renewed] }
+        resourceType: { type: string }
+        resourceId: { type: string }
+        clientId: { type: [string, 'null'], format: uuid }
+        changes:
+          type: [object, 'null']
+          description: '{ before, after } ya redactado (sin secretos)'
+        reason: { type: [string, 'null'] }
+        requestId: { type: [string, 'null'] }
+    AuditLogPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    Settings:
+      type: object
+      additionalProperties: false
+      properties:
+        contactChannel:
+          type: object
+          additionalProperties: false
+          properties:
+            email: { type: [string, 'null'], format: email }
+            phone: { type: [string, 'null'], maxLength: 30 }
+            hours: { type: [string, 'null'], maxLength: 200 }

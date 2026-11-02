@@ -1,0 +1,28 @@
+# PostgreSQL 16 para desarrollo y tests (docs/deployment.md §3). Sólo local; nunca en prod.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: fabsoft_owner
+      POSTGRES_PASSWORD: dev_owner
+      POSTGRES_DB: fabsoft
+    ports: ['54320:5432']
+    volumes: [db-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U fabsoft_owner -d fabsoft']
+      interval: 5s
+      retries: 10
+  db-test:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: fabsoft_owner
+      POSTGRES_PASSWORD: test_owner
+      POSTGRES_DB: fabsoft_test
+    ports: ['54329:5432']
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U fabsoft_owner -d fabsoft_test']
+      interval: 5s
+      retries: 10
+volumes:
+  db-data:

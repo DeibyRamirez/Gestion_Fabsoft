@@ -1,0 +1,15 @@
+---
+description: Lee y actualiza memory.md y todo.md para saber qué existe, qué se hizo y qué falta en FabSoft.
+alwaysApply: true
+---
+
+# Estado del proyecto
+
+Al empezar un corte, leer `memory.md` y `todo.md` en la raíz. `docs/` es el diseño. `memory.md` es el estado de construcción. `todo.md` es el backlog.
+
+- Trabajar un solo ítem `pendiente` a la vez, en el orden de `todo.md`. El siguiente de producto es clientes.
+- Si `fuentes/` contradice `docs/`, prevalece `docs/`. No reabrir los ADR. No inventar requisitos: anotar la pregunta en `memory.md`.
+- No usar `qa/diagnostico-inicial.md` como estado.
+- Al cerrar el corte, cambiar su estado en `todo.md` y añadir una línea a la bitácora de `memory.md` (fecha, corte, resultado observable).
+- No escribir secretos, tokens, contraseñas ni cadenas de conexión en esos archivos.
+- No copiar tareas a ClickUp hasta que `memory.md` diga que el workspace FabSoft es accesible.

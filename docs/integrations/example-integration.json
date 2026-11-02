@@ -1,0 +1,22 @@
+{
+  "$schema": "./integration-manifest.schema.json",
+  "manifest_schema_version": 1,
+  "integration": "erp-contable",
+  "version": "1.0.0",
+  "display_name": "ERP contable",
+  "description": "Consulta suscripciones y vencimientos de los clientes asignados y registra solicitudes de renovación originadas en el ERP.",
+  "owner": {
+    "team": "Administración FabSoft",
+    "contact_email": "erp@fabsoft.example"
+  },
+  "scopes": [
+    "subscriptions:read",
+    "renewal-requests:write"
+  ],
+  "client_scope": "own",
+  "client_ids": [
+    "3f9a2c1e-7b4d-4e8a-9c2f-1a2b3c4d5e6f"
+  ],
+  "rate_limit_per_minute": 60,
+  "credential_ttl_days": 365
+}

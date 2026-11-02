@@ -1,0 +1,11 @@
+node_modules
+dist
+.next
+pnpm-lock.yaml
+docs
+fuentes
+contexto
+backend/migrations
+qa
+backend/tests/security
+.github

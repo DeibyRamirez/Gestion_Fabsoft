@@ -1,0 +1,36 @@
+{
+  "name": "@fabsoft/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fabsoft/shared": "workspace:*",
+    "next": "^16",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@fabsoft/config": "workspace:*",
+    "@next/eslint-plugin-next": "^16",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16",
+    "@testing-library/user-event": "^14.6.8",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-plugin-react-hooks": "^7",
+    "jsdom": "^30.1.3",
+    "typescript": "^5.9",
+    "vitest": "^3.2"
+  }
+}

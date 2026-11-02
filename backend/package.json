@@ -1,0 +1,50 @@
+{
+  "name": "@fabsoft/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../.env src/main-api.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main-api.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --exclude 'tests/security/**'",
+    "test:unit": "vitest run src tests/architecture",
+    "test:security": "REQUIRE_DB_TESTS=1 vitest run tests/security",
+    "db:migrate": "dbmate --env DATABASE_MIGRATION_URL --migrations-dir migrations --migrations-table public.schema_migrations --no-dump-schema up",
+    "db:rollback": "dbmate --env DATABASE_MIGRATION_URL --migrations-dir migrations --migrations-table public.schema_migrations --no-dump-schema rollback",
+    "db:status": "dbmate --env DATABASE_MIGRATION_URL --migrations-dir migrations --migrations-table public.schema_migrations status",
+    "keys:generate": "tsx scripts/generate-jwt-keys.ts",
+    "admin:create": "tsx --env-file-if-exists=../.env scripts/create-admin.ts",
+    "db:seed": "tsx --env-file-if-exists=../.env scripts/seed.ts",
+    "db:roles:dev": "tsx --env-file-if-exists=../.env scripts/dev-roles.ts"
+  },
+  "dependencies": {
+    "@fabsoft/shared": "workspace:*",
+    "argon2": "^0.45",
+    "cookie-parser": "^1",
+    "cors": "^2.8",
+    "express": "^5",
+    "express-rate-limit": "^8",
+    "helmet": "^8",
+    "jose": "^6",
+    "pg": "^8",
+    "zod": "^3.25"
+  },
+  "devDependencies": {
+    "@fabsoft/config": "workspace:*",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5",
+    "@types/node": "^22",
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "^6",
+    "dbmate": "^2",
+    "eslint": "^9",
+    "supertest": "^7",
+    "tsx": "^4",
+    "typescript": "^5.9",
+    "vitest": "^3.2"
+  }
+}

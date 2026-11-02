@@ -1,0 +1,29 @@
+{
+  "name": "fabsoft",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22 <23",
+    "pnpm": ">=9 <10"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @fabsoft/shared build && pnpm --parallel --filter @fabsoft/backend --filter @fabsoft/frontend --filter @fabsoft/shared dev",
+    "build": "pnpm -r --workspace-concurrency=1 build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm --filter @fabsoft/shared build && pnpm -r typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm -r --if-present test",
+    "test:unit": "pnpm -r --if-present test:unit",
+    "db:migrate": "pnpm --filter @fabsoft/backend db:migrate",
+    "db:rollback": "pnpm --filter @fabsoft/backend db:rollback",
+    "test:security": "pnpm --filter @fabsoft/backend test:security",
+    "db:seed": "pnpm --filter @fabsoft/backend db:seed",
+    "db:roles:dev": "pnpm --filter @fabsoft/backend db:roles:dev"
+  },
+  "devDependencies": {
+    "@fabsoft/config": "workspace:*",
+    "prettier": "^3",
+    "typescript": "^5.9"
+  }
+}
