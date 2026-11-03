@@ -47,7 +47,7 @@ Cada entorno tiene sus **propios** secretos, claves JWT, pepper y proyecto/BD. N
 | `NEXT_PUBLIC_API_BASE_URL` | frontend | `https://api.fabsoft.example/api/v1` |
 | `NEXT_PUBLIC_APP_ENV` | frontend | `prod` |
 
-`backend/src/infrastructure/config/env.ts` valida todo con Zod al arrancar y aborta si falta algo. `.env.example` documenta cada variable sin valores reales.
+`backend/src/infrastructure/config/env.ts` valida las variables de la API al arrancar y aborta si falta algo. [`backend/.env.example`](../backend/.env.example) y [`frontend/.env.example`](../frontend/.env.example) documentan cada variable sin valores reales. En producción cada servicio recibe su propio conjunto (archivo env en el VPS, secretos del proveedor de BD, variables del panel de Vercel/Netlify para el frontend, etc.); no hay un `.env` unificado en la raíz del monorepo.
 
 ## 3. Desarrollo local (docker-compose)
 
