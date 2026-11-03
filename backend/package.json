@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --env-file-if-exists=../.env src/main-api.ts",
+    "dev": "tsx watch --env-file-if-exists=.env src/main-api.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main-api.js",
     "lint": "eslint .",
@@ -12,13 +12,13 @@
     "test": "vitest run --exclude 'tests/security/**'",
     "test:unit": "vitest run src tests/architecture",
     "test:security": "REQUIRE_DB_TESTS=1 vitest run tests/security",
-    "db:migrate": "dbmate --env DATABASE_MIGRATION_URL --migrations-dir migrations --migrations-table public.schema_migrations --no-dump-schema up",
-    "db:rollback": "dbmate --env DATABASE_MIGRATION_URL --migrations-dir migrations --migrations-table public.schema_migrations --no-dump-schema rollback",
-    "db:status": "dbmate --env DATABASE_MIGRATION_URL --migrations-dir migrations --migrations-table public.schema_migrations status",
+    "db:migrate": "node scripts/with-env.mjs -- dbmate --env DATABASE_MIGRATION_URL --migrations-dir migrations --migrations-table public.schema_migrations --no-dump-schema up",
+    "db:rollback": "node scripts/with-env.mjs -- dbmate --env DATABASE_MIGRATION_URL --migrations-dir migrations --migrations-table public.schema_migrations --no-dump-schema rollback",
+    "db:status": "node scripts/with-env.mjs -- dbmate --env DATABASE_MIGRATION_URL --migrations-dir migrations --migrations-table public.schema_migrations status",
     "keys:generate": "tsx scripts/generate-jwt-keys.ts",
-    "admin:create": "tsx --env-file-if-exists=../.env scripts/create-admin.ts",
-    "db:seed": "tsx --env-file-if-exists=../.env scripts/seed.ts",
-    "db:roles:dev": "tsx --env-file-if-exists=../.env scripts/dev-roles.ts"
+    "admin:create": "tsx --env-file-if-exists=.env scripts/create-admin.ts",
+    "db:seed": "tsx --env-file-if-exists=.env scripts/seed.ts",
+    "db:roles:dev": "tsx --env-file-if-exists=.env scripts/dev-roles.ts"
   },
   "dependencies": {
     "@fabsoft/shared": "workspace:*",

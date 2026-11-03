@@ -2,9 +2,9 @@ node_modules/
 dist/
 .next/
 *.tsbuildinfo
-.env
-.env.*
-!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 coverage/
 next-env.d.ts
 contexto.zip
