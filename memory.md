@@ -43,7 +43,7 @@ No reabrir. Resumen en [`docs/project-context.md`](docs/project-context.md) §4;
 - Auth humana: `POST /api/v1/auth/login`, `refresh`, `logout`, `change-password`; `GET /api/v1/auth/me`. JWT (`jose`), contraseñas (`argon2`), refresh en cookie. Pantallas `/login` y `/change-password`. Token de acceso en memoria del navegador.
 - Usuarios admin: `GET/POST /api/v1/users`, `GET/PATCH /api/v1/users/{id}`, `POST /api/v1/users/{id}/reset-password`. Pantalla `/admin/users`.
 - Idempotencia HTTP y contexto RLS por transacción. Escritor de auditoría Postgres presente; no hay API de lectura.
-- Frontend: grupos `(auth)`, `(internal)`, `(portal)`, `RoleGate`. `/dashboard` solo muestra el estado del API. `/portal` es un marcador (“pendiente”).
+- Frontend: grupos `(auth)`, `(internal)`, `(portal)`, `RoleGate`. Tailwind 4 + tokens (`docs/design.md`), shadcn/ui en `src/shared/ui`, `AppShell` (nav por rol) y `PortalShell`. Pantallas estilizadas: login, cambio de contraseña, panel, admin/usuarios, portal. `/dashboard` solo muestra el estado del API. `/portal` es un marcador (“pendiente” de datos).
 - CI en [`.github/workflows/ci.yml`](.github/workflows/ci.yml): lint, typecheck, tests, build y job de migraciones/RLS.
 - Contrato de todo el MVP escrito en [`docs/api/openapi.yaml`](docs/api/openapi.yaml). El servidor solo expone health, auth y users.
 - Tests de auth, health, idempotencia, capas, contrato de repositorio y endurecimiento de seguridad.
@@ -60,7 +60,7 @@ El esquema SQL y el OpenAPI ya describen estos módulos. No hay casos de uso, ru
 - Dashboard de KPIs y portal con datos (RN-11).
 - Integraciones y API keys (RN-12). Settings.
 - Lectura de auditoría (RN-13). RN-01…RN-16 no tienen tests `T-RNxx`.
-- Frontend de datos: Tailwind 4, shadcn, TanStack Query y react-hook-form. Se introducen en el corte de clientes, no como un corte posterior. Hoy el frontend solo depende de Next y React.
+- Frontend de datos: TanStack Query y react-hook-form (corte clientes). Tailwind 4 y shadcn/ui ya están en HU-02.
 - Pipeline completo de [`docs/testing-strategy.md`](docs/testing-strategy.md): deriva OpenAPI/redocly, integración de reglas de negocio y worker. [`contexto/README.md`](contexto/README.md) describe ese objetivo; el [`README.md`](README.md) de la raíz describe el corte actual.
 
 ## ClickUp
@@ -70,3 +70,4 @@ No es la fuente de avance. Workspace objetivo `1600300000002171`, lista `1600300
 ## Bitácora
 
 - 2026-11-02 — Diagnóstico y registro inicial. Auth, usuarios, health, idempotencia, migraciones del modelo y CI básico están operativos. El resto del MVP está especificado en `docs/` y OpenAPI, sin casos de uso. ClickUp FabSoft no es accesible con la cuenta conectada; el avance queda en este archivo y en `todo.md`.
+- 2026-11-02 — HU-02 sistema de diseño base. Tailwind 4, tokens, shadcn/ui, shells con navegación por rol y estilos en pantallas auth/internas/portal; tests de componentes base en verde.

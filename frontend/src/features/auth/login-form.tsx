@@ -4,6 +4,10 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { homePathForRole, LoginInputSchema } from '@fabsoft/shared';
 import { ApiError } from '@/shared/api/client';
+import { FormField } from '@/shared/components/form-field';
+import { Alert, AlertDescription } from '@/shared/ui/alert';
+import { Button } from '@/shared/ui/button';
+import { Input } from '@/shared/ui/input';
 import { useAuth } from './auth-provider';
 
 export function LoginForm() {
@@ -37,19 +41,27 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate style={{ display: 'grid', gap: 12, maxWidth: 360 }}>
-      <label>
-        Email
-        <input name="email" type="email" autoComplete="username" required />
-      </label>
-      <label>
-        Contraseña
-        <input name="password" type="password" autoComplete="current-password" required />
-      </label>
-      {error && <p role="alert">{error}</p>}
-      <button type="submit" disabled={busy}>
+    <form onSubmit={onSubmit} noValidate className="grid gap-4">
+      <FormField label="Email" htmlFor="login-email">
+        <Input id="login-email" name="email" type="email" autoComplete="username" required />
+      </FormField>
+      <FormField label="Contraseña" htmlFor="login-password">
+        <Input
+          id="login-password"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          required
+        />
+      </FormField>
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      <Button type="submit" disabled={busy} className="w-full">
         {busy ? 'Ingresando…' : 'Ingresar'}
-      </button>
+      </Button>
     </form>
   );
 }

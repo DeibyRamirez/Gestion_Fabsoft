@@ -1,12 +1,12 @@
 import { LoginForm } from '@/features/auth/login-form';
+import { AuthPageLayout } from '@/shared/components/auth-page-layout';
 
 export const metadata = { title: 'Ingresar · FabSoft' };
 
 export default function LoginPage() {
   return (
-    <main style={{ padding: 24 }}>
-      <h1>Ingresar a FabSoft</h1>
+    <AuthPageLayout title="Ingresar a FabSoft" description="Accede con tu cuenta de FabSoft.">
       <LoginForm />
-    </main>
+    </AuthPageLayout>
   );
 }
