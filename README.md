@@ -29,14 +29,17 @@ Node.js 22 LTS (`.nvmrc`) y pnpm 9: `corepack enable && corepack prepare pnpm@9.
 
 ```bash
 pnpm install
-cp .env.example .env                 # valores de desarrollo
+cp backend/.env.example backend/.env     # API, worker y scripts de BD
+cp frontend/.env.example frontend/.env   # sólo NEXT_PUBLIC_* (Next.js lee este directorio)
 docker compose up -d db              # PostgreSQL 16 en localhost:54320 (db-test en :54329)
-pnpm db:migrate                      # dbmate up con DATABASE_MIGRATION_URL
-pnpm db:roles:dev                    # LOGIN para fabsoft_app / fabsoft_worker con las claves del .env (sólo dev)
+pnpm db:migrate                      # dbmate up con DATABASE_MIGRATION_URL (backend/.env)
+pnpm db:roles:dev                    # LOGIN para fabsoft_app / fabsoft_worker con las claves de backend/.env (sólo dev)
 pnpm db:seed                         # datos demo (docs/seed-data.md); --reset para resembrar
 pnpm dev                # API http://localhost:4000/api/v1  +  web http://localhost:3000
 curl http://localhost:4000/api/v1/health   # {"status":"ok","version":"0.1.0"}
 ```
+
+En local, `CORS_ALLOWED_ORIGINS` en `backend/.env` debe incluir el origen del frontend (p. ej. `http://localhost:3000`), alineado con `FRONTEND_URL` y con la URL que uses en el navegador.
 
 Producción local: `pnpm build`, luego `pnpm --filter @fabsoft/backend start` y `pnpm --filter @fabsoft/frontend start`.
 
