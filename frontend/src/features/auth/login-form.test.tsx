@@ -32,7 +32,9 @@ describe('LoginForm', () => {
     ['operator', '/dashboard'],
     ['client', '/portal'],
   ] as const)('redirige según el rol %s', async (role, path) => {
-    login.mockResolvedValue(me({ role, clientId: role === 'client' ? '00000000-0000-4000-8000-000000000201' : null }));
+    login.mockResolvedValue(
+      me({ role, clientId: role === 'client' ? '00000000-0000-4000-8000-000000000201' : null }),
+    );
     render(<LoginForm />);
     await submit('u@fabsoft.test', 'secreto');
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith(path));

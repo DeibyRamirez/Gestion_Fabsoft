@@ -32,7 +32,10 @@ describe('RoleGate', () => {
   });
 
   it('cliente va al portal; sin sesión va a /login; contraseña temporal a /change-password', () => {
-    state = { user: me({ role: 'client', clientId: '00000000-0000-4000-8000-000000000201' }), ready: true };
+    state = {
+      user: me({ role: 'client', clientId: '00000000-0000-4000-8000-000000000201' }),
+      ready: true,
+    };
     gate();
     expect(router.replace).toHaveBeenLastCalledWith('/portal');
     state = { user: null, ready: true };
