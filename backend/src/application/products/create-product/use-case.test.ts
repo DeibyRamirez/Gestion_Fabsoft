@@ -41,7 +41,11 @@ describe('CreateProduct', () => {
 
   it('crea producto y audita', async () => {
     const auditWrite = vi.fn();
-    const input: ProductCreateInput = { name: 'Antivirus', productType: 'third_party', vendor: 'Acme' };
+    const input: ProductCreateInput = {
+      name: 'Antivirus',
+      productType: 'third_party',
+      vendor: 'Acme',
+    };
     const uc = new CreateProduct({
       run: async (_a, work) =>
         work({
@@ -66,8 +70,8 @@ describe('CreateProduct', () => {
           audit: { write: async () => undefined },
         }),
     });
-    await expect(
-      uc.execute(admin, { name: 'Dup', productType: 'own' }),
-    ).rejects.toMatchObject({ code: 'duplicate_product' });
+    await expect(uc.execute(admin, { name: 'Dup', productType: 'own' })).rejects.toMatchObject({
+      code: 'duplicate_product',
+    });
   });
 });

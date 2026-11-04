@@ -11,8 +11,7 @@ export interface NewProduct {
 }
 
 export type CreateProductOutcome =
-  | { ok: true; product: ProductView }
-  | { ok: false; reason: 'duplicate_product' };
+  { ok: true; product: ProductView } | { ok: false; reason: 'duplicate_product' };
 
 export interface CreateProductRepository {
   insert(input: NewProduct): Promise<CreateProductOutcome>;

@@ -13,8 +13,7 @@ export interface ProductPatch {
 }
 
 export type UpdateProductOutcome =
-  | { ok: true; product: ProductView }
-  | { ok: false; reason: 'duplicate_product' };
+  { ok: true; product: ProductView } | { ok: false; reason: 'duplicate_product' };
 
 export interface UpdateProductRepository {
   loadForUpdate(id: string): Promise<ProductView | null>;

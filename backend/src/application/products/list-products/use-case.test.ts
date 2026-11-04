@@ -27,14 +27,17 @@ describe('ListProducts', () => {
           },
         }),
     });
-    await expect(uc.execute({ ...admin, role: 'operator' }, { page: 1, pageSize: 20, sort: 'name' }))
-      .resolves.toMatchObject({ total: 0 });
+    await expect(
+      uc.execute({ ...admin, role: 'operator' }, { page: 1, pageSize: 20, sort: 'name' }),
+    ).resolves.toMatchObject({ total: 0 });
   });
 
   it('rechaza client', async () => {
     const uc = new ListProducts({ run: vi.fn() });
-    await expect(uc.execute(client, { page: 1, pageSize: 20, sort: 'name' })).rejects.toMatchObject({
-      code: 'forbidden',
-    });
+    await expect(uc.execute(client, { page: 1, pageSize: 20, sort: 'name' })).rejects.toMatchObject(
+      {
+        code: 'forbidden',
+      },
+    );
   });
 });

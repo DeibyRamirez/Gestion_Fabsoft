@@ -1,19 +1,23 @@
 import request from 'supertest';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { createFactories } from '../fixtures/factories.js';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { createFactories, type Factories } from '../fixtures/factories.js';
 import {
   assertDbTestsRequired,
   closeTestPools,
   dbTestsConfigured,
   resetDatabase,
 } from '../helpers/db.js';
-import { buildTestApp, closeTestApp } from '../helpers/app.js';
+import { buildTestApp, closeTestApp, getTestAccessTokens } from '../helpers/app.js';
 import { expectMatchesOperation } from '../helpers/openapi.js';
 
 assertDbTestsRequired();
 
 describe.skipIf(!dbTestsConfigured())('Products API (Postgres)', () => {
-  const factories = createFactories();
+  let factories: Factories;
+
+  beforeAll(async () => {
+    factories = createFactories({ tokens: await getTestAccessTokens() });
+  });
 
   beforeEach(async () => {
     factories.reseed();
@@ -38,9 +42,7 @@ describe.skipIf(!dbTestsConfigured())('Products API (Postgres)', () => {
     expectMatchesOperation(create, 'createProduct');
     const id = create.body.id as string;
 
-    const list = await request(app)
-      .get('/api/v1/products')
-      .set('Authorization', `Bearer ${token}`);
+    const list = await request(app).get('/api/v1/products').set('Authorization', `Bearer ${token}`);
     expect(list.status).toBe(200);
     expect(list.body.data).toHaveLength(1);
 
@@ -129,8 +131,12 @@ describe.skipIf(!dbTestsConfigured())('Products API (Postgres)', () => {
     const body = { name: 'Duplicado', productType: 'own', vendor: 'Fab' };
 
     expect(
-      (await request(app).post('/api/v1/products').set('Authorization', `Bearer ${token}`).send(body))
-        .status,
+      (
+        await request(app)
+          .post('/api/v1/products')
+          .set('Authorization', `Bearer ${token}`)
+          .send(body)
+      ).status,
     ).toBe(201);
 
     const dup = await request(app)

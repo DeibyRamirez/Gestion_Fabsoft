@@ -41,9 +41,7 @@ describe.skipIf(!dbTestsConfigured())('T-RN02-01 producto con múltiples suscrip
     });
 
     expect(rows).toHaveLength(3);
-    expect(new Set(rows.map((r) => r.id))).toEqual(
-      new Set([subA.id, subB.id, subSameClient.id]),
-    );
+    expect(new Set(rows.map((r) => r.id))).toEqual(new Set([subA.id, subB.id, subSameClient.id]));
     expect(rows.every((r) => r.product_id === product.id)).toBe(true);
   });
 });

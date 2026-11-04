@@ -240,9 +240,11 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
     productCreate: {
       insert: async (n) => {
         const key = `${n.name.toLowerCase()}|${(n.vendor ?? '').toLowerCase()}`;
-        if ([...store.products.values()].some(
-          (p) => `${p.name.toLowerCase()}|${(p.vendor ?? '').toLowerCase()}` === key,
-        ))
+        if (
+          [...store.products.values()].some(
+            (p) => `${p.name.toLowerCase()}|${(p.vendor ?? '').toLowerCase()}` === key,
+          )
+        )
           return { ok: false, reason: 'duplicate_product' };
         const now = new Date();
         const product: ProductView = {

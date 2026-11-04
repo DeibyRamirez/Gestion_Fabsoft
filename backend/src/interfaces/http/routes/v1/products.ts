@@ -69,7 +69,9 @@ export function productsRouter(
   });
 
   router.get('/products/:id', ...readGuards, async (req, res) => {
-    res.json(toProductDto(await deps.getProduct.execute(actorOf(res), IdSchema.parse(req.params.id))));
+    res.json(
+      toProductDto(await deps.getProduct.execute(actorOf(res), IdSchema.parse(req.params.id))),
+    );
   });
 
   router.patch('/products/:id', ...writeGuards, async (req, res) => {
