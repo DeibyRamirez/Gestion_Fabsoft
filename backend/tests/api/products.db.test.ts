@@ -145,6 +145,7 @@ describe.skipIf(!dbTestsConfigured())('Products API (Postgres)', () => {
       .send(body);
     expect(dup.status).toBe(409);
     expect(dup.body.code).toBe('duplicate_product');
+    expectMatchesOperation(dup, 'createProduct');
   });
 
   it('GET filtra por status', async () => {
