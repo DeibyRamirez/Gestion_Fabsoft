@@ -16,6 +16,12 @@ import {
   PgUpdateUserRepository,
 } from '../infrastructure/persistence/pg/users/pg-users-repositories.js';
 import {
+  PgCreateProductRepository,
+  PgGetProductQuery,
+  PgListProductsQuery,
+  PgUpdateProductRepository,
+} from '../infrastructure/persistence/pg/products/pg-products-repositories.js';
+import {
   PgIdempotencyReleaseRepository,
   PgIdempotencyRepository,
 } from '../infrastructure/persistence/pg/idempotency/pg-idempotency-repositories.js';
@@ -71,6 +77,10 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     userCreate: new PgCreateUserRepository(tx),
     userUpdate: new PgUpdateUserRepository(tx),
     userPasswordReset: new PgResetUserPasswordRepository(tx),
+    productsList: new PgListProductsQuery(tx),
+    productDetail: new PgGetProductQuery(tx),
+    productCreate: new PgCreateProductRepository(tx),
+    productUpdate: new PgUpdateProductRepository(tx),
     password: new PgChangePasswordRepository(tx),
     sessions: new PgSessionRevocationRepository(tx),
     idempotency: new PgIdempotencyRepository(tx),

@@ -12,6 +12,7 @@ export const STATUS_BY_CODE: Partial<Record<ProblemCode, number>> = {
   insufficient_scope: 403,
   not_found: 404,
   duplicate_email: 409,
+  duplicate_product: 409,
   invalid_state_transition: 422,
   idempotency_in_progress: 409,
   idempotency_key_reused: 422,
