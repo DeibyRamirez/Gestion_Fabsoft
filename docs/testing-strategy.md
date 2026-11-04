@@ -21,11 +21,22 @@ Objetivo de cobertura: **≥ 90 % líneas en `domain` y `application`**, ≥ 80 
 
 ## 2. Base de datos de pruebas
 
-- `docker compose up -d db-test` (Postgres 16, puerto 54329, `tmpfs` para velocidad).
-- Antes de la suite: `dbmate --url $TEST_DATABASE_MIGRATION_URL up` (las **mismas** migraciones que producción) + asignar `LOGIN` a `fabsoft_app`.
-- Cada test de integración corre dentro de una transacción del **rol propietario** que se revierte, o trunca tablas en `beforeEach` con `TRUNCATE ... CASCADE` ejecutado por el rol propietario (helper `resetDatabase()` sólo en tests). `TRUNCATE` no dispara los triggers de fila `tg_prevent_delete`, y `fabsoft_app` no tiene privilegio `TRUNCATE`.
-- Las consultas de la aplicación en tests usan el rol `fabsoft_app` (nunca el propietario) para que RLS se ejerza de verdad.
-- Fábricas de datos: `backend/tests/fixtures/factories.ts` (cliente, usuario por rol, producto, suscripción con periodos, integración con alcance).
+- `docker compose up -d db-test` (Postgres 16, puerto **54329**, `tmpfs`).
+- Variables en `backend/.env.example`: `TEST_DATABASE_MIGRATION_URL` (rol propietario) y `TEST_DATABASE_URL` (rol `fabsoft_app`).
+- Migrar la BD de test: `pnpm db:migrate:test` (mismas migraciones que producción) y habilitar login: `DATABASE_MIGRATION_URL=$TEST_DATABASE_MIGRATION_URL DATABASE_URL=$TEST_DATABASE_URL pnpm db:roles:dev`.
+- Entre tests de integración/API: `resetDatabase()` (`backend/tests/helpers/db.ts`) trunca todas las tablas de `app` con el rol propietario; las consultas de la app usan `fabsoft_app` + contexto RLS (`withAppContext`).
+- Datos de preparación: `backend/tests/fixtures/factories.ts` (`@faker-js/faker`, semilla 42 por defecto).
+- Sin Postgres local, las suites DB se omiten; con `REQUIRE_DB_TESTS=1` (CI) fallan si falta la BD.
+
+Scripts:
+
+| Script | Qué ejecuta |
+|---|---|
+| `pnpm test:integration` | `backend/tests/integration`, `tests/contracts`, determinismo de factories |
+| `pnpm test:api` | `backend/tests/api/**/*.db.test.ts` |
+| `pnpm test:coverage` | Cobertura vitest (`domain` + `application`) + `check-coverage-paths` en CI |
+| `pnpm test:perf` | `backend/tests/perf` → `backend/perf-results.json` |
+| `pnpm test:e2e` | Playwright `e2e/smoke` contra build local + seed |
 
 ## 3. Reloj y zona horaria
 
@@ -87,13 +98,19 @@ Escenario base: clientes A y B; usuarios admin, operador, clienteA, clienteB; in
 
 ## 8. CI (por PR)
 
-1. `pnpm install --frozen-lockfile`
-2. `pnpm lint` (incluye reglas de capas) y `pnpm typecheck`
-3. `pnpm test:unit`
-4. Levantar `postgres:16` como servicio → `pnpm db:migrate:test`
-5. `pnpm test:integration && pnpm test:security && pnpm test:api && pnpm test:worker`
-6. `npx @redocly/cli lint docs/api/openapi.yaml` + test de deriva del contrato
-7. `pnpm --filter @fabsoft/frontend test && pnpm --filter @fabsoft/frontend build`
-8. Escaneo de secretos.
+Workflow [`.github/workflows/ci.yml`](../.github/workflows/ci.yml), `TZ=UTC`:
 
-Un PR no se fusiona con tests en rojo ni con la checklist de aislamiento (threat-model §5) incumplida en releases.
+| Job | Contenido |
+|---|---|
+| `lint + typecheck` | `pnpm lint`, `pnpm typecheck`, `pnpm format:check` |
+| `unit tests` | `pnpm test`, `pnpm test:coverage`, `check-coverage-paths`; artefacto `coverage/` |
+| `build` | `pnpm build` (tras lint y unit) |
+| `db-security` | Postgres 16 → `pnpm db:migrate` → `pnpm test:security` |
+| `integration-api` | Postgres 16 → `pnpm db:migrate:test` → `pnpm db:roles:dev` → `pnpm test:integration` + `pnpm test:api` |
+| `e2e-smoke` | Postgres 16 → migrar + seed → `pnpm build` → Playwright (`e2e/smoke`; sólo `auth.spec.ts` activo) |
+| `perf-smoke` | Postgres 16 → migrar → `pnpm test:perf`; artefacto `perf-results.json`; `continue-on-error` hasta 2026-11-23 |
+| `openapi lint` | Redocly sobre `docs/api/openapi.yaml` |
+
+Protección de ramas (dueño del repo): marcar como required `unit tests`, `integration-api` y `e2e-smoke`.
+
+Un PR no se fusiona con tests bloqueantes en rojo ni con la checklist de aislamiento (threat-model §5) incumplida en releases.

@@ -43,6 +43,19 @@ pnpm dev                # API http://localhost:4000/api/v1  +  web http://localh
 curl http://localhost:4000/api/v1/health   # {"status":"ok","version":"0.1.0"}
 ```
 
+### Tests (HT-05)
+
+Ver [`qa/spec-ht-05.md`](qa/spec-ht-05.md). Con `docker compose up -d db-test`, copiar `TEST_*` en `backend/.env`, luego `pnpm db:migrate:test` y `pnpm db:roles:dev` (con `DATABASE_MIGRATION_URL`/`DATABASE_URL` apuntando a las URLs de test):
+
+```bash
+pnpm test                 # unit + API en memoria
+pnpm test:integration     # integración + contratos (Postgres)
+pnpm test:api             # API *.db.test.ts
+pnpm test:coverage        # cobertura domain/application
+pnpm test:perf            # genera backend/perf-results.json
+pnpm build && pnpm db:seed && pnpm test:e2e   # Playwright smoke
+```
+
 En local, `CORS_ALLOWED_ORIGINS` en `backend/.env` debe incluir el origen del frontend (p. ej. `http://localhost:3000`), alineado con `FRONTEND_URL` y con la URL que uses en el navegador.
 
 **Solo API o solo web:** `pnpm --filter @fabsoft/backend dev` o `pnpm --filter @fabsoft/frontend dev`. Cada paquete compila `@fabsoft/shared` antes de arrancar (`predev`); si falla `Cannot find module …/shared/dist`, ejecuta una vez `pnpm --filter @fabsoft/shared build` desde la raíz.
@@ -51,15 +64,15 @@ Producción local: `pnpm build`, luego `pnpm --filter @fabsoft/backend start` y 
 
 ## Scripts raíz
 
-| Script                              | Acción                                                               |
-| ----------------------------------- | -------------------------------------------------------------------- |
-| `pnpm dev`                          | shared (watch) + API (`tsx watch`) + web (`next dev`) en paralelo    |
-| `pnpm build`                        | Compila en orden topológico: shared → backend → frontend             |
-| `pnpm lint`                         | ESLint 9 en todos los paquetes (incluye reglas de capas del backend) |
-| `pnpm typecheck`                    | `tsc --noEmit` en todos los paquetes (compila shared primero)        |
-| `pnpm format` / `pnpm format:check` | Prettier                                                             |
-| `pnpm test` / `pnpm test:unit`      | Vitest (backend: health API, caso de uso y test de arquitectura)     |
+| Script                                                                            | Acción                                                                    |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `pnpm dev`                                                                        | shared (watch) + API (`tsx watch`) + web (`next dev`) en paralelo         |
+| `pnpm build`                                                                      | Compila en orden topológico: shared → backend → frontend                  |
+| `pnpm lint`                                                                       | ESLint 9 en todos los paquetes (incluye reglas de capas del backend)      |
+| `pnpm typecheck`                                                                  | `tsc --noEmit` en todos los paquetes (compila shared primero)             |
+| `pnpm format` / `pnpm format:check`                                               | Prettier                                                                  |
+| `pnpm test` / `pnpm test:unit`                                                    | Vitest: unit + API en memoria (backend); frontend tiene sus propios tests |
+| `pnpm test:integration` / `test:api` / `test:coverage` / `test:perf` / `test:e2e` | Suites HT-05 (Postgres / cobertura / Playwright); ver arriba              |
+| `pnpm db:migrate:test`                                                            | Migraciones sobre `TEST_DATABASE_MIGRATION_URL`                           |
 
 Auth (HU-01): `POST /api/v1/auth/{login,refresh,logout,change-password}`, `GET /api/v1/auth/me`, `/api/v1/users*` (sólo admin). Web: `/login`, `/change-password`, `/dashboard`, `/admin/users`, `/portal`.
-
-Pendiente: `test:integration|api|worker`, `db:migrate:test` (testing-strategy §8), worker (ADR-005), API keys de integraciones.

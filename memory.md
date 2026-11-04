@@ -42,10 +42,11 @@ No reabrir. Resumen en [`docs/project-context.md`](docs/project-context.md) §4;
 - Health: `GET /api/v1/health` y `GET /api/v1/health/ready`.
 - Auth humana: `POST /api/v1/auth/login`, `refresh`, `logout`, `change-password`; `GET /api/v1/auth/me`. JWT (`jose`), contraseñas (`argon2`), refresh en cookie. Pantallas `/login` y `/change-password`. Token de acceso en memoria del navegador.
 - Usuarios admin: `GET/POST /api/v1/users`, `GET/PATCH /api/v1/users/{id}`, `POST /api/v1/users/{id}/reset-password`. Pantalla `/admin/users`.
+- Productos (HU-05 backend): `GET/POST /api/v1/products`, `GET/PATCH /api/v1/products/{id}`. Catálogo sin precio ni ciclo; RBAC lectura admin/operator, escritura admin; `409 duplicate_product`. Sin DELETE (RN-14). Tests unitarios, `products.db.test.ts` e integración `T-RN02-01`.
 - Idempotencia HTTP y contexto RLS por transacción. Escritor de auditoría Postgres presente; no hay API de lectura.
 - Frontend: grupos `(auth)`, `(internal)`, `(portal)`, `RoleGate`. Tailwind 4 + tokens (`docs/design.md`), shadcn/ui en `src/shared/ui`, `AppShell` (nav por rol) y `PortalShell`. Pantallas estilizadas: login, cambio de contraseña, panel, admin/usuarios, portal. `/dashboard` solo muestra el estado del API. `/portal` es un marcador (“pendiente” de datos).
 - CI en [`.github/workflows/ci.yml`](.github/workflows/ci.yml): lint, typecheck, tests, build y job de migraciones/RLS.
-- Contrato de todo el MVP escrito en [`docs/api/openapi.yaml`](docs/api/openapi.yaml). El servidor solo expone health, auth y users.
+- Contrato de todo el MVP escrito en [`docs/api/openapi.yaml`](docs/api/openapi.yaml). El servidor expone health, auth, users y products (catálogo).
 - Tests de auth, health, idempotencia, capas, contrato de repositorio y endurecimiento de seguridad.
 
 ## Especificado y ausente
@@ -53,7 +54,6 @@ No reabrir. Resumen en [`docs/project-context.md`](docs/project-context.md) §4;
 El esquema SQL y el OpenAPI ya describen estos módulos. No hay casos de uso, rutas ni pantallas de datos.
 
 - Clientes: alta, edición, archivo/reactivación, contactos, notas, NIT único, actividad.
-- Productos: catálogo `third_party`, `own`, `recurring_service`.
 - Suscripciones: alta, activación, renovación con periodo inmutable, no renovada, cancelación, corrección de vencimiento, pago manual. Dominio (`LocalDate`, `Money`, máquina de estados) no existe; `backend/src/domain/` solo tiene usuarios y errores. RN-01…RN-07.
 - Solicitudes y tareas de renovación.
 - Alertas D30/D15/D7/D1/D0/POST1 y worker pg-boss (Resend). [`backend/src/interfaces/worker/README.md`](backend/src/interfaces/worker/README.md) lo deja fuera del corte actual. No están `pg-boss`, `pino`, `resend` ni `date-fns`.
@@ -73,3 +73,5 @@ No es la fuente de avance. Workspace objetivo `1600300000002171`, lista `1600300
 - 2026-11-02 — HU-02 sistema de diseño base. Tailwind 4, tokens, shadcn/ui, shells con navegación por rol y estilos en pantallas auth/internas/portal; tests de componentes base en verde.
 - 2026-11-03 — Variables de entorno por capa: `backend/.env.example` y `frontend/.env.example`; scripts backend y dbmate cargan `backend/.env`; README y `docs/deployment.md` actualizados.
 - 2026-11-03 — Arranque monorepo: `predev` compila `@fabsoft/shared` en backend/frontend; `with-env.mjs` invoca `dbmate.cmd` en Windows; README exige Node 22 y comandos desde la raíz.
+- 2026-11-04 — HU-05 backend productos. API `GET/POST/PATCH /api/v1/products`, dominio/aplicación/infra PG, Zod en `@fabsoft/shared`, tests unitarios + `products.db.test.ts` + `T-RN02-01`; e2e products sigue en fixme.
+- 2026-11-04 — HU-05 seguimiento QA. Contratos AJV (`product-schema`, `additionalProperties`), mapa `STATUS_BY_CODE`, `T-HU05-04` desactivar, `T-RN14-01` DELETE en `app.products`; sin cambios en migraciones.

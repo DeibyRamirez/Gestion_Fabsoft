@@ -6,6 +6,7 @@ import type {
 } from '../../src/application/auth/ports.js';
 import type { AuditEntry } from '../../src/application/shared/ports.js';
 import type { UserView } from '../../src/application/users/shared/user-view.js';
+import type { ProductView } from '../../src/application/products/shared/product-view.js';
 import type { AuthScopeRepos, Infra, UserScopeRepos } from '../../src/composition/infra.js';
 import { Sha256RefreshTokenFactory } from '../../src/infrastructure/security/sha256-refresh-token-factory.js';
 import { JoseTokenService } from '../../src/infrastructure/security/jose-token-service.js';
@@ -43,6 +44,7 @@ export class MemoryStore {
     }
   >();
   clients = new Set<string>(['00000000-0000-4000-8000-00000000c001']);
+  products = new Map<string, ProductView>();
 
   addUser(p: Partial<MemUser> & Pick<MemUser, 'email' | 'role'> & { password: string }): MemUser {
     const now = new Date();
@@ -217,6 +219,75 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
         if (!u) return false;
         Object.assign(u, { passwordHash: hash, mustChangePassword: true });
         return true;
+      },
+    },
+    productsList: {
+      list: async (q) => {
+        const all = [...store.products.values()].filter(
+          (p) =>
+            (!q.productType?.length || q.productType.includes(p.productType)) &&
+            (!q.status || p.status === q.status),
+        );
+        return {
+          items: all.slice((q.page - 1) * q.pageSize, q.page * q.pageSize),
+          total: all.length,
+        };
+      },
+    },
+    productDetail: {
+      findById: async (id) => store.products.get(id) ?? null,
+    },
+    productCreate: {
+      insert: async (n) => {
+        const key = `${n.name.toLowerCase()}|${(n.vendor ?? '').toLowerCase()}`;
+        if (
+          [...store.products.values()].some(
+            (p) => `${p.name.toLowerCase()}|${(p.vendor ?? '').toLowerCase()}` === key,
+          )
+        )
+          return { ok: false, reason: 'duplicate_product' };
+        const now = new Date();
+        const product: ProductView = {
+          id: randomUUID(),
+          name: n.name,
+          description: n.description,
+          productType: n.productType,
+          vendor: n.vendor,
+          referenceCode: n.referenceCode,
+          status: 'active',
+          createdAt: now,
+          updatedAt: now,
+        };
+        store.products.set(product.id, product);
+        return { ok: true, product };
+      },
+    },
+    productUpdate: {
+      loadForUpdate: async (id) => store.products.get(id) ?? null,
+      save: async (id, p) => {
+        const current = store.products.get(id);
+        if (!current) return { ok: false, reason: 'duplicate_product' };
+        const next: ProductView = {
+          ...current,
+          ...(p.name !== undefined ? { name: p.name } : {}),
+          ...(p.description !== undefined ? { description: p.description } : {}),
+          ...(p.productType !== undefined ? { productType: p.productType } : {}),
+          ...(p.vendor !== undefined ? { vendor: p.vendor } : {}),
+          ...(p.referenceCode !== undefined ? { referenceCode: p.referenceCode } : {}),
+          ...(p.status !== undefined ? { status: p.status } : {}),
+          updatedAt: new Date(),
+        };
+        const key = `${next.name.toLowerCase()}|${(next.vendor ?? '').toLowerCase()}`;
+        if (
+          [...store.products.entries()].some(
+            ([pid, prod]) =>
+              pid !== id &&
+              `${prod.name.toLowerCase()}|${(prod.vendor ?? '').toLowerCase()}` === key,
+          )
+        )
+          return { ok: false, reason: 'duplicate_product' };
+        store.products.set(id, next);
+        return { ok: true, product: next };
       },
     },
   };

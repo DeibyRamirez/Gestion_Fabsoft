@@ -15,7 +15,13 @@
     "format:check": "prettier --check .",
     "test": "pnpm -r --if-present test",
     "test:unit": "pnpm -r --if-present test:unit",
+    "test:integration": "pnpm --filter @fabsoft/backend test:integration",
+    "test:api": "pnpm --filter @fabsoft/backend test:api",
+    "test:coverage": "pnpm --filter @fabsoft/backend test:coverage",
+    "test:perf": "pnpm --filter @fabsoft/backend test:perf",
+    "test:e2e": "cross-env TZ=UTC playwright test -c e2e/playwright.config.ts",
     "db:migrate": "pnpm --filter @fabsoft/backend db:migrate",
+    "db:migrate:test": "pnpm --filter @fabsoft/backend db:migrate:test",
     "db:rollback": "pnpm --filter @fabsoft/backend db:rollback",
     "test:security": "pnpm --filter @fabsoft/backend test:security",
     "db:seed": "pnpm --filter @fabsoft/backend db:seed",
@@ -23,6 +29,8 @@
   },
   "devDependencies": {
     "@fabsoft/config": "workspace:*",
+    "@playwright/test": "^1.56.1",
+    "cross-env": "^10.1.0",
     "prettier": "^3",
     "typescript": "^5.9"
   }

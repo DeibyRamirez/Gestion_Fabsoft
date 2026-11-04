@@ -353,7 +353,7 @@ paths:
       tags: [Clients]
       operationId: createClient
       summary: Crea un cliente (Flujo A)
-      description: Rechaza identificaciones fiscales duplicadas (`409 duplicate_tax_id`). Auditado (`client.created`).
+      description: Rechaza identificaciones fiscales duplicadas (`409 client_tax_id_taken`). Auditado (`client.created`).
       x-roles: [admin, operator]
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -637,6 +637,8 @@ paths:
       operationId: createProduct
       summary: Crea un producto del catálogo
       x-roles: [admin]
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -654,6 +656,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
   /api/v1/products/{id}:
     parameters:
       - $ref: '#/components/parameters/IdPath'
@@ -679,6 +682,8 @@ paths:
       operationId: updateProduct
       summary: Actualiza o desactiva (`status=inactive`) un producto
       x-roles: [admin]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -695,6 +700,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
 
   /api/v1/subscriptions:
     get:
@@ -2008,12 +2014,12 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     Conflict:
-      description: Conflicto (`version_conflict`, `duplicate_tax_id`, `duplicate_email`, `duplicate_product`, `idempotency_in_progress`)
+      description: Conflicto (`version_conflict`, `client_tax_id_taken`, `primary_contact_conflict`, `duplicate_email`, `duplicate_product`, `idempotency_in_progress`)
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     UnprocessableEntity:
-      description: Regla de negocio incumplida (`invalid_state_transition`, `period_overlap`, `client_archived`, `product_inactive`, `idempotency_key_reused`, `notification_obsolete`, `credential_limit_reached`, `manifest_invalid`, `renewal_not_confirmed`)
+      description: Regla de negocio incumplida (`invalid_state_transition`, `period_overlap`, `client_archived`, `client_inactive`, `product_inactive`, `idempotency_key_reused`, `notification_obsolete`, `credential_limit_reached`, `manifest_invalid`, `renewal_not_confirmed`)
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
@@ -2050,8 +2056,8 @@ components:
           type: string
           enum: [validation_error, ambiguous_credentials, unauthenticated, invalid_credentials, token_expired,
                  password_change_required, forbidden, insufficient_scope, not_found, version_conflict,
-                 duplicate_tax_id, duplicate_email, duplicate_product, idempotency_in_progress,
-                 idempotency_key_reused, invalid_state_transition, period_overlap, client_archived,
+                 client_tax_id_taken, primary_contact_conflict, duplicate_email, duplicate_product, idempotency_in_progress,
+                 idempotency_key_reused, invalid_state_transition, period_overlap, client_archived, client_inactive,
                  product_inactive, notification_obsolete, credential_limit_reached, manifest_invalid,
                  renewal_not_confirmed, rate_limited, maintenance, dependency_unavailable, internal_error]
         requestId: { type: string }
@@ -2329,6 +2335,7 @@ components:
 
     Product:
       type: object
+      additionalProperties: false
       required: [id, name, productType, status, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
