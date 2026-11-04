@@ -21,6 +21,10 @@ import type {
   IdGenerator,
   UnitOfWork,
 } from '../application/shared/ports.js';
+import type { CreateProductRepos } from '../application/products/create-product/ports.js';
+import type { GetProductRepos } from '../application/products/get-product/ports.js';
+import type { ListProductsRepos } from '../application/products/list-products/ports.js';
+import type { UpdateProductRepos } from '../application/products/update-product/ports.js';
 import type { CreateUserRepos } from '../application/users/create-user/ports.js';
 import type { GetUserRepos } from '../application/users/get-user/ports.js';
 import type { ListUsersRepos } from '../application/users/list-users/ports.js';
@@ -35,6 +39,10 @@ export type UserScopeRepos = GetMeRepos &
   CreateUserRepos &
   UpdateUserRepos &
   ResetUserPasswordRepos &
+  ListProductsRepos &
+  GetProductRepos &
+  CreateProductRepos &
+  UpdateProductRepos &
   ChangePasswordRepos & { idempotency: IdempotencyRepository };
 
 /** Repos disponibles en contexto system/auth. */

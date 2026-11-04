@@ -11,11 +11,13 @@ import { requestId } from './middlewares/request-id.js';
 import { sendProblem } from './problem.js';
 import { authRouter, type AuthRouteDeps } from './routes/v1/auth.js';
 import { healthRouter, type HealthRouteDeps } from './routes/v1/health.js';
+import { productsRouter, type ProductsRouteDeps } from './routes/v1/products.js';
 import { usersRouter, type UsersRouteDeps } from './routes/v1/users.js';
 
 export type AppDeps = HealthRouteDeps &
   AuthRouteDeps &
-  UsersRouteDeps & {
+  UsersRouteDeps &
+  ProductsRouteDeps & {
     corsOrigins: string[];
     idempotencyService: IdempotencyService;
     log: (entry: Record<string, unknown>) => void;
@@ -54,6 +56,8 @@ export function createApp(deps: AppDeps): Express {
       body && typeof body === 'object' ? { ...body, temporaryPassword: undefined } : body,
   });
   app.use(API_VERSION_PREFIX, usersRouter(deps, guards, createUserIdempotency));
+  const createProductIdempotency = idempotency(deps.idempotencyService);
+  app.use(API_VERSION_PREFIX, productsRouter(deps, guards, createProductIdempotency));
 
   app.use((_req, res) => sendProblem(res, 'not_found', 'Recurso no encontrado'));
   app.use(errorHandler(deps.log));
