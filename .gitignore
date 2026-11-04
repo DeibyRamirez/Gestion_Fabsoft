@@ -6,6 +6,9 @@ dist/
 **/.env.*
 !**/.env.example
 coverage/
+backend/perf-results.json
+playwright-report/
+test-results/
 next-env.d.ts
 contexto.zip
 contexto/

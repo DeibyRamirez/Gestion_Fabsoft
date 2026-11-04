@@ -12,6 +12,12 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  TZ: UTC
+  POSTGRES_USER: fabsoft_owner
+  POSTGRES_DB: fabsoft_test
+  FABSOFT_APP_USER: fabsoft_app
+
 jobs:
   lint-typecheck:
     name: lint + typecheck
@@ -41,6 +47,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @fabsoft/shared build
       - run: pnpm test
+      - run: pnpm test:coverage
+      - run: pnpm --filter @fabsoft/backend check-coverage-paths
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: backend/coverage/
+          if-no-files-found: error
 
   build:
     name: build
@@ -95,6 +108,133 @@ jobs:
         run: psql "$TEST_DATABASE_MIGRATION_URL" -v ON_ERROR_STOP=1 -c 'SELECT app.assert_rls_everywhere();'
       - name: Tests de seguridad
         run: pnpm test:security
+
+  integration-api:
+    name: integration-api
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fabsoft_owner
+          POSTGRES_DB: fabsoft_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fabsoft_owner -d fabsoft_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      REQUIRE_DB_TESTS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: URLs de base de datos (sin credenciales en el workflow)
+        run: bash backend/scripts/export-ci-database-url.sh all
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @fabsoft/shared build
+      - name: Migraciones (dbmate)
+        run: pnpm db:migrate:test
+      - name: LOGIN fabsoft_app
+        run: pnpm db:roles:dev
+      - run: pnpm test:integration
+      - run: pnpm test:api
+
+  e2e-smoke:
+    name: e2e-smoke
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fabsoft_owner
+          POSTGRES_DB: fabsoft_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fabsoft_owner -d fabsoft_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: test
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:4000/api/v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: URLs de base de datos (sin credenciales en el workflow)
+        run: bash backend/scripts/export-ci-database-url.sh all
+      - run: pnpm install --frozen-lockfile
+      - name: Migraciones y seed
+        run: |
+          pnpm db:migrate:test
+          pnpm db:roles:dev
+          pnpm db:seed
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: warn
+
+  perf-smoke:
+    name: perf-smoke
+    runs-on: ubuntu-latest
+    # TODO: quitar continue-on-error el 2026-11-23 cuando el umbral de perf sea estable.
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fabsoft_owner
+          POSTGRES_DB: fabsoft_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fabsoft_owner -d fabsoft_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      REQUIRE_DB_TESTS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: URLs de base de datos (sin credenciales en el workflow)
+        run: bash backend/scripts/export-ci-database-url.sh all
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @fabsoft/shared build
+      - name: Migraciones
+        run: |
+          pnpm db:migrate:test
+          pnpm db:roles:dev
+      - run: pnpm test:perf
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-results
+          path: backend/perf-results.json
+          if-no-files-found: warn
 
   openapi-lint:
     name: openapi lint (redocly)
