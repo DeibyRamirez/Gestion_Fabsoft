@@ -8,10 +8,7 @@ import {
   resetDatabase,
 } from '../helpers/db.js';
 import { buildTestApp, closeTestApp, getTestAccessTokens } from '../helpers/app.js';
-import {
-  assertInvalidComponentSchema,
-  assertValidComponentSchema,
-} from '../helpers/openapi.js';
+import { assertInvalidComponentSchema, assertValidComponentSchema } from '../helpers/openapi.js';
 
 assertDbTestsRequired();
 

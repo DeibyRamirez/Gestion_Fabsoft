@@ -42,16 +42,11 @@ describe('GetProduct', () => {
     const ok = new GetProduct({
       run: async (_a, work) => work({ productDetail: { findById: async () => sample } }),
     });
-    await expect(
-      ok.execute({ ...admin, role: 'operator' }, sample.id),
-    ).resolves.toEqual(sample);
+    await expect(ok.execute({ ...admin, role: 'operator' }, sample.id)).resolves.toEqual(sample);
 
     const denied = new GetProduct({ run: vi.fn() });
     await expect(
-      denied.execute(
-        { ...admin, role: 'client', clientId: 'cl', userId: 'u' },
-        sample.id,
-      ),
+      denied.execute({ ...admin, role: 'client', clientId: 'cl', userId: 'u' }, sample.id),
     ).rejects.toMatchObject({ code: 'forbidden' });
   });
 });

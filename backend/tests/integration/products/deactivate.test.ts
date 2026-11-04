@@ -40,9 +40,10 @@ describe.skipIf(!dbTestsConfigured())('T-HU05-04 desactivar producto', () => {
     const extraPeriod = await factories.period(subscription);
 
     const before = await withOwnerSystemContext(async (c) => {
-      const subs = await c.query(`select status, price_amount::text from app.subscriptions where id = $1`, [
-        subscription.id,
-      ]);
+      const subs = await c.query(
+        `select status, price_amount::text from app.subscriptions where id = $1`,
+        [subscription.id],
+      );
       const periods = await c.query(
         `select period_number, start_date::text, end_date::text, price_amount::text
          from app.subscription_periods where subscription_id = $1 order by period_number`,
@@ -59,9 +60,10 @@ describe.skipIf(!dbTestsConfigured())('T-HU05-04 desactivar producto', () => {
     expect(patch.body.status).toBe('inactive');
 
     const after = await withOwnerSystemContext(async (c) => {
-      const subs = await c.query(`select status, price_amount::text from app.subscriptions where id = $1`, [
-        subscription.id,
-      ]);
+      const subs = await c.query(
+        `select status, price_amount::text from app.subscriptions where id = $1`,
+        [subscription.id],
+      );
       const periods = await c.query(
         `select period_number, start_date::text, end_date::text, price_amount::text
          from app.subscription_periods where subscription_id = $1 order by period_number`,

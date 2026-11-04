@@ -22,10 +22,7 @@ export type OpenApiDoc = {
         requestBody?: {
           content?: Record<string, { schema?: unknown }>;
         };
-        responses?: Record<
-          string,
-          { content?: Record<string, { schema?: unknown }> }
-        >;
+        responses?: Record<string, { content?: Record<string, { schema?: unknown }> }>;
       }
     >
   >;
@@ -47,9 +44,7 @@ export function loadOpenApiSpec(): OpenApiDoc {
 
 export async function initOpenApiValidation(): Promise<void> {
   if (dereferencedSpec && ajv) return;
-  dereferencedSpec = (await $RefParser.dereference(
-    openApiSpecPath,
-  )) as OpenApiDoc;
+  dereferencedSpec = (await $RefParser.dereference(openApiSpecPath)) as OpenApiDoc;
   ajv = new Ajv2020({
     strict: false,
     allErrors: true,
