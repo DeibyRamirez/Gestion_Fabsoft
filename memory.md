@@ -72,3 +72,4 @@ No es la fuente de avance. Workspace objetivo `1600300000002171`, lista `1600300
 - 2026-11-02 — Diagnóstico y registro inicial. Auth, usuarios, health, idempotencia, migraciones del modelo y CI básico están operativos. El resto del MVP está especificado en `docs/` y OpenAPI, sin casos de uso. ClickUp FabSoft no es accesible con la cuenta conectada; el avance queda en este archivo y en `todo.md`.
 - 2026-11-02 — HU-02 sistema de diseño base. Tailwind 4, tokens, shadcn/ui, shells con navegación por rol y estilos en pantallas auth/internas/portal; tests de componentes base en verde.
 - 2026-11-03 — Variables de entorno por capa: `backend/.env.example` y `frontend/.env.example`; scripts backend y dbmate cargan `backend/.env`; README y `docs/deployment.md` actualizados.
+- 2026-11-03 — Arranque monorepo: `predev` compila `@fabsoft/shared` en backend/frontend; `with-env.mjs` invoca `dbmate.cmd` en Windows; README exige Node 22 y comandos desde la raíz.

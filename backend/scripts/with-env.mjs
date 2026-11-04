@@ -36,5 +36,24 @@ if (sep === -1 || sep === process.argv.length - 1) {
 }
 
 const [cmd, ...args] = process.argv.slice(sep + 1);
-const result = spawnSync(cmd, args, { stdio: 'inherit', env: process.env, shell: false });
+
+function resolveCommand(name) {
+  if (name !== 'dbmate') return name;
+  const bin = process.platform === 'win32' ? 'dbmate.cmd' : 'dbmate';
+  return join(backendRoot, 'node_modules', '.bin', bin);
+}
+
+const executable = resolveCommand(cmd);
+const result = spawnSync(executable, args, {
+  stdio: 'inherit',
+  env: process.env,
+  shell: false,
+  cwd: backendRoot,
+});
+
+if (result.error) {
+  console.error(result.error.message);
+  process.exit(1);
+}
+
 process.exit(result.status ?? 1);
