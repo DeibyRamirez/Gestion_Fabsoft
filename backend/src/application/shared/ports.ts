@@ -28,12 +28,15 @@ export type AuditAction =
   | 'user.updated'
   | 'user.role_changed'
   | 'user.disabled'
-  | 'user.password_reset';
+  | 'user.password_reset'
+  | 'product.created'
+  | 'product.updated'
+  | 'product.deactivated';
 
 export interface AuditEntry {
   actor: { type: 'user'; userId: string } | { type: 'system' };
   action: AuditAction;
-  resourceType: 'user';
+  resourceType: 'user' | 'product';
   resourceId: string;
   changes?: { before?: Record<string, unknown>; after?: Record<string, unknown> };
   requestId: string;
