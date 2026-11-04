@@ -29,7 +29,7 @@ describe.skipIf(!dbTestsConfigured())('Products API (Postgres)', () => {
     await closeTestPools();
   });
 
-  it('CRUD: admin crea, lista, obtiene y actualiza', async () => {
+  it('T-HU05 — CRUD: admin crea, lista, obtiene y actualiza', async () => {
     const app = await buildTestApp();
     const admin = await factories.adminUser();
     const token = await factories.tokenFor(admin);
@@ -60,7 +60,7 @@ describe.skipIf(!dbTestsConfigured())('Products API (Postgres)', () => {
     expect(patch.body.status).toBe('inactive');
   });
 
-  it('operador lee y client recibe 403 al leer', async () => {
+  it('T-HU05 — operador lee y client recibe 403 forbidden al leer', async () => {
     const app = await buildTestApp();
     const product = await factories.product();
     const operator = await factories.operatorUser();
@@ -76,18 +76,18 @@ describe.skipIf(!dbTestsConfigured())('Products API (Postgres)', () => {
       .get('/api/v1/products')
       .set('Authorization', `Bearer ${await factories.tokenFor(clientUser)}`);
     expect(clientList.status).toBe(403);
+    expect(clientList.body.status).toBe(403);
     expect(clientList.body.code).toBe('forbidden');
 
-    expect(
-      (
-        await request(app)
-          .get(`/api/v1/products/${product.id}`)
-          .set('Authorization', `Bearer ${await factories.tokenFor(clientUser)}`)
-      ).status,
-    ).toBe(403);
+    const clientGet = await request(app)
+      .get(`/api/v1/products/${product.id}`)
+      .set('Authorization', `Bearer ${await factories.tokenFor(clientUser)}`);
+    expect(clientGet.status).toBe(403);
+    expect(clientGet.body.status).toBe(403);
+    expect(clientGet.body.code).toBe('forbidden');
   });
 
-  it('operador y client reciben 403 al escribir', async () => {
+  it('T-HU05 — operador y client reciben 403 forbidden al escribir', async () => {
     const app = await buildTestApp();
     const product = await factories.product();
     const operator = await factories.operatorUser();
@@ -124,7 +124,7 @@ describe.skipIf(!dbTestsConfigured())('Products API (Postgres)', () => {
     ).toBe(403);
   });
 
-  it('409 duplicate_product por nombre+vendor', async () => {
+  it('T-HU05 — 409 duplicate_product por nombre+vendor', async () => {
     const app = await buildTestApp();
     const admin = await factories.adminUser();
     const token = await factories.tokenFor(admin);
@@ -148,7 +148,7 @@ describe.skipIf(!dbTestsConfigured())('Products API (Postgres)', () => {
     expectMatchesOperation(dup, 'createProduct');
   });
 
-  it('GET filtra por status', async () => {
+  it('T-HU05 — GET filtra por status', async () => {
     const app = await buildTestApp();
     const admin = await factories.adminUser();
     const token = await factories.tokenFor(admin);
@@ -161,5 +161,26 @@ describe.skipIf(!dbTestsConfigured())('Products API (Postgres)', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.every((p: { status: string }) => p.status === 'inactive')).toBe(true);
     expect(res.body.meta.total).toBe(1);
+  });
+
+  it('T-HU05 — getProduct devuelve vista de catálogo sin precio', async () => {
+    const app = await buildTestApp();
+    const admin = await factories.adminUser();
+    const token = await factories.tokenFor(admin);
+    const product = await factories.product({ type: 'own', status: 'active' });
+
+    const res = await request(app)
+      .get(`/api/v1/products/${product.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expectMatchesOperation(res, 'getProduct');
+    expect(res.body).toMatchObject({
+      id: product.id,
+      name: product.name,
+      productType: 'own',
+      status: 'active',
+    });
+    expect(res.body).not.toHaveProperty('priceAmount');
+    expect(res.body).not.toHaveProperty('billingCycle');
   });
 });
