@@ -73,3 +73,4 @@ No es la fuente de avance. Workspace objetivo `1600300000002171`, lista `1600300
 - 2026-11-02 — HU-02 sistema de diseño base. Tailwind 4, tokens, shadcn/ui, shells con navegación por rol y estilos en pantallas auth/internas/portal; tests de componentes base en verde.
 - 2026-11-03 — Variables de entorno por capa: `backend/.env.example` y `frontend/.env.example`; scripts backend y dbmate cargan `backend/.env`; README y `docs/deployment.md` actualizados.
 - 2026-11-04 — HU-05 backend productos. API `GET/POST/PATCH /api/v1/products`, dominio/aplicación/infra PG, Zod en `@fabsoft/shared`, tests unitarios + `products.db.test.ts` + `T-RN02-01`; e2e products sigue en fixme.
+- 2026-11-04 — HU-05 seguimiento QA. Contratos AJV (`product-schema`, `additionalProperties`), mapa `STATUS_BY_CODE`, `T-HU05-04` desactivar, `T-RN14-01` DELETE en `app.products`; sin cambios en migraciones.
