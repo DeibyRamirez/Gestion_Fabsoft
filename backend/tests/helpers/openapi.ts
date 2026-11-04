@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import type { Response } from 'supertest';
 import { expect } from 'vitest';
-import { HealthResponseSchema } from '@fabsoft/shared';
+import { HealthResponseSchema, ProductSchema } from '@fabsoft/shared';
 
 type OpenApiDoc = {
   paths?: Record<
