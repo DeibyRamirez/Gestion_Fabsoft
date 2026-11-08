@@ -101,9 +101,7 @@ try {
   const prov = new pg.Client({ connectionString: urlForDatabase(provisionUrl, target.database) });
   await prov.connect();
   try {
-    await prov.query(
-      `revoke create on database ${quoteIdent(target.database)} from fabsoft_app`,
-    );
+    await prov.query(`revoke create on database ${quoteIdent(target.database)} from fabsoft_app`);
     await prov.query(
       `revoke create on database ${quoteIdent(target.database)} from fabsoft_worker`,
     );

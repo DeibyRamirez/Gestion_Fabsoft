@@ -109,6 +109,10 @@ jobs:
         run: pnpm --filter @fabsoft/backend db:provision:foundation
       - name: Migraciones (dbmate, LOGIN fabsoft_migrator directo)
         run: pnpm db:migrate
+      - name: Reconciliar REVOKE CREATE (0003 M1; harness)
+        run: |
+          psql "$DATABASE_PROVISION_URL" -v ON_ERROR_STOP=1 -c \
+            "REVOKE CREATE ON DATABASE ${POSTGRES_DB} FROM fabsoft_app, fabsoft_worker;"
       - name: LOGIN roles runtime (provisioner)
         run: pnpm db:roles:dev
       - name: Assert RLS en todas las tablas

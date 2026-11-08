@@ -102,9 +102,6 @@ async function grantMigratorOnDatabase(dbName: string): Promise<void> {
   await provision.query(
     `grant all privileges on database ${quoteIdent(dbName)} to ${quoteIdent(MIGRATOR_ROLE)} with grant option`,
   );
-  await provision.query(
-    `grant create on database ${quoteIdent(dbName)} to ${quoteIdent(MIGRATOR_ROLE)}`,
-  );
   const dbClient = new pg.Client({
     connectionString: urlForDatabase(provisionConnectionUrl, dbName),
   });
