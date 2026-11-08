@@ -151,6 +151,9 @@ async function grantMigratorOnDatabase(dbName: string): Promise<void> {
   await dbClient.connect();
   try {
     await dbClient.query(`grant usage, create on schema public to ${quoteIdent(MIGRATOR_ROLE)}`);
+    await dbClient.query(
+      `grant select, insert, update, delete on all tables in schema public to ${quoteIdent(MIGRATOR_ROLE)}`,
+    );
     await dbClient.query(`alter schema public owner to ${quoteIdent(MIGRATOR_ROLE)}`);
   } finally {
     await dbClient.end();
@@ -377,7 +380,6 @@ async function profileCiMain(): Promise<void> {
     DATABASE_PROVISION_URL: provisionConnectionUrl,
     DATABASE_MIGRATION_URL: migUrl,
     TEST_DATABASE_MIGRATION_URL: provisionConnectionUrl,
-    SEED_DATABASE_URL: provisionConnectionUrl,
     SEED_EPHEMERAL_MARKER: marker,
     SEED_HARNESS_RUN_ID: harnessRunId,
     SEED_ALLOWED_HOSTS: target.host,
