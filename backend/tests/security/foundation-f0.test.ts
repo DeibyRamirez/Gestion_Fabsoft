@@ -69,7 +69,9 @@ describe.skipIf(skip)('F0 — runtime fabsoft_app', () => {
     const client = await pool.connect();
     try {
       await client.query('begin');
+      await client.query('savepoint ddl_try');
       await expect(client.query('create table app.evil_probe(id int)')).rejects.toBeTruthy();
+      await client.query('rollback to savepoint ddl_try');
       await client.query('savepoint role_try');
       await expect(client.query('set local role fabsoft_owner')).rejects.toBeTruthy();
       await client.query('rollback to savepoint role_try');

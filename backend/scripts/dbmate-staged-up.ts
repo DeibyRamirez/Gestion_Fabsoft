@@ -97,6 +97,19 @@ try {
   await reconcileAppSchema();
   await copyMigrations(dir345, MIGRATION_FILES.slice(2));
   runDbmate(provisionUrl, dir345);
+  const target = parseDatabaseTarget(provisionUrl);
+  const prov = new pg.Client({ connectionString: urlForDatabase(provisionUrl, target.database) });
+  await prov.connect();
+  try {
+    await prov.query(
+      `revoke create on database ${quoteIdent(target.database)} from fabsoft_app`,
+    );
+    await prov.query(
+      `revoke create on database ${quoteIdent(target.database)} from fabsoft_worker`,
+    );
+  } finally {
+    await prov.end();
+  }
 } finally {
   await rm(tmpBase, { recursive: true, force: true });
 }
