@@ -156,7 +156,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="hidden sm:inline-flex"
+                className="sm:inline-flex lg:hidden"
                 onClick={handleSignOut}
               >
                 Cerrar sesión

@@ -169,6 +169,11 @@ export function UsersAdmin() {
           <CardTitle className="text-lg">Usuarios registrados</CardTitle>
         </CardHeader>
         <CardContent>
+          {page === null && !message ? (
+            <p role="status" aria-busy="true" className="text-sm text-fg-muted">
+              Cargando usuarios…
+            </p>
+          ) : null}
           <Table>
             <TableCaption>Listado de cuentas internas y de portal.</TableCaption>
             <TableHeader>
