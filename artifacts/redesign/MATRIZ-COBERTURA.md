@@ -13,6 +13,14 @@ Leyenda pruebas: **UT** vitest frontend, **Build** next build, **Smoke** e2e/man
 | `/` | ✓ | ✓ | ✓ | Sí | Build | Redirección |
 | Nav próximamente | ✓ | ✓ | parcial | Sí (estilo disabled) | UT app-shell | Sin rutas 404 extra |
 
+## Capturas (agente)
+
+| Archivo | Descripción |
+|---------|-------------|
+| `/opt/cursor/artifacts/redesign/01-login-desktop.png` | Login 1280×800 |
+| `/opt/cursor/artifacts/redesign/05-login-mobile.png` | Login 390×844 |
+| `/opt/cursor/artifacts/redesign/02-change-password-unauth-desktop.png` | Change password sin sesión (redirige/carga) |
+
 ## Comandos ejecutados (resultado real)
 
 ```text
