@@ -49,7 +49,7 @@ async function pendingMigrationVersions(
   databaseUrl: string,
   expectedFiles: readonly string[],
 ): Promise<string[]> {
-  const expected = expectedFiles.map((f) => f.replace(/\.sql$/, ''));
+  const expected = expectedFiles.map((f) => f.replace(/\.sql$/, '').split('_')[0]!);
   const c = new pg.Client({ connectionString: databaseUrl });
   await c.connect();
   try {
@@ -117,7 +117,7 @@ async function assertInventory(databaseUrl: string, expectedFiles: string[]): Pr
       `select version from public.schema_migrations order by version`,
     );
     const applied = rows.map((r) => r.version);
-    const expectedVersions = expectedFiles.map((f) => f.replace(/\.sql$/, ''));
+    const expectedVersions = expectedFiles.map((f) => f.replace(/\.sql$/, '').split('_')[0]!);
     const missing = expectedVersions.filter((v) => !applied.includes(v));
     if (missing.length > 0) {
       throw new Error(
