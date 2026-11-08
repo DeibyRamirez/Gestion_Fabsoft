@@ -70,7 +70,9 @@ async function bootstrapRoleStubsForMigrator(): Promise<void> {
     'fabsoft_auth_definer',
     'fabsoft_bootstrap',
   ]) {
-    await provision.query(`grant ${quoteIdent(role)} to ${quoteIdent(MIGRATOR_ROLE)}`);
+    await provision.query(
+      `grant ${quoteIdent(role)} to ${quoteIdent(MIGRATOR_ROLE)} with admin option`,
+    );
   }
 }
 
