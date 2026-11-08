@@ -28,13 +28,51 @@ const provisionConnectionUrl: string = provisionUrl;
 const migratorPassword =
   process.env.CI_MIGRATOR_PASSWORD?.trim() ||
   process.env.FABSOFT_MIGRATOR_PASSWORD?.trim() ||
-  'ci_migrator_dev_only';
+  randomUUID();
+const migratorTrustAuth =
+  process.env.FABSOFT_MIGRATOR_TRUST === '1' || !process.env.CI_MIGRATOR_PASSWORD;
 
 const marker = process.env.SEED_EPHEMERAL_MARKER?.trim() || `ephemeral-${randomUUID()}`;
 const target = parseDatabaseTarget(provisionConnectionUrl);
 
 const provision = new pg.Client({ connectionString: provisionConnectionUrl });
 await provision.connect();
+
+/**
+ * Roles referenciados con AUTHORIZATION / SECURITY DEFINER en 0001–0005 deben existir y
+ * el migrator debe ser miembro (SET ROLE) antes de ejecutar el historial sin reescritura.
+ */
+async function bootstrapRoleStubsForMigrator(): Promise<void> {
+  await provision.query(`
+    do $do$
+    begin
+      if not exists (select 1 from pg_roles where rolname = 'fabsoft_app') then
+        create role fabsoft_app nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls;
+      end if;
+      if not exists (select 1 from pg_roles where rolname = 'fabsoft_worker') then
+        create role fabsoft_worker nologin nosuperuser nocreatedb nocreaterole inherit nobypassrls;
+      end if;
+      if not exists (select 1 from pg_roles where rolname = 'fabsoft_secure_view') then
+        create role fabsoft_secure_view nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls;
+      end if;
+      if not exists (select 1 from pg_roles where rolname = 'fabsoft_auth_definer') then
+        create role fabsoft_auth_definer nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls;
+      end if;
+      if not exists (select 1 from pg_roles where rolname = 'fabsoft_bootstrap') then
+        create role fabsoft_bootstrap nologin nosuperuser nocreatedb nocreaterole inherit nobypassrls;
+      end if;
+    end
+    $do$`);
+  for (const role of [
+    'fabsoft_app',
+    'fabsoft_worker',
+    'fabsoft_secure_view',
+    'fabsoft_auth_definer',
+    'fabsoft_bootstrap',
+  ]) {
+    await provision.query(`grant ${quoteIdent(role)} to ${quoteIdent(MIGRATOR_ROLE)}`);
+  }
+}
 
 async function ensureMigratorRole(): Promise<void> {
   const { rows } = await provision.query<{ exists: boolean }>(
@@ -63,6 +101,9 @@ async function grantMigratorOnDatabase(dbName: string): Promise<void> {
 
 function migratorUrl(dbName: string, host = target.host, port = target.port): string {
   const encUser = encodeURIComponent(MIGRATOR_ROLE);
+  if (migratorTrustAuth) {
+    return `postgres://${encUser}@${host}:${port}/${dbName}?sslmode=disable`;
+  }
   const encPass = encodeURIComponent(migratorPassword);
   return `postgres://${encUser}:${encPass}@${host}:${port}/${dbName}?sslmode=disable`;
 }
@@ -128,6 +169,7 @@ async function rlsSnapshot(databaseUrl: string): Promise<string> {
 
 async function profileCiMain(): Promise<void> {
   await ensureMigratorRole();
+  await bootstrapRoleStubsForMigrator();
   await grantMigratorOnDatabase(target.database);
   const migUrl = migratorUrl(target.database);
   const identity = await (async () => {
@@ -169,6 +211,7 @@ async function profileCiMain(): Promise<void> {
 
 async function profileFoundationHarness(): Promise<void> {
   await ensureMigratorRole();
+  await bootstrapRoleStubsForMigrator();
   const freshDb = `${target.database}_f0_fresh`;
   const upgradeDb = `${target.database}_f0_upg`;
   for (const name of [freshDb, upgradeDb]) {

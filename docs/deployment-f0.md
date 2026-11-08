@@ -49,5 +49,6 @@ Requiere `APP_ENV` explícito, listas `SEED_ALLOWED_HOSTS` / `SEED_ALLOWED_DATAB
 ## Limitaciones documentadas
 
 - El event trigger `fabsoft_enforce_rls` (0003) sólo se crea si el migrator es superusuario; con `fabsoft_migrator` no-superusuario la red de seguridad es `app.assert_rls_everywhere()` en migraciones y CI (no sustituye control DDL continuo en runtime).
+- Los roles referenciados en migraciones con `AUTHORIZATION` / `SECURITY DEFINER` (`fabsoft_worker`, `fabsoft_secure_view`, etc.) se pre-crean en el **harness** (fuera del historial SQL) y se concede membresía a `fabsoft_migrator` para poder aplicar `0003`–`0005` sin reescribir migraciones.
 - `ON CONFLICT DO NOTHING` en seed no reconcilia fixtures incompletos ni fechas desalineadas.
 - No se validó despliegue Supabase gestionado en este corte; el SQL sigue siendo el mismo historial `0001`–`0005`.
