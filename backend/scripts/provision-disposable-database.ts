@@ -83,7 +83,7 @@ async function ensureMigratorRole(): Promise<void> {
   );
   if (!rows[0]?.exists) {
     await provision.query(
-      `create role ${quoteIdent(MIGRATOR_ROLE)} login nosuperuser nocreatedb nobypassrls createrole inherit`,
+      `create role ${quoteIdent(MIGRATOR_ROLE)} login nosuperuser nocreatedb nobypassrls createrole noinherit`,
     );
   }
   const quoted = (
@@ -105,11 +105,18 @@ async function grantMigratorOnDatabase(dbName: string): Promise<void> {
   await provision.query(
     `grant create on database ${quoteIdent(dbName)} to ${quoteIdent(MIGRATOR_ROLE)}`,
   );
-  // public: schema_migrations (dbmate) y objetos bootstrap
-  await provision.query(
-    `grant all on schema public to ${quoteIdent(MIGRATOR_ROLE)} with grant option`,
-  );
-  await provision.query(`alter schema public owner to ${quoteIdent(MIGRATOR_ROLE)}`);
+  const dbClient = new pg.Client({
+    connectionString: urlForDatabase(provisionConnectionUrl, dbName),
+  });
+  await dbClient.connect();
+  try {
+    await dbClient.query(
+      `grant all on schema public to ${quoteIdent(MIGRATOR_ROLE)} with grant option`,
+    );
+    await dbClient.query(`alter schema public owner to ${quoteIdent(MIGRATOR_ROLE)}`);
+  } finally {
+    await dbClient.end();
+  }
 }
 
 function migratorUrl(dbName: string, host = target.host, port = target.port): string {

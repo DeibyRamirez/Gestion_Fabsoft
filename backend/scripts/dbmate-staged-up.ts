@@ -60,6 +60,7 @@ async function reconcileAppSchema(): Promise<void> {
     if (rows.length === 0) return;
     await prov.query(`alter schema app owner to ${quoteIdent(MIGRATOR)}`);
     await prov.query(`grant all on schema app to ${quoteIdent(MIGRATOR)} with grant option`);
+    await prov.query(`grant create, usage on schema app to ${quoteIdent(MIGRATOR)}`);
     await prov.query(`grant all on all tables in schema app to ${quoteIdent(MIGRATOR)}`);
     await prov.query(`grant all on all sequences in schema app to ${quoteIdent(MIGRATOR)}`);
     await prov.query(`grant all on all functions in schema app to ${quoteIdent(MIGRATOR)}`);
