@@ -7,12 +7,12 @@
  */
 import pg from 'pg';
 import { Argon2PasswordHasher } from '../src/infrastructure/security/argon2-password-hasher.js';
-import { assertEphemeralMarker, assertSeedConfiguration, loadSessionIdentity } from './guard.js';
+import { assertSeedConfiguration, assertSeedSession } from './guard.js';
 import { redactDatabaseUrl } from './database-url.js';
 
 const seedConfig = assertSeedConfiguration();
-const url = seedConfig.url;
 const reset = process.argv.includes('--reset');
+const url = seedConfig.url;
 
 const id = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 const U = {
@@ -258,13 +258,7 @@ const db = new pg.Client({ connectionString: url });
 await db.connect();
 const q = (sql: string, params?: unknown[]) => db.query(sql, params);
 try {
-  const identity = await loadSessionIdentity(q);
-  if (identity.sessionUser !== seedConfig.expectedUser) {
-    throw new Error(
-      `Seed: identidad inesperada ${identity.sessionUser} (destino ${redactDatabaseUrl(url)})`,
-    );
-  }
-  await assertEphemeralMarker(q, seedConfig.ephemeralMarker);
+  await assertSeedSession(q, seedConfig);
   await db.query('begin');
   await db.query(
     `select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true), set_config('app.request_id','seed',true)`,

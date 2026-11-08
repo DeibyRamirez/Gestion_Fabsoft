@@ -1,22 +1,24 @@
 # Sprint1 · Foundation F0 — Aprovisionamiento y migraciones
 
-> Corte acordado Dev/Seguridad: migrator LOGIN **sin** superusuario conectado **directamente**; provisioner administrativo mínimo; runtime (`fabsoft_app`) sin DDL ni escalación. No incluye `audit_write` ni cierre de HU-08.
+> Corte acordado Dev/Seguridad: migrator LOGIN **sin** superusuario conectado **directamente** a **todas** las migraciones `0001`–`0005`; provisioner administrativo **mínimo** (roles stub + membresías sin `ADMIN OPTION`); runtime (`fabsoft_app`) sin DDL ni escalación. No incluye `audit_write` ni cierre de HU-08.
 
 ## URLs por capa
 
 | Variable | Rol | Uso |
 |---|---|---|
-| `DATABASE_PROVISION_URL` | `fabsoft_owner` / `postgres` | Sólo harness CI y scripts de aprovisionamiento (`db:provision:*`, `db:roles:dev`). Nunca en contenedores de la app. |
-| `DATABASE_MIGRATION_URL` | `fabsoft_migrator` | dbmate **`0001`** (conexión directa; **no** `SET ROLE` desde admin). |
+| `DATABASE_PROVISION_URL` | `fabsoft_owner` / `postgres` | Sólo harness CI (`db:provision:*`). Crea migrator, stubs y tabla `fabsoft_harness.ephemeral_provenance`. |
+| `DATABASE_MIGRATION_URL` | `fabsoft_migrator` | dbmate **completo** (conexión directa; **no** `SET ROLE` desde admin). |
 | `DATABASE_URL` / `WORKER_DATABASE_URL` | `fabsoft_app` / `fabsoft_worker` | Runtime API/worker. |
-| `SEED_DATABASE_URL` | provisioner | Seed/reset; validado con marcador efímero. |
+| `SEED_DATABASE_URL` | provisioner | Seed; validado con marcador GUC **y** fila de procedencia del harness. |
+
+`DATABASE_MIGRATION_URL` y `DATABASE_PROVISION_URL` deben apuntar a la **misma instalación** (host, puerto, nombre de base); el usuario puede diferir.
 
 ## Reproducir en CI (paridad local con Postgres 16)
 
 ```bash
 export APP_ENV=test
-export DATABASE_PROVISION_URL='postgres://fabsoft_owner:<pwd>@localhost:5432/fabsoft_test?sslmode=disable'
-export CI_MIGRATOR_PASSWORD='<migrator-pwd>'
+export FABSOFT_MIGRATOR_TRUST=1
+export DATABASE_PROVISION_URL='postgres://fabsoft_owner@localhost:5432/fabsoft_test?sslmode=disable'
 pnpm --filter @fabsoft/backend db:provision:ci
 pnpm --filter @fabsoft/backend db:provision:foundation
 pnpm db:migrate
@@ -25,32 +27,31 @@ psql "$DATABASE_MIGRATION_URL" -c 'select app.assert_rls_everywhere();'
 pnpm test:security
 ```
 
-`pnpm db:migrate` ejecuta `dbmate-staged-up.ts`: `0001` como **migrator**, `0002`–`0005` como **provisioner** (sin `SET ROLE`; ver limitación abajo).
+`pnpm db:migrate` ejecuta `dbmate-staged-up.ts`: lista dinámica de `backend/migrations/*.sql` y falla si el inventario aplicado no coincide (sin omitir migraciones futuras).
 
-`db:provision:foundation` crea bases aisladas `*_f0_fresh` y `*_f0_upg`, aplica `0001` como fixture y completa hasta `0005`, comparando inventario RLS con instalación fresh.
+`db:provision:foundation` crea bases **únicas por ejecución** (`*_f0_<run>_fresh` / `*_upg`), rechaza nombres ya existentes (sin `DROP DATABASE` destructivo sobre recursos ajenos), compara inventario RLS **y** definiciones de políticas `pg_policies`, y elimina al final sólo las bases creadas por esa corrida.
 
-## Desarrollo local (docker-compose)
+## Bootstrap administrativo mínimo (honesto)
 
-Tras levantar `db` / `db-test` y aplicar migraciones:
+El SQL histórico `0003`–`0005` exige membresía en roles stub (`AUTHORIZATION fabsoft_worker`, `ALTER OWNER TO fabsoft_secure_view`, etc.). **Sin reescribir** esas migraciones, el harness provisioner:
 
-```bash
-export APP_ENV=dev
-export SEED_ALLOWED_HOSTS=localhost,127.0.0.1
-export SEED_ALLOWED_DATABASES=fabsoft,fabsoft_test
-export SEED_EPHEMERAL_MARKER=dev-local
-pnpm --filter @fabsoft/backend db:provision:dev
-pnpm db:migrate
-pnpm db:roles:dev
-pnpm db:seed
-```
+1. Crea `fabsoft_migrator` (`LOGIN`, `NOCREATEROLE`, `NOCREATEDB`, `NOINHERIT`) sólo si no existe con atributos distintos (falla cerrado).
+2. Crea roles stub **sólo si no existen** (mismos atributos que en las migraciones).
+3. Ejecuta `GRANT stub TO fabsoft_migrator` **sin** `ADMIN OPTION`.
+4. No altera contraseñas/login de roles preexistentes en instalaciones externas.
+
+Las sentencias DDL de las migraciones las ejecuta **únicamente** la sesión `fabsoft_migrator`.
 
 ## Seed endurecido
 
-Requiere `APP_ENV` explícito, listas `SEED_ALLOWED_HOSTS` / `SEED_ALLOWED_DATABASES`, `SEED_EPHEMERAL_MARKER` y `fabsoft.seed_ephemeral` en la base (lo fija `db:provision:*`). `--reset` exige `SEED_ALLOW_RESET=1`. Falla **antes** de abrir `pg.Client` si el destino no está permitido. Ver `docs/seed-data.md`.
+Requiere `APP_ENV` explícito (`dev`|`test`, o `staging` con `SEED_ALLOW_STAGING=1`), listas `SEED_ALLOWED_*`, `SEED_EPHEMERAL_MARKER`, `SEED_HARNESS_RUN_ID`, y coincidencia de `fabsoft.seed_ephemeral` + `fabsoft_harness.ephemeral_provenance`. Falla **antes** de abrir `pg.Client` si el destino no está permitido; tras conectar verifica `session_user`, `current_user`, base actual y ausencia de privilegios de escalación en el rol de seed.
 
 ## Limitaciones documentadas
 
-- El event trigger `fabsoft_enforce_rls` (0003) sólo se crea si el migrator es superusuario; con `fabsoft_migrator` no-superusuario la red de seguridad es `app.assert_rls_everywhere()` en migraciones y CI (no sustituye control DDL continuo en runtime).
-- Los roles referenciados con `AUTHORIZATION` / `SECURITY DEFINER` se pre-crean en el harness con `ADMIN OPTION` hacia `fabsoft_migrator`. Aun así, `0003`–`0005` del SQL histórico operan esquemas/objetos cuyo propietario no es el migrator (`pgboss`, vistas `SECURITY BARRIER`, funciones definer). **Sin reescribir migraciones**, esas versiones se aplican con **`DATABASE_PROVISION_URL` conectado directamente** (mismo patrón que hoy usa `postgres` en Supabase). Un corte posterior podría unificar migrator en `0006+`.
-- `ON CONFLICT DO NOTHING` en seed no reconcilia fixtures incompletos ni fechas desalineadas.
-- No se validó despliegue Supabase gestionado en este corte; el SQL sigue siendo el mismo historial `0001`–`0005`.
+- Event trigger `fabsoft_enforce_rls` (0003) sólo si el ejecutor es superusuario; con `fabsoft_migrator` la red de seguridad es `app.assert_rls_everywhere()` en migraciones y CI.
+- `ON CONFLICT DO NOTHING` en seed no reconcilia fixtures incompletos.
+- No se validó Supabase gestionado en este corte.
+
+## Bloqueador conocido (sin bypass silencioso)
+
+Si una instalación ya contiene roles stub con atributos incompatibles con el historial `0001`–`0005`, el harness **rechaza** la ejecución en lugar de `ALTER ROLE` encubierto. Corrección: instalación desechable o migración autorizada en un PR posterior (`0006+`).

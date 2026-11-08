@@ -1,6 +1,6 @@
 # Datos de prueba (seed) — FabSoft
 
-> **Sólo dev y staging.** Falla cerrado si `APP_ENV` falta o es `prod`, si el destino no está en `SEED_ALLOWED_HOSTS` / `SEED_ALLOWED_DATABASES` / `SEED_ALLOWED_PORTS`, si el host figura en `SEED_FORBIDDEN_HOSTS`, o si `fabsoft.seed_ephemeral` en la base no coincide con `SEED_EPHEMERAL_MARKER`. No abre conexión hasta validar la configuración. `SEED_DATABASE_URL` (provisioner) es preferido frente a `DATABASE_MIGRATION_URL`. `--reset` requiere `SEED_ALLOW_RESET=1`. Ningún dato real de clientes se usa fuera de producción. Ver `docs/deployment-f0.md`.
+> **Sólo dev y test** (`staging` exige `SEED_ALLOW_STAGING=1`). Falla cerrado si `APP_ENV` falta o es `prod`, si el destino no está en `SEED_ALLOWED_*`, si `SEED_HARNESS_RUN_ID` falta, si `fabsoft.seed_ephemeral` o `fabsoft_harness.ephemeral_provenance` no coinciden con el harness, o si la identidad de sesión no es la esperada. `--reset` requiere `SEED_ALLOW_RESET=1`. Ver `docs/deployment-f0.md`.
 
 ## 1. Ejecución
 

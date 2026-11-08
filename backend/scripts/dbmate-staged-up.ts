@@ -1,39 +1,38 @@
 /**
- * Aplica migraciones 0001–0005 sin reescribir SQL histórico:
- *   0001: conexión directa fabsoft_migrator (LOGIN, no superusuario)
- *   0002–0005: conexión directa provisioner (OWNER / propietario; sin SET ROLE desde admin)
- *
- * Ver docs/deployment-f0.md (limitación documentada).
+ * Aplica migraciones con conexión directa fabsoft_migrator (LOGIN, sin superusuario).
+ * El harness administrativo pre-crea membresías mínimas exigidas por 0003–0005 histórico.
  */
-import { mkdtemp, cp, rm, mkdir } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import pg from 'pg';
-import { parseDatabaseTarget, quoteIdent, redactDatabaseUrl } from './database-url.js';
+import {
+  assertSameDatabaseInstallation,
+  normalizeDatabaseUrl,
+  parseDatabaseTarget,
+  quoteIdent,
+  redactDatabaseUrl,
+} from './database-url.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const MIGRATOR = 'fabsoft_migrator';
-const MIGRATION_FILES = [
-  '0001_schema.sql',
-  '0002_rls.sql',
-  '0003_security_hardening.sql',
-  '0004_integration_views.sql',
-  '0005_auth_security_definer.sql',
-] as const;
 
 const migratorUrlRaw = process.env.DATABASE_MIGRATION_URL?.trim();
 const provisionUrlRaw = process.env.DATABASE_PROVISION_URL?.trim();
 if (!migratorUrlRaw) throw new Error('DATABASE_MIGRATION_URL no definido');
 if (!provisionUrlRaw) throw new Error('DATABASE_PROVISION_URL no definido');
-const migratorUrl: string = migratorUrlRaw;
-const provisionUrl: string = provisionUrlRaw;
+const migratorUrl = normalizeDatabaseUrl(migratorUrlRaw);
+const provisionUrl = normalizeDatabaseUrl(provisionUrlRaw);
+assertSameDatabaseInstallation(migratorUrl, provisionUrl);
 
-function urlForDatabase(base: string, dbName: string): string {
-  const u = new URL(base);
-  u.pathname = `/${dbName}`;
-  return u.toString();
+async function listMigrationSqlFiles(): Promise<string[]> {
+  const dir = join(ROOT, 'migrations');
+  const names = await readdir(dir);
+  const files = names.filter((n) => /^\d+_.+\.sql$/.test(n)).sort();
+  if (files.length === 0) {
+    throw new Error(`No hay migraciones en ${dir}`);
+  }
+  return files;
 }
 
 function runDbmate(databaseUrl: string, migrationsDir: string): void {
@@ -58,55 +57,41 @@ function runDbmate(databaseUrl: string, migrationsDir: string): void {
   }
 }
 
-async function reconcileAppSchema(): Promise<void> {
-  const target = parseDatabaseTarget(migratorUrl);
-  const prov = new pg.Client({ connectionString: urlForDatabase(provisionUrl, target.database) });
-  await prov.connect();
+async function assertMigratorInventory(
+  databaseUrl: string,
+  expectedFiles: string[],
+): Promise<void> {
+  const target = parseDatabaseTarget(databaseUrl);
+  const c = new pg.Client({ connectionString: databaseUrl });
+  await c.connect();
   try {
-    const { rows } = await prov.query<{ owner: string }>(
-      `select pg_catalog.pg_get_userbyid(n.nspowner)::text as owner
-       from pg_catalog.pg_namespace n where n.nspname = 'app'`,
+    const { rows } = await c.query<{ version: string }>(
+      `select version from public.schema_migrations order by version`,
     );
-    if (rows.length === 0) return;
-    await prov.query(`alter schema app owner to ${quoteIdent(MIGRATOR)}`);
-    await prov.query(`grant all on schema app to ${quoteIdent(MIGRATOR)} with grant option`);
-    await prov.query(`grant create, usage on schema app to ${quoteIdent(MIGRATOR)}`);
-    console.log(
-      JSON.stringify({ reconcileAppSchema: true, previousOwner: rows[0]!.owner, owner: MIGRATOR }),
-    );
+    const applied = rows.map((r) => r.version);
+    const expectedVersions = expectedFiles.map((f) => f.replace(/\.sql$/, ''));
+    const missing = expectedVersions.filter((v) => !applied.includes(v));
+    if (missing.length > 0) {
+      throw new Error(
+        `Inventario incompleto: faltan migraciones ${missing.join(',')} (aplicadas=${applied.join(',')})`,
+      );
+    }
+    await c.query(`revoke create on database ${quoteIdent(target.database)} from fabsoft_app`);
+    await c.query(`revoke create on database ${quoteIdent(target.database)} from fabsoft_worker`);
   } finally {
-    await prov.end();
+    await c.end();
   }
 }
 
-async function copyMigrations(into: string, files: readonly string[]): Promise<void> {
-  for (const file of files) {
-    await cp(join(ROOT, 'migrations', file), join(into, file));
-  }
-}
-
-const tmpBase = await mkdtemp(join(tmpdir(), 'fabsoft-mig-stage-'));
-const dir1 = join(tmpBase, '0001');
-const dirRest = join(tmpBase, '0002-0005');
-await mkdir(dir1, { recursive: true });
-await mkdir(dirRest, { recursive: true });
-try {
-  await copyMigrations(dir1, MIGRATION_FILES.slice(0, 1));
-  runDbmate(migratorUrl, dir1);
-  await reconcileAppSchema();
-  await copyMigrations(dirRest, MIGRATION_FILES.slice(1));
-  runDbmate(provisionUrl, dirRest);
-  const target = parseDatabaseTarget(provisionUrl);
-  const prov = new pg.Client({ connectionString: urlForDatabase(provisionUrl, target.database) });
-  await prov.connect();
-  try {
-    await prov.query(`revoke create on database ${quoteIdent(target.database)} from fabsoft_app`);
-    await prov.query(
-      `revoke create on database ${quoteIdent(target.database)} from fabsoft_worker`,
-    );
-  } finally {
-    await prov.end();
-  }
-} finally {
-  await rm(tmpBase, { recursive: true, force: true });
-}
+const migrationsDir = join(ROOT, 'migrations');
+const migrationFiles = await listMigrationSqlFiles();
+console.log(
+  JSON.stringify({
+    dbmateStaged: true,
+    migrator: redactDatabaseUrl(migratorUrl),
+    migrationCount: migrationFiles.length,
+    migrations: migrationFiles,
+  }),
+);
+runDbmate(migratorUrl, migrationsDir);
+await assertMigratorInventory(migratorUrl, migrationFiles);

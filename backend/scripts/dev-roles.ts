@@ -4,14 +4,14 @@
  */
 import pg from 'pg';
 import { assertNonProduction, resolveGuardedDatabaseUrl } from './guard.js';
-import { parseDatabaseTarget, quoteIdent } from './database-url.js';
+import { normalizeDatabaseUrl, parseDatabaseTarget, quoteIdent } from './database-url.js';
 
 assertNonProduction();
 const { url: owner } = resolveGuardedDatabaseUrl(
   ['DATABASE_PROVISION_URL', 'DATABASE_MIGRATION_URL'],
   { allowUsers: ['fabsoft_owner', 'postgres', 'fabsoft_provisioner'] },
 );
-const client = new pg.Client({ connectionString: owner });
+const client = new pg.Client({ connectionString: normalizeDatabaseUrl(owner) });
 await client.connect();
 try {
   for (const [role, envVar] of [
@@ -21,8 +21,8 @@ try {
   ] as const) {
     const raw = process.env[envVar];
     if (!raw) continue;
-    const url = new URL(raw);
-    if (decodeURIComponent(url.username).split('.')[0] !== role)
+    const url = new URL(normalizeDatabaseUrl(raw));
+    if (decodeURIComponent(url.username || '') !== role)
       throw new Error(`${envVar} debe usar el rol ${role}`);
     const password = decodeURIComponent(url.password);
     const quoted = (await client.query<{ q: string }>('select quote_literal($1) as q', [password]))

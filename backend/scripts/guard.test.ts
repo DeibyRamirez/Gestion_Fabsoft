@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  assertMigratorBootstrapExpectation,
   assertNonProduction,
   assertSeedConfiguration,
   resolveGuardedDatabaseUrl,
+  type SessionIdentity,
 } from './guard.js';
 import { redactDatabaseUrl } from './database-url.js';
 
@@ -11,6 +13,7 @@ const baseEnv = {
   SEED_ALLOWED_HOSTS: 'localhost',
   SEED_ALLOWED_DATABASES: 'fabsoft_test',
   SEED_EPHEMERAL_MARKER: 'marker-ci',
+  SEED_HARNESS_RUN_ID: 'run-test-1',
 };
 
 function withEnv(overrides: Record<string, string | undefined>, fn: () => void): void {
@@ -39,6 +42,12 @@ describe('guard fail-closed', () => {
     }
   });
 
+  it('rechaza staging sin SEED_ALLOW_STAGING=1', () => {
+    withEnv({ APP_ENV: 'staging' }, () => {
+      expect(() => assertNonProduction()).toThrow(/SEED_ALLOW_STAGING/);
+    });
+  });
+
   it('no construye destino si el host no está en SEED_ALLOWED_HOSTS', () => {
     withEnv(
       {
@@ -65,9 +74,53 @@ describe('guard fail-closed', () => {
     );
   });
 
+  it('rechaza hosts contradictorios entre alias de URL', () => {
+    withEnv(
+      {
+        SEED_DATABASE_URL: 'postgres://fabsoft_owner@localhost:5432/fabsoft_test',
+        DATABASE_MIGRATION_URL: 'postgres://fabsoft_owner@127.0.0.1:5432/fabsoft_test',
+      },
+      () => {
+        expect(() => assertSeedConfiguration()).toThrow(/misma instalación/);
+      },
+    );
+  });
+
+  it('exige SEED_HARNESS_RUN_ID', () => {
+    withEnv(
+      {
+        SEED_DATABASE_URL: 'postgres://fabsoft_owner@localhost/fabsoft_test',
+        SEED_HARNESS_RUN_ID: '',
+      },
+      () => {
+        delete process.env.SEED_HARNESS_RUN_ID;
+        expect(() => assertSeedConfiguration()).toThrow(/SEED_HARNESS_RUN_ID/);
+      },
+    );
+  });
+
   it('redacta contraseñas en URLs', () => {
     expect(
       redactDatabaseUrl('postgres://fabsoft_app:supersecret@localhost:5432/fabsoft_test'),
     ).toBe('postgres://fabsoft_app@localhost:5432/fabsoft_test');
+  });
+
+  it('migrator bootstrap rechaza ADMIN OPTION y CREATEROLE', () => {
+    const bad: SessionIdentity = {
+      sessionUser: 'fabsoft_migrator',
+      currentUser: 'fabsoft_migrator',
+      rolsuper: false,
+      rolbypassrls: false,
+      rolcanlogin: true,
+      rolcreaterole: true,
+      rolcreatedb: false,
+      memberOf: ['fabsoft_app'],
+      adminOf: [],
+      canSetRoleOwner: false,
+      canSetRoleMigrator: false,
+    };
+    expect(() => assertMigratorBootstrapExpectation(bad)).toThrow(/escalación/);
+    const admin: SessionIdentity = { ...bad, rolcreaterole: false, adminOf: ['fabsoft_app'] };
+    expect(() => assertMigratorBootstrapExpectation(admin)).toThrow(/ADMIN OPTION/);
   });
 });

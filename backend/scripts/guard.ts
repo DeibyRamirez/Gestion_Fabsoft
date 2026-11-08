@@ -2,9 +2,14 @@
  * Barreras para scripts de datos y aprovisionamiento (docs/seed-data.md, docs/deployment.md §7).
  * Falla cerrado antes de construir clientes pg cuando la configuración es ambigua o el destino no está permitido.
  */
-import { parseDatabaseTarget, redactDatabaseUrl } from './database-url.js';
+import {
+  assertSameDatabaseInstallation,
+  normalizeDatabaseUrl,
+  parseDatabaseTarget,
+  redactDatabaseUrl,
+} from './database-url.js';
 
-const ALLOWED_APP_ENVS = new Set(['dev', 'test', 'staging']);
+const ALLOWED_APP_ENVS = new Set(['dev', 'test']);
 
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -35,10 +40,16 @@ export function assertNonProduction(): void {
   const appEnv = process.env.APP_ENV?.trim();
   if (!appEnv) {
     throw new Error(
-      'APP_ENV es obligatorio (dev|test|staging); no ejecutar scripts de datos sin entorno explícito',
+      'APP_ENV es obligatorio (dev|test); no ejecutar scripts de datos sin entorno explícito',
     );
   }
   if (appEnv === 'prod') throw new Error('Prohibido en APP_ENV=prod');
+  if (appEnv === 'staging' && process.env.SEED_ALLOW_STAGING !== '1') {
+    throw new Error(
+      'APP_ENV=staging requiere SEED_ALLOW_STAGING=1 explícito para scripts de datos',
+    );
+  }
+  if (appEnv === 'staging' && process.env.SEED_ALLOW_STAGING === '1') return;
   if (!ALLOWED_APP_ENVS.has(appEnv)) {
     throw new Error(`APP_ENV=${appEnv} no permitido para scripts de datos`);
   }
@@ -79,6 +90,16 @@ function assertHostAllowed(
   }
 }
 
+function collectDefinedUrls(envVars: string[]): { envVar: string; url: string }[] {
+  const found: { envVar: string; url: string }[] = [];
+  for (const envVar of envVars) {
+    const raw = process.env[envVar]?.trim();
+    if (!raw) continue;
+    found.push({ envVar, url: normalizeDatabaseUrl(raw) });
+  }
+  return found;
+}
+
 /** Resuelve URL y valida destino antes de `new pg.Client` / Pool. */
 export function resolveGuardedDatabaseUrl(
   envVars: string[],
@@ -86,42 +107,76 @@ export function resolveGuardedDatabaseUrl(
 ): ResolvedDatabaseUrl {
   assertNonProduction();
   const denylist = parseList('SEED_FORBIDDEN_HOSTS');
-  for (const envVar of envVars) {
-    const url = process.env[envVar]?.trim();
-    if (!url) continue;
-    const target = parseDatabaseTarget(url);
-    assertHostAllowed(target, denylist);
-    if (opts?.requiredUser && target.user !== opts.requiredUser) {
-      throw new Error(`${envVar} debe usar el rol ${opts.requiredUser} (usuario=${target.user})`);
-    }
-    if (opts?.allowUsers && !opts.allowUsers.includes(target.user)) {
-      throw new Error(`${envVar}: rol ${target.user} no permitido`);
-    }
-    return { envVar, url, target };
+  const found = collectDefinedUrls(envVars);
+  if (found.length === 0) {
+    throw new Error(`Ninguna de [${envVars.join(', ')}] está definida`);
   }
-  throw new Error(`Ninguna de [${envVars.join(', ')}] está definida`);
+  if (found.length > 1) {
+    const refs = found.map((f) => parseDatabaseTarget(f.url));
+    const base = refs[0]!;
+    for (let i = 1; i < refs.length; i++) {
+      const r = refs[i]!;
+      if (r.host !== base.host || r.port !== base.port || r.database !== base.database) {
+        throw new Error(
+          `Configuración contradictoria entre ${found[0]!.envVar} y ${found[i]!.envVar} (misma instalación exigida)`,
+        );
+      }
+    }
+  }
+  const chosen = found[0]!;
+  const target = parseDatabaseTarget(chosen.url);
+  assertHostAllowed(target, denylist);
+  if (opts?.requiredUser && target.user !== opts.requiredUser) {
+    throw new Error(
+      `${chosen.envVar} debe usar el rol ${opts.requiredUser} (usuario=${target.user})`,
+    );
+  }
+  if (opts?.allowUsers && !opts.allowUsers.includes(target.user)) {
+    throw new Error(`${chosen.envVar}: rol ${target.user} no permitido`);
+  }
+  return { envVar: chosen.envVar, url: chosen.url, target };
 }
 
 export type SeedGuardExpectation = {
   url: string;
   expectedUser: string;
   ephemeralMarker: string;
+  harnessRunId: string;
+  expectedDatabase: string;
 };
+
+const SEED_WRITER_ROLES = ['fabsoft_owner', 'postgres', 'fabsoft_provisioner'] as const;
 
 /** Validación estática para seed: no abre conexión. */
 export function assertSeedConfiguration(): SeedGuardExpectation {
+  assertNonProduction();
   const ephemeralMarker = requireEnv('SEED_EPHEMERAL_MARKER');
-  const resolved = resolveGuardedDatabaseUrl(['SEED_DATABASE_URL', 'DATABASE_MIGRATION_URL'], {
-    allowUsers: ['fabsoft_owner', 'postgres', 'fabsoft_provisioner'],
-  });
+  const harnessRunId = requireEnv('SEED_HARNESS_RUN_ID');
+  const defined = collectDefinedUrls(['SEED_DATABASE_URL', 'DATABASE_MIGRATION_URL']);
+  if (defined.length === 0) {
+    throw new Error('SEED_DATABASE_URL o DATABASE_MIGRATION_URL es obligatorio');
+  }
+  if (defined.length > 1) {
+    assertSameDatabaseInstallation(defined[0]!.url, defined[1]!.url);
+  }
+  const resolved = resolveGuardedDatabaseUrl(
+    defined.map((d) => d.envVar),
+    { allowUsers: [...SEED_WRITER_ROLES] },
+  );
   const expectedUser = resolved.target.user;
-  if (!['fabsoft_owner', 'postgres', 'fabsoft_provisioner'].includes(expectedUser)) {
+  if (!SEED_WRITER_ROLES.includes(expectedUser as (typeof SEED_WRITER_ROLES)[number])) {
     throw new Error(`SEED: rol ${expectedUser} no autorizado para escritura de fixtures`);
   }
   if (process.argv.includes('--reset') && process.env.SEED_ALLOW_RESET !== '1') {
     throw new Error('seed --reset requiere SEED_ALLOW_RESET=1 y destino efímero verificado');
   }
-  return { url: resolved.url, expectedUser, ephemeralMarker };
+  return {
+    url: resolved.url,
+    expectedUser,
+    ephemeralMarker,
+    harnessRunId,
+    expectedDatabase: resolved.target.database,
+  };
 }
 
 export type SessionIdentity = {
@@ -130,9 +185,28 @@ export type SessionIdentity = {
   rolsuper: boolean;
   rolbypassrls: boolean;
   rolcanlogin: boolean;
+  rolcreaterole: boolean;
+  rolcreatedb: boolean;
   memberOf: string[];
+  adminOf: string[];
   canSetRoleOwner: boolean;
+  canSetRoleMigrator: boolean;
 };
+
+export async function probeSetRole(
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>,
+  role: string,
+): Promise<boolean> {
+  await query('begin');
+  try {
+    await query(`set local role ${role}`);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await query('rollback');
+  }
+}
 
 /** Tras conectar: verifica marcador efímero y atributos LOGIN reales. */
 export async function loadSessionIdentity(
@@ -141,33 +215,31 @@ export async function loadSessionIdentity(
   const { rows } = await query(
     `select session_user::text as session_user,
             current_user::text as current_user,
-            r.rolsuper, r.rolbypassrls, r.rolcanlogin,
-            coalesce(array_agg(m.roleid::regrole::text) filter (where m.roleid is not null), '{}') as member_of
+            r.rolsuper, r.rolbypassrls, r.rolcanlogin, r.rolcreaterole, r.rolcreatedb,
+            coalesce(array_agg(distinct m.roleid::regrole::text) filter (where m.roleid is not null), '{}') as member_of,
+            coalesce(array_agg(distinct m.roleid::regrole::text) filter (where m.admin_option), '{}') as admin_of
      from pg_catalog.pg_roles r
      left join pg_catalog.pg_auth_members m on m.member = r.oid
      where r.rolname = session_user::name
-     group by r.rolname, session_user, current_user, r.rolsuper, r.rolbypassrls, r.rolcanlogin`,
+     group by r.rolname, session_user, current_user, r.rolsuper, r.rolbypassrls, r.rolcanlogin,
+              r.rolcreaterole, r.rolcreatedb`,
   );
   const row = rows[0];
   if (!row) throw new Error('No se pudo leer identidad de sesión');
-  let canSetRoleOwner = false;
-  await query('begin');
-  try {
-    await query('set local role fabsoft_owner');
-    canSetRoleOwner = true;
-  } catch {
-    canSetRoleOwner = false;
-  } finally {
-    await query('rollback');
-  }
+  const canSetRoleOwner = await probeSetRole(query, 'fabsoft_owner');
+  const canSetRoleMigrator = await probeSetRole(query, 'fabsoft_migrator');
   return {
     sessionUser: String(row.session_user),
     currentUser: String(row.current_user),
     rolsuper: Boolean(row.rolsuper),
     rolbypassrls: Boolean(row.rolbypassrls),
     rolcanlogin: Boolean(row.rolcanlogin),
+    rolcreaterole: Boolean(row.rolcreaterole),
+    rolcreatedb: Boolean(row.rolcreatedb),
     memberOf: Array.isArray(row.member_of) ? row.member_of.map(String) : [],
+    adminOf: Array.isArray(row.admin_of) ? row.admin_of.map(String) : [],
     canSetRoleOwner,
+    canSetRoleMigrator,
   };
 }
 
@@ -181,5 +253,69 @@ export async function assertEphemeralMarker(
     throw new Error(
       'Marcador efímero fabsoft.seed_ephemeral no coincide con SEED_EPHEMERAL_MARKER',
     );
+  }
+}
+
+export async function assertHarnessProvenance(
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>,
+  expected: { marker: string; runId: string; database: string },
+): Promise<void> {
+  const { rows: dbRows } = await query(`select current_database()::text as db`);
+  const db = String(dbRows[0]?.db ?? '');
+  if (db !== expected.database) {
+    throw new Error(`Base de datos inesperada: ${db} (esperada ${expected.database})`);
+  }
+  const { rows } = await query(
+    `select run_id, marker from fabsoft_harness.ephemeral_provenance where run_id = $1`,
+    [expected.runId],
+  );
+  if (rows.length !== 1) {
+    throw new Error('Procedencia efímera del harness no encontrada (fail closed)');
+  }
+  const marker = String(rows[0]!.marker);
+  if (marker !== expected.marker) {
+    throw new Error('Marcador en fabsoft_harness.ephemeral_provenance no coincide');
+  }
+}
+
+/** Verificación post-conexión para seed (identidad + procedencia). */
+export async function assertSeedSession(
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>,
+  expected: SeedGuardExpectation,
+): Promise<void> {
+  const identity = await loadSessionIdentity(query);
+  if (identity.sessionUser !== expected.expectedUser) {
+    throw new Error(`Seed: session_user inesperado ${identity.sessionUser}`);
+  }
+  if (identity.currentUser !== identity.sessionUser) {
+    throw new Error(`Seed: current_user (${identity.currentUser}) distinto de session_user`);
+  }
+  if (identity.rolsuper || identity.rolcreaterole || identity.rolcreatedb) {
+    throw new Error('Seed: rol con privilegios de escalación no permitidos');
+  }
+  await assertEphemeralMarker(query, expected.ephemeralMarker);
+  await assertHarnessProvenance(query, {
+    marker: expected.ephemeralMarker,
+    runId: expected.harnessRunId,
+    database: expected.expectedDatabase,
+  });
+}
+
+export function assertMigratorBootstrapExpectation(identity: SessionIdentity): void {
+  if (identity.sessionUser !== 'fabsoft_migrator') {
+    throw new Error(`Se esperaba fabsoft_migrator, obtuvo ${identity.sessionUser}`);
+  }
+  if (
+    identity.rolsuper ||
+    identity.rolbypassrls ||
+    identity.rolcreaterole ||
+    identity.rolcreatedb
+  ) {
+    throw new Error('Migrator con atributos de escalación inaceptables');
+  }
+  if (!identity.rolcanlogin) throw new Error('Migrator debe ser LOGIN');
+  if (identity.canSetRoleOwner) throw new Error('Migrator no debe poder SET ROLE fabsoft_owner');
+  if (identity.adminOf.length > 0) {
+    throw new Error(`Migrator no debe tener ADMIN OPTION: ${identity.adminOf.join(',')}`);
   }
 }
