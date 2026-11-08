@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { expectVisibleFocusIndicator } from './focus-indicator';
 import { openAuthenticatedContext } from './session';
 import { seedUsers } from './seed-users';
 
@@ -37,12 +38,9 @@ test.describe('estados borde y accesibilidad (rediseño)', () => {
     await shot(page, '06-login-skip-link-focus-desktop.png');
 
     await page.keyboard.press('Tab');
-    await expect(page.getByLabel('Email')).toBeFocused();
-    const focusRing = await page.getByLabel('Email').evaluate((el) => {
-      const s = getComputedStyle(el);
-      return { outlineWidth: s.outlineWidth, outlineStyle: s.outlineStyle };
-    });
-    expect(focusRing.outlineWidth).not.toBe('0px');
+    const email = page.getByLabel('Email');
+    await expect(email).toBeFocused();
+    await expectVisibleFocusIndicator(email);
     await shot(page, '07-login-email-focus-desktop.png');
   });
 
@@ -126,14 +124,7 @@ test.describe('estados borde y accesibilidad (rediseño)', () => {
       await page.keyboard.press('Tab');
       const logo = page.locator('aside a').filter({ hasText: 'FabSoft' });
       await expect(logo).toBeFocused();
-      const hasFocusIndicator = await logo.evaluate((el) => {
-        const s = getComputedStyle(el);
-        return (
-          s.outlineWidth !== '0px' ||
-          (s.boxShadow !== 'none' && s.boxShadow.replace(/,\s*none/g, '').trim() !== '')
-        );
-      });
-      expect(hasFocusIndicator).toBe(true);
+      await expectVisibleFocusIndicator(logo);
       await page.close();
     });
 

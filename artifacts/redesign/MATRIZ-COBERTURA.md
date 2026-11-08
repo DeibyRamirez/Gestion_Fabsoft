@@ -2,27 +2,27 @@
 
 **Implementado** = existe `page.tsx`. **Verificado** = Playwright con sesión real (seed `docs/seed-data.md`) y/o asserts en este corte.
 
-| Ruta / escenario                        | admin | operator | client  | Diseño | Verificado                  | Spec E2E                                    |
-| --------------------------------------- | ----- | -------- | ------- | ------ | --------------------------- | ------------------------------------------- |
-| `/login`                                | ✓     | ✓        | ✓       | Sí     | Sí                          | `auth`, `redesign-edge-states`, handoff     |
-| Login usuario `inactivo@` (disabled)    | —     | —        | —       | Sí     | Sí (401, mensaje genérico)  | `redesign-edge-states`                      |
-| Foco / skip link login                  | ✓     | ✓        | ✓       | Sí     | Sí (Tab + outline ≠ 0)      | `redesign-edge-states`                      |
-| FabSoftLogo enlace (Tab + ring)         | ✓     | ✓        | ✓       | Sí     | Sí (E2E Tab + unit class)   | `redesign-edge-states`, `fabsoft-logo.test` |
-| `/` sin sesión → `/login`               | ✓     | ✓        | ✓       | Sí     | Sí                          | `redesign-edge-states`                      |
-| `/admin/users` estado carga             | ✓     | —        | —       | Sí     | Sí («Cargando usuarios…»)   | `redesign-edge-states`                      |
-| Un solo «Cerrar sesión» escritorio      | ✓     | ✓        | —       | Sí     | Sí (lg)                     | `redesign-edge-states`                      |
-| Tabla usuarios vacía                    | ✓     | —        | —       | —      | No (seed siempre con datos) | —                                           |
-| `/change-password` sin sesión           | —     | —        | —       | Sí     | Sí (redirige/carga)         | handoff                                     |
-| `/change-password` voluntario           | ✓     | ✓        | ✓       | Sí     | Sí (admin capturado)        | `role-visual-evidence`, handoff             |
-| `/change-password` obligatorio          | —     | —        | ✓       | Sí     | Sí (`portal@cafetal.test`)  | `role-visual-evidence`, handoff             |
-| `/dashboard` + API OK                   | ✓     | ✓        | —       | Sí     | Sí                          | `auth`, `role-visual`, handoff              |
-| `/dashboard` API loading                | ✓     | —        | —       | Sí     | Sí («Comprobando…»)         | `redesign-edge-states`, handoff             |
-| `/dashboard` API unreachable            | ✓     | —        | —       | Sí     | Sí («No disponible»)        | `redesign-edge-states`, handoff             |
-| `/admin/users`                          | ✓     | —        | —       | Sí     | Sí (tabla seed)             | `role-visual`, handoff                      |
-| `/admin/users` forbidden                | —     | ✓        | —       | Sí     | Sí → `/dashboard`           | `auth`, `role-visual`, handoff              |
-| `/portal` placeholder                   | —     | —        | ✓       | Sí     | Sí                          | `role-visual`, handoff                      |
-| Nav «próximamente»                      | ✓     | ✓        | parcial | Sí     | Sí (operator sin Admin)     | `role-visual`                               |
-| Rutas sin página (clientes, productos…) | —     | —        | —       | N/A    | No (solo nav deshabilitado) | —                                           |
+| Ruta / escenario                        | admin | operator | client  | Diseño | Verificado                               | Spec E2E                                    |
+| --------------------------------------- | ----- | -------- | ------- | ------ | ---------------------------------------- | ------------------------------------------- |
+| `/login`                                | ✓     | ✓        | ✓       | Sí     | Sí                                       | `auth`, `redesign-edge-states`, handoff     |
+| Login usuario `inactivo@` (disabled)    | —     | —        | —       | Sí     | Sí (401, mensaje genérico)               | `redesign-edge-states`                      |
+| Foco / skip link login                  | ✓     | ✓        | ✓       | Sí     | Sí (Tab + outline ≠ 0)                   | `redesign-edge-states`                      |
+| FabSoftLogo enlace (Tab + ring)         | ✓     | ✓        | ✓       | Sí     | Sí (Tab + `expectVisibleFocusIndicator`) | `redesign-edge-states`, `fabsoft-logo.test` |
+| `/` sin sesión → `/login`               | ✓     | ✓        | ✓       | Sí     | Sí                                       | `redesign-edge-states`                      |
+| `/admin/users` estado carga             | ✓     | —        | —       | Sí     | Sí («Cargando usuarios…»)                | `redesign-edge-states`                      |
+| Un solo «Cerrar sesión» escritorio      | ✓     | ✓        | —       | Sí     | Sí (lg)                                  | `redesign-edge-states`                      |
+| Tabla usuarios vacía                    | ✓     | —        | —       | —      | No (seed siempre con datos)              | —                                           |
+| `/change-password` sin sesión           | —     | —        | —       | Sí     | Sí (redirige/carga)                      | handoff                                     |
+| `/change-password` voluntario           | ✓     | ✓        | ✓       | Sí     | Sí (admin capturado)                     | `role-visual-evidence`, handoff             |
+| `/change-password` obligatorio          | —     | —        | ✓       | Sí     | Sí (`portal@cafetal.test`)               | `role-visual-evidence`, handoff             |
+| `/dashboard` + API OK                   | ✓     | ✓        | —       | Sí     | Sí                                       | `auth`, `role-visual`, handoff              |
+| `/dashboard` API loading                | ✓     | —        | —       | Sí     | Sí («Comprobando…»)                      | `redesign-edge-states`, handoff             |
+| `/dashboard` API unreachable            | ✓     | —        | —       | Sí     | Sí («No disponible»)                     | `redesign-edge-states`, handoff             |
+| `/admin/users`                          | ✓     | —        | —       | Sí     | Sí (tabla seed)                          | `role-visual`, handoff                      |
+| `/admin/users` forbidden                | —     | ✓        | —       | Sí     | Sí → `/dashboard`                        | `auth`, `role-visual`, handoff              |
+| `/portal` placeholder                   | —     | —        | ✓       | Sí     | Sí                                       | `role-visual`, handoff                      |
+| Nav «próximamente»                      | ✓     | ✓        | parcial | Sí     | Sí (operator sin Admin)                  | `role-visual`                               |
+| Rutas sin página (clientes, productos…) | —     | —        | —       | N/A    | No (solo nav deshabilitado)              | —                                           |
 
 ## Capturas PNG (agente) — ruta completa por archivo
 
