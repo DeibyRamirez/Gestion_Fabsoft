@@ -55,6 +55,12 @@ try {
     `grant usage, select on all sequences in schema app to ${quoteIdent(SEED_WRITER)}`,
   );
   await client.query(`grant execute on all functions in schema app to ${quoteIdent(SEED_WRITER)}`);
+  await client.query(
+    `grant select, insert, update, delete on all tables in schema app to ${quoteIdent('fabsoft_bootstrap')}`,
+  );
+  await client.query(
+    `grant usage, select on all sequences in schema app to ${quoteIdent('fabsoft_bootstrap')}`,
+  );
   await client.query(`grant ${quoteIdent('fabsoft_bootstrap')} to ${quoteIdent(SEED_WRITER)}`);
   await client.query(`grant usage on schema fabsoft_harness to ${quoteIdent(SEED_WRITER)}`);
   await client.query(
