@@ -163,7 +163,7 @@ export type SeedGuardExpectation = {
   expectedDatabase: string;
 };
 
-const SEED_WRITER_ROLES = ['fabsoft_owner', 'fabsoft_provisioner'] as const;
+const SEED_WRITER_ROLES = ['fabsoft_seed_writer', 'fabsoft_provisioner'] as const;
 
 /** Validación estática para seed: no abre conexión. */
 export function assertSeedConfiguration(): SeedGuardExpectation {

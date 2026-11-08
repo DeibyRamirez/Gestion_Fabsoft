@@ -15,7 +15,7 @@ const baseEnv = {
   SEED_EPHEMERAL_MARKER: 'marker-ci',
   SEED_HARNESS_RUN_ID: 'run-test-1',
   SEED_FORBIDDEN_HOSTS: '-',
-  SEED_SESSION_ROLE: 'fabsoft_owner',
+  SEED_SESSION_ROLE: 'fabsoft_seed_writer',
 };
 
 function withEnv(overrides: Record<string, string | undefined>, fn: () => void): void {
@@ -59,7 +59,7 @@ describe('guard fail-closed', () => {
   it('rechaza SEED_FORBIDDEN_HOSTS ausente', () => {
     withEnv(
       {
-        SEED_DATABASE_URL: 'postgres://fabsoft_owner@localhost/fabsoft_test',
+        SEED_DATABASE_URL: 'postgres://fabsoft_seed_writer@localhost/fabsoft_test',
       },
       () => {
         delete process.env.SEED_FORBIDDEN_HOSTS;
@@ -92,7 +92,7 @@ describe('guard fail-closed', () => {
     withEnv(
       {
         SEED_ALLOWED_HOSTS: '',
-        SEED_DATABASE_URL: 'postgres://fabsoft_owner@localhost/fabsoft_test',
+        SEED_DATABASE_URL: 'postgres://fabsoft_seed_writer@localhost/fabsoft_test',
       },
       () => {
         expect(() => resolveGuardedDatabaseUrl(['SEED_DATABASE_URL'])).toThrow(
@@ -117,7 +117,7 @@ describe('guard fail-closed', () => {
   it('exige SEED_HARNESS_RUN_ID', () => {
     withEnv(
       {
-        SEED_DATABASE_URL: 'postgres://fabsoft_owner@localhost/fabsoft_test',
+        SEED_DATABASE_URL: 'postgres://fabsoft_seed_writer@localhost/fabsoft_test',
         SEED_HARNESS_RUN_ID: '',
       },
       () => {

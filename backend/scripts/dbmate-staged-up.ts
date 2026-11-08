@@ -108,9 +108,13 @@ function runDbmate(databaseUrl: string, migrationsDir: string): void {
   }
 }
 
-async function assertInventory(databaseUrl: string, expectedFiles: string[]): Promise<void> {
-  const target = parseDatabaseTarget(databaseUrl);
-  const c = new pg.Client({ connectionString: databaseUrl });
+async function assertInventory(
+  migratorUrl: string,
+  provisionUrl: string,
+  expectedFiles: string[],
+): Promise<void> {
+  const target = parseDatabaseTarget(migratorUrl);
+  const c = new pg.Client({ connectionString: migratorUrl });
   await c.connect();
   try {
     const { rows } = await c.query<{ version: string }>(
@@ -124,14 +128,26 @@ async function assertInventory(databaseUrl: string, expectedFiles: string[]): Pr
         `Inventario incompleto: faltan ${missing.join(',')} (aplicadas=${applied.join(',')})`,
       );
     }
-    await c.query(`revoke create on database ${quoteIdent(target.database)} from fabsoft_app`);
-    await c.query(`revoke create on database ${quoteIdent(target.database)} from fabsoft_worker`);
   } finally {
     await c.end();
   }
+  const prov = new pg.Client({ connectionString: provisionUrl });
+  await prov.connect();
+  try {
+    await prov.query(`revoke create on database ${quoteIdent(target.database)} from fabsoft_app`);
+    await prov.query(
+      `revoke create on database ${quoteIdent(target.database)} from fabsoft_worker`,
+    );
+  } finally {
+    await prov.end();
+  }
 }
 
-function splitHistorical(files: string[]): { migrator: string[]; provisioner: string[]; future: string[] } {
+function splitHistorical(files: string[]): {
+  migrator: string[];
+  provisioner: string[];
+  future: string[];
+} {
   const migrator: string[] = [];
   const provisioner: string[] = [];
   const future: string[] = [];
@@ -203,4 +219,4 @@ try {
   await rm(tmpBase, { recursive: true, force: true });
 }
 
-await assertInventory(migratorUrl, migrationFiles);
+await assertInventory(migratorUrl, provisionUrlForMigratorDb(), migrationFiles);

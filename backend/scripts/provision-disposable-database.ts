@@ -316,7 +316,9 @@ async function profileDevelopHistoricalUpgrade(): Promise<void> {
   await applyDevelopMinimalData(ownerUrl);
   const preMigrator = await migrationInventory(migUrl);
   if (preMigrator.length !== migCount) {
-    throw new Error(`develop upgrade: owner no aplicó ${migCount} migraciones (tiene ${preMigrator.length})`);
+    throw new Error(
+      `develop upgrade: owner no aplicó ${migCount} migraciones (tiene ${preMigrator.length})`,
+    );
   }
   await runStagedMigrate(migUrl, upgradeDb);
   const postMigrator = await migrationInventory(migUrl);
@@ -383,7 +385,7 @@ async function profileCiMain(): Promise<void> {
     SEED_ALLOWED_PORTS: target.port,
     SEED_ALLOW_RESET: '1',
     SEED_FORBIDDEN_HOSTS: '-',
-    SEED_SESSION_ROLE: 'fabsoft_owner',
+    SEED_SESSION_ROLE: 'fabsoft_seed_writer',
   });
 }
 
