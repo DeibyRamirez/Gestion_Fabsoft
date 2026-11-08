@@ -4,6 +4,7 @@
  */
 import pg from 'pg';
 import { assertNonProduction, resolveGuardedDatabaseUrl } from './guard.js';
+import { parseDatabaseTarget, quoteIdent } from './database-url.js';
 
 assertNonProduction();
 const { url: owner } = resolveGuardedDatabaseUrl(
@@ -29,6 +30,9 @@ try {
     await client.query(`alter role ${role} login password ${quoted}`);
     console.log(`${role}: login habilitado`);
   }
+  const db = parseDatabaseTarget(owner).database;
+  await client.query(`revoke create on database ${quoteIdent(db)} from fabsoft_app`);
+  await client.query(`revoke create on database ${quoteIdent(db)} from fabsoft_worker`);
 } finally {
   await client.end();
 }
