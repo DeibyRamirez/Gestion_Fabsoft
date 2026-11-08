@@ -315,17 +315,18 @@ export async function assertSeedSession(
   if (identity.currentUser !== identity.sessionUser) {
     throw new Error(`Seed: current_user (${identity.currentUser}) distinto de session_user`);
   }
-  if (identity.rolcreaterole || identity.rolcreatedb || identity.rolbypassrls) {
-    throw new Error('Seed: rol con privilegios de escalación no permitidos');
+  const harnessSuperuserOk =
+    process.env.SEED_ALLOW_HARNESS_SUPERUSER === '1' &&
+    expected.expectedDatabase.endsWith('_test') &&
+    expected.expectedDatabase.includes('fabsoft');
+  if (identity.rolsuper && !harnessSuperuserOk) {
+    throw new Error('Seed: superusuario sólo permitido en harness de test explícito');
   }
-  if (identity.rolsuper) {
-    const harnessOk =
-      process.env.SEED_ALLOW_HARNESS_SUPERUSER === '1' &&
-      expected.expectedDatabase.endsWith('_test') &&
-      expected.expectedDatabase.includes('fabsoft');
-    if (!harnessOk) {
-      throw new Error('Seed: superusuario sólo permitido en harness de test explícito');
-    }
+  if (
+    (identity.rolcreaterole || identity.rolcreatedb || identity.rolbypassrls) &&
+    !(identity.rolsuper && harnessSuperuserOk)
+  ) {
+    throw new Error('Seed: rol con privilegios de escalación no permitidos');
   }
   await assertEphemeralMarker(query, expected.ephemeralMarker);
   await assertHarnessProvenance(query, {
