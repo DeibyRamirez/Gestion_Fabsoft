@@ -109,12 +109,7 @@ describe('F0 — migrator (LOGIN directo)', () => {
       await client.query('begin');
       await expectPgError(client, 'set local role fabsoft_auth_definer', [], '42501');
       await expectPgError(client, 'grant fabsoft_auth_definer to fabsoft_app', [], '42501');
-      await expectPgError(
-        client,
-        `create role f0_evil login password 'x' nosuperuser nocreatedb nocreaterole`,
-        [],
-        '42501',
-      );
+      await expectPgError(client, `create role f0_evil nologin`, [], '42501');
       await expectPgError(client, 'set local role fabsoft_owner', [], '42501');
       await client.query('rollback');
     } finally {

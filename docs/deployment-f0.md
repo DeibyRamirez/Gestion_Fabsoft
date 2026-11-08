@@ -33,9 +33,11 @@ pnpm test:security
 
 ## Bootstrap administrativo mínimo (honesto)
 
-El provisioner **no** pre-crea roles stub ni concede `ADMIN OPTION` al migrator (provocaría `42501` al ejecutar `0002`). Crea `fabsoft_migrator` restringido y privilegios de BD/esquema `public`. Las migraciones `0001`–`0005` las ejecuta **fabsoft_migrator** en instalación vacía.
+El provisioner **no** pre-crea roles stub. Crea `fabsoft_migrator` restringido (`NOCREATEROLE`, sin `ADMIN OPTION`).
 
-**Upgrade develop:** el owner aplica la cadena histórica completa; el migrator ejecuta `dbmate up` (sin reaplicar) y, si hubiera pendientes, el provisioner reconcilia ownership de `app` antes de migrar.
+**SQL histórico congelado:** `0001` se aplica con **fabsoft_migrator** (LOGIN directo). `0002`–`0005` exigen `CREATE ROLE` / `ALTER OWNER` y se aplican con **`DATABASE_PROVISION_URL` conectado directo** (sin `SET ROLE` desde migrator). `0006+` irán sólo por migrator (lista dinámica).
+
+**Upgrade develop:** el owner aplica la cadena histórica completa (como en `develop`); el migrator ejecuta `dbmate` (nuevas versiones / reconcile de `app` si hay pendientes).
 
 ## Seed endurecido
 
