@@ -18,14 +18,16 @@ export function PageHeader({
   className,
 }: PageHeaderProps) {
   return (
-    <header className={cn('flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between', className)}>
+    <header
+      className={cn('flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between', className)}
+    >
       <div className="min-w-0">
         {breadcrumbs && breadcrumbs.length > 0 ? (
-          <p className="text-sm text-fg-muted">
-            {breadcrumbs.join(' / ')}
-          </p>
+          <p className="text-sm text-fg-muted">{breadcrumbs.join(' / ')}</p>
         ) : null}
-        <h1 className="mt-0.5 text-2xl leading-tight font-semibold tracking-tight text-fg">{title}</h1>
+        <h1 className="mt-0.5 text-2xl leading-tight font-semibold tracking-tight text-fg">
+          {title}
+        </h1>
         {description ? <p className="mt-1 text-sm text-fg-muted">{description}</p> : null}
       </div>
       {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}

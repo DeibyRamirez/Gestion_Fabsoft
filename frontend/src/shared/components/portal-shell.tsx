@@ -69,7 +69,12 @@ export function PortalShell({ children }: { children: ReactNode }) {
             ) : null}
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
               <SheetTrigger asChild>
-                <Button type="button" variant="outline" size="icon" aria-label="Abrir menú del portal">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Abrir menú del portal"
+                >
                   <MenuIcon aria-hidden />
                 </Button>
               </SheetTrigger>

@@ -59,13 +59,7 @@ function NavLinks({
   );
 }
 
-function UserFooter({
-  onSignOut,
-  compact,
-}: {
-  onSignOut: () => void;
-  compact?: boolean;
-}) {
+function UserFooter({ onSignOut, compact }: { onSignOut: () => void; compact?: boolean }) {
   const { user } = useAuth();
   if (!user) return null;
 
@@ -82,7 +76,13 @@ function UserFooter({
         </div>
       </div>
       {!compact ? (
-        <Button type="button" variant="outline" size="sm" className="mt-3 w-full" onClick={onSignOut}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-3 w-full"
+          onClick={onSignOut}
+        >
           Cerrar sesión
         </Button>
       ) : null}

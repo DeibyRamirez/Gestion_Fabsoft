@@ -9,7 +9,11 @@ type FabSoftLogoProps = {
   className?: string;
 };
 
-export function FabSoftLogo({ href = '/dashboard', variant = 'default', className }: FabSoftLogoProps) {
+export function FabSoftLogo({
+  href = '/dashboard',
+  variant = 'default',
+  className,
+}: FabSoftLogoProps) {
   const content = (
     <>
       <span

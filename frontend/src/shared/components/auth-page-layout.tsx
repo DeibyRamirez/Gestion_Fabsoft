@@ -25,10 +25,7 @@ export function AuthPageLayout({ title, description, children }: AuthPageLayoutP
             Consola operativa para administradores, operadores y clientes.
           </p>
         </div>
-        <div
-          className="mt-12 hidden max-w-xs opacity-40 lg:mt-0 lg:block"
-          aria-hidden
-        >
+        <div className="mt-12 hidden max-w-xs opacity-40 lg:mt-0 lg:block" aria-hidden>
           <div className="flex flex-col gap-2">
             <div className="h-3 w-full rounded-full border border-white/30" />
             <div className="h-3 w-4/5 rounded-full border border-white/25" />

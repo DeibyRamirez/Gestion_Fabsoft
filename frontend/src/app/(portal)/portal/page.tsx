@@ -13,8 +13,8 @@ export default function PortalPage() {
       <Card>
         <CardContent className="py-6">
           <p className="text-sm text-fg-muted">
-            Resumen de suscripciones: pendiente (corte de portal con datos). Esta pantalla existe como
-            contenedor; no se muestran datos de demostración.
+            Resumen de suscripciones: pendiente (corte de portal con datos). Esta pantalla existe
+            como contenedor; no se muestran datos de demostración.
           </p>
         </CardContent>
       </Card>

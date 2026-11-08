@@ -69,7 +69,9 @@ export function LoginForm() {
       <Button type="submit" disabled={busy} className="w-full">
         {busy ? 'Ingresando…' : 'Ingresar'}
       </Button>
-      <p className="text-center text-xs text-fg-muted">Acceso según rol asignado por el administrador.</p>
+      <p className="text-center text-xs text-fg-muted">
+        Acceso según rol asignado por el administrador.
+      </p>
     </form>
   );
 }
