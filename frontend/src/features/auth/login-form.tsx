@@ -43,7 +43,14 @@ export function LoginForm() {
   return (
     <form onSubmit={onSubmit} noValidate className="grid gap-4">
       <FormField label="Email" htmlFor="login-email">
-        <Input id="login-email" name="email" type="email" autoComplete="username" required />
+        <Input
+          id="login-email"
+          name="email"
+          type="email"
+          autoComplete="username"
+          placeholder="nombre@ejemplo.com"
+          required
+        />
       </FormField>
       <FormField label="Contraseña" htmlFor="login-password">
         <Input
@@ -62,6 +69,9 @@ export function LoginForm() {
       <Button type="submit" disabled={busy} className="w-full">
         {busy ? 'Ingresando…' : 'Ingresar'}
       </Button>
+      <p className="text-center text-xs text-fg-muted">
+        Acceso según rol asignado por el administrador.
+      </p>
     </form>
   );
 }

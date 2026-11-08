@@ -11,6 +11,7 @@ import {
 } from '@fabsoft/shared';
 import { ApiError, apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
+import { PageHeader } from '@/shared/components/page-header';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
@@ -99,10 +100,11 @@ export function UsersAdmin() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
-      <header>
-        <h1 className="text-2xl leading-tight font-semibold tracking-tight text-fg">Usuarios</h1>
-        <p className="mt-1 text-sm text-fg-muted">Alta, roles y restablecimiento de contraseñas.</p>
-      </header>
+      <PageHeader
+        breadcrumbs={['Admin']}
+        title="Usuarios"
+        description="Alta, roles y restablecimiento de contraseñas."
+      />
 
       {message ? (
         <div

@@ -8,16 +8,19 @@
 
 | Token | Valor | Uso | Contraste |
 |---|---|---|---|
-| `--color-bg` | `#FFFFFF` | Fondo de página | — |
-| `--color-surface` | `#F8FAFC` | Tarjetas, barra lateral | — |
-| `--color-fg` | `#0F172A` | Texto principal | 17.85:1 sobre `bg` |
-| `--color-fg-muted` | `#475569` | Texto secundario, ayudas | 7.58:1 sobre `bg` |
-| `--color-border` | `#E2E8F0` | Divisores decorativos | (decorativo) |
-| `--color-border-input` | `#64748B` | Borde de inputs, checkboxes | 4.76:1 sobre `bg` (≥ 3:1, WCAG 1.4.11) |
-| `--color-primary` | `#1D4ED8` | Botón primario, enlaces | Texto blanco 6.70:1 |
+| `--color-bg` | `#F6F8FC` | Fondo de página (área principal) | — |
+| `--color-surface` | `#FFFFFF` | Tarjetas, barra lateral, inputs | — |
+| `--color-fg` | `#14213D` | Texto principal (tinta) | ≈16:1 sobre `bg` |
+| `--color-fg-muted` | `#5C6B7A` | Texto secundario, ayudas | ≥7:1 sobre `surface` |
+| `--color-border` | `#E4E9F2` | Divisores decorativos | (decorativo) |
+| `--color-border-input` | `#64748B` | Borde de inputs, checkboxes | 4.76:1 sobre `surface` (≥ 3:1, WCAG 1.4.11) |
+| `--color-primary` | `#4338CA` | Botón primario, enlaces, marca | Texto blanco ≥4.5:1 |
 | `--color-primary-fg` | `#FFFFFF` | Texto sobre primario | — |
+| `--color-brand-panel` | `#14213D` | Panel izquierdo en layouts de auth | Texto blanco sobre panel |
+| `--color-brand-panel-muted` | `#94A3B8` | Subtítulos sobre panel auth | Decorativo sobre panel |
+| `--color-nav-active-bg` | `#EEF2FF` | Fondo ítem de navegación activo | — |
 | `--color-danger` | `#B91C1C` | Acciones destructivas (cancelar, revocar) | Texto blanco 6.47:1 |
-| `--color-focus` | `#2563EB` | Anillo de foco 2 px + offset 2 px | 5.17:1 sobre `bg` |
+| `--color-focus` | `#4338CA` | Anillo de foco 2 px + offset 2 px | ≥3:1 sobre `bg` |
 
 ### 1.2 Paleta semántica por estado de suscripción
 
@@ -61,23 +64,25 @@ Otras dimensiones (insignias secundarias, nunca mezcladas con la de vigencia, RN
 | Escala | 12 / 14 (base de tablas) / 16 (base de texto) / 18 / 20 / 24 / 30 px; altura de línea 1.5 (texto), 1.25 (títulos) |
 | Números | `font-variant-numeric: tabular-nums` en importes y fechas |
 | Espaciado | Base 4 px (`--spacing: 0.25rem`); densidad de tabla: fila 44 px (objetivo táctil ≥ 24 px, WCAG 2.5.8) |
-| Radios | `--radius-sm 4px`, `--radius-md 8px` (tarjetas, inputs), `--radius-full` (insignias) |
-| Sombras | `--shadow-sm` para tarjetas; sin sombras en tablas |
+| Radios | `--radius-sm 4px`, `--radius-md 8px`, `--radius-lg 12px` (tarjetas), `--radius-full` (insignias) |
+| Sombras | `--shadow-card` para tarjetas; sin sombras en tablas |
 
 ```css
 /* frontend/src/app/globals.css (extracto) */
 @import "tailwindcss";
 @theme {
-  --color-bg: #FFFFFF;  --color-surface: #F8FAFC;  --color-fg: #0F172A;  --color-fg-muted: #475569;
-  --color-border: #E2E8F0;  --color-border-input: #64748B;  --color-primary: #1D4ED8;  --color-danger: #B91C1C;
-  --color-focus: #2563EB;
-  --color-status-active-fg: #166534;       --color-status-active-bg: #DCFCE7;
-  --color-status-in-renewal-fg: #1E40AF;   --color-status-in-renewal-bg: #DBEAFE;
-  --color-status-expired-fg: #991B1B;      --color-status-expired-bg: #FEE2E2;
-  --color-status-cancelled-fg: #3F3F46;    --color-status-cancelled-bg: #E4E4E7;
-  --color-status-not-renewed-fg: #9A3412;  --color-status-not-renewed-bg: #FFEDD5;
-  --color-status-pending-fg: #334155;      --color-status-pending-bg: #F1F5F9;
-  --color-urgency-soon-fg: #854D0E;        --color-urgency-soon-bg: #FEF9C3;
+  --color-bg: #f6f8fc;  --color-surface: #ffffff;  --color-fg: #14213d;  --color-fg-muted: #5c6b7a;
+  --color-border: #e4e9f2;  --color-border-input: #64748b;  --color-primary: #4338ca;
+  --color-brand-panel: #14213d;  --color-nav-active-bg: #eef2ff;
+  --color-danger: #b91c1c;  --color-focus: #4338ca;
+  /* §1.2 estados de suscripción (sin cambios de paleta semántica) */
+  --color-status-active-fg: #166534;       --color-status-active-bg: #dcfce7;
+  --color-status-in-renewal-fg: #1e40af;   --color-status-in-renewal-bg: #dbeafe;
+  --color-status-expired-fg: #991b1b;      --color-status-expired-bg: #fee2e2;
+  --color-status-cancelled-fg: #3f3f46;    --color-status-cancelled-bg: #e4e4e7;
+  --color-status-not-renewed-fg: #9a3412;  --color-status-not-renewed-bg: #ffedd5;
+  --color-status-pending-fg: #334155;      --color-status-pending-bg: #f1f5f9;
+  --color-urgency-soon-fg: #854d0e;        --color-urgency-soon-bg: #fef9c3;
   --font-sans: "Inter", system-ui, sans-serif;
   --radius-md: 0.5rem;
 }

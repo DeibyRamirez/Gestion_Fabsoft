@@ -12,5 +12,15 @@ export default function HomePage() {
   useEffect(() => {
     if (ready) router.replace(user ? homePathForRole(user.role) : '/login');
   }, [ready, user, router]);
-  return <p aria-busy="true">Cargando…</p>;
+
+  return (
+    <div
+      className="flex min-h-screen items-center justify-center bg-bg px-4"
+      role="status"
+      aria-busy="true"
+      aria-live="polite"
+    >
+      <p className="text-sm text-fg-muted">Cargando…</p>
+    </div>
+  );
 }
