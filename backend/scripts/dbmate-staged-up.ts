@@ -1,8 +1,7 @@
 /**
  * Aplica migraciones 0001–0005 sin reescribir SQL histórico:
- *   0001–0002: conexión directa fabsoft_migrator (LOGIN, no superusuario)
- *   0003–0005: conexión directa provisioner (requiere ALTER/OWNER sobre pgboss y
- *              SECURITY DEFINER; el historial asumía rol propietario con capacidad SET ROLE)
+ *   0001: conexión directa fabsoft_migrator (LOGIN, no superusuario)
+ *   0002–0005: conexión directa provisioner (OWNER / propietario; sin SET ROLE desde admin)
  *
  * Ver docs/deployment-f0.md (limitación documentada).
  */
@@ -87,16 +86,16 @@ async function copyMigrations(into: string, files: readonly string[]): Promise<v
 }
 
 const tmpBase = await mkdtemp(join(tmpdir(), 'fabsoft-mig-stage-'));
-const dir12 = join(tmpBase, '0001-0002');
-const dir345 = join(tmpBase, '0003-0005');
-await mkdir(dir12, { recursive: true });
-await mkdir(dir345, { recursive: true });
+const dir1 = join(tmpBase, '0001');
+const dirRest = join(tmpBase, '0002-0005');
+await mkdir(dir1, { recursive: true });
+await mkdir(dirRest, { recursive: true });
 try {
-  await copyMigrations(dir12, MIGRATION_FILES.slice(0, 2));
-  runDbmate(migratorUrl, dir12);
+  await copyMigrations(dir1, MIGRATION_FILES.slice(0, 1));
+  runDbmate(migratorUrl, dir1);
   await reconcileAppSchema();
-  await copyMigrations(dir345, MIGRATION_FILES.slice(2));
-  runDbmate(provisionUrl, dir345);
+  await copyMigrations(dirRest, MIGRATION_FILES.slice(1));
+  runDbmate(provisionUrl, dirRest);
   const target = parseDatabaseTarget(provisionUrl);
   const prov = new pg.Client({ connectionString: urlForDatabase(provisionUrl, target.database) });
   await prov.connect();

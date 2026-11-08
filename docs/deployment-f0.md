@@ -7,7 +7,7 @@
 | Variable | Rol | Uso |
 |---|---|---|
 | `DATABASE_PROVISION_URL` | `fabsoft_owner` / `postgres` | Sólo harness CI y scripts de aprovisionamiento (`db:provision:*`, `db:roles:dev`). Nunca en contenedores de la app. |
-| `DATABASE_MIGRATION_URL` | `fabsoft_migrator` | dbmate **`0001`–`0002`** (conexión directa; **no** `SET ROLE` desde admin). |
+| `DATABASE_MIGRATION_URL` | `fabsoft_migrator` | dbmate **`0001`** (conexión directa; **no** `SET ROLE` desde admin). |
 | `DATABASE_URL` / `WORKER_DATABASE_URL` | `fabsoft_app` / `fabsoft_worker` | Runtime API/worker. |
 | `SEED_DATABASE_URL` | provisioner | Seed/reset; validado con marcador efímero. |
 
@@ -25,7 +25,7 @@ psql "$DATABASE_MIGRATION_URL" -c 'select app.assert_rls_everywhere();'
 pnpm test:security
 ```
 
-`pnpm db:migrate` ejecuta `dbmate-staged-up.ts`: `0001`–`0002` como **migrator**, `0003`–`0005` como **provisioner** (sin `SET ROLE`; ver limitación abajo).
+`pnpm db:migrate` ejecuta `dbmate-staged-up.ts`: `0001` como **migrator**, `0002`–`0005` como **provisioner** (sin `SET ROLE`; ver limitación abajo).
 
 `db:provision:foundation` crea bases aisladas `*_f0_fresh` y `*_f0_upg`, aplica `0001` como fixture y completa hasta `0005`, comparando inventario RLS con instalación fresh.
 
