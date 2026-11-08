@@ -19,6 +19,7 @@ app_url="$(pg_uri "$FABSOFT_APP_USER")"
 case "${1:-all}" in
   owner)
     {
+      echo "DATABASE_PROVISION_URL=${owner_url}"
       echo "DATABASE_URL=${owner_url}"
       echo "DATABASE_MIGRATION_URL=${owner_url}"
       echo "TEST_DATABASE_MIGRATION_URL=${owner_url}"
@@ -26,10 +27,12 @@ case "${1:-all}" in
     ;;
   all)
     {
+      echo "DATABASE_PROVISION_URL=${owner_url}"
       echo "DATABASE_URL=${app_url}"
       echo "DATABASE_MIGRATION_URL=${owner_url}"
       echo "TEST_DATABASE_MIGRATION_URL=${owner_url}"
       echo "TEST_DATABASE_URL=${app_url}"
+      echo "SEED_DATABASE_URL=${owner_url}"
     } >>"$GITHUB_ENV"
     ;;
   *)

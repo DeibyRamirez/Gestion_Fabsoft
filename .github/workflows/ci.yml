@@ -87,9 +87,13 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgres://fabsoft_owner:ci_owner@localhost:5432/fabsoft_test?sslmode=disable
-      DATABASE_MIGRATION_URL: postgres://fabsoft_owner:ci_owner@localhost:5432/fabsoft_test?sslmode=disable
-      TEST_DATABASE_MIGRATION_URL: postgres://fabsoft_owner:ci_owner@localhost:5432/fabsoft_test?sslmode=disable
+      APP_ENV: test
+      DATABASE_PROVISION_URL: postgres://fabsoft_owner:ci_owner@localhost:5432/fabsoft_test?sslmode=disable
+      DATABASE_URL: postgres://fabsoft_app:ci_app@localhost:5432/fabsoft_test?sslmode=disable
+      TEST_DATABASE_URL: postgres://fabsoft_app:ci_app@localhost:5432/fabsoft_test?sslmode=disable
+      WORKER_DATABASE_URL: postgres://fabsoft_worker:ci_worker@localhost:5432/fabsoft_test?sslmode=disable
+      BOOTSTRAP_DATABASE_URL: postgres://fabsoft_bootstrap:ci_bootstrap@localhost:5432/fabsoft_test?sslmode=disable
+      CI_MIGRATOR_PASSWORD: ci_migrator
       REQUIRE_DB_TESTS: "1"
       DBMATE_MIGRATIONS_DIR: backend/migrations
       DBMATE_NO_DUMP_SCHEMA: "true"
@@ -102,11 +106,17 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Migraciones (dbmate)
+      - name: Aprovisionar rol migrator y marcador efímero
+        run: pnpm --filter @fabsoft/backend db:provision:ci
+      - name: Fresh + upgrade (bases aisladas 0001→0005)
+        run: pnpm --filter @fabsoft/backend db:provision:foundation
+      - name: Migraciones (dbmate, LOGIN fabsoft_migrator directo)
         run: pnpm db:migrate
+      - name: LOGIN roles runtime (provisioner)
+        run: pnpm db:roles:dev
       - name: Assert RLS en todas las tablas
-        run: psql "$TEST_DATABASE_MIGRATION_URL" -v ON_ERROR_STOP=1 -c 'SELECT app.assert_rls_everywhere();'
-      - name: Tests de seguridad
+        run: psql "$DATABASE_MIGRATION_URL" -v ON_ERROR_STOP=1 -c 'SELECT app.assert_rls_everywhere();'
+      - name: Tests de seguridad + foundation F0
         run: pnpm test:security
 
   integration-api:
@@ -127,6 +137,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      APP_ENV: test
       REQUIRE_DB_TESTS: "1"
     steps:
       - uses: actions/checkout@v4
@@ -139,8 +150,10 @@ jobs:
         run: bash backend/scripts/export-ci-database-url.sh all
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @fabsoft/shared build
-      - name: Migraciones (dbmate)
-        run: pnpm db:migrate:test
+      - name: Aprovisionar migrator + marcador efímero
+        run: pnpm --filter @fabsoft/backend db:provision:ci
+      - name: Migraciones (dbmate, LOGIN fabsoft_migrator directo)
+        run: pnpm db:migrate
       - name: LOGIN fabsoft_app
         run: pnpm db:roles:dev
       - run: pnpm test:integration
@@ -177,9 +190,11 @@ jobs:
       - name: URLs de base de datos (sin credenciales en el workflow)
         run: bash backend/scripts/export-ci-database-url.sh all
       - run: pnpm install --frozen-lockfile
+      - name: Aprovisionar migrator + marcador efímero
+        run: pnpm --filter @fabsoft/backend db:provision:ci
       - name: Migraciones y seed
         run: |
-          pnpm db:migrate:test
+          pnpm db:migrate
           pnpm db:roles:dev
           pnpm db:seed
       - run: pnpm build
@@ -224,9 +239,11 @@ jobs:
         run: bash backend/scripts/export-ci-database-url.sh all
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @fabsoft/shared build
+      - name: Aprovisionar migrator + marcador efímero
+        run: pnpm --filter @fabsoft/backend db:provision:ci
       - name: Migraciones
         run: |
-          pnpm db:migrate:test
+          pnpm db:migrate
           pnpm db:roles:dev
       - run: pnpm test:perf
       - uses: actions/upload-artifact@v4

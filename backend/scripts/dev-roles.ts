@@ -3,11 +3,13 @@
  * con las contraseñas de DATABASE_URL y WORKER_DATABASE_URL. Usa DATABASE_MIGRATION_URL.
  */
 import pg from 'pg';
-import { assertNonProduction } from './guard.js';
+import { assertNonProduction, resolveGuardedDatabaseUrl } from './guard.js';
 
 assertNonProduction();
-const owner = process.env.DATABASE_MIGRATION_URL;
-if (!owner) throw new Error('DATABASE_MIGRATION_URL no definido');
+const { url: owner } = resolveGuardedDatabaseUrl(
+  ['DATABASE_PROVISION_URL', 'DATABASE_MIGRATION_URL'],
+  { allowUsers: ['fabsoft_owner', 'postgres', 'fabsoft_provisioner'] },
+);
 const client = new pg.Client({ connectionString: owner });
 await client.connect();
 try {

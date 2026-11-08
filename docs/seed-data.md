@@ -1,6 +1,6 @@
 # Datos de prueba (seed) — FabSoft
 
-> **Sólo dev y staging.** El script aborta si `APP_ENV=prod` o si `DATABASE_MIGRATION_URL` apunta a un host listado en `SEED_FORBIDDEN_HOSTS`. Ningún dato real de clientes se usa fuera de producción.
+> **Sólo dev y staging.** Falla cerrado si `APP_ENV` falta o es `prod`, si el destino no está en `SEED_ALLOWED_HOSTS` / `SEED_ALLOWED_DATABASES` / `SEED_ALLOWED_PORTS`, si el host figura en `SEED_FORBIDDEN_HOSTS`, o si `fabsoft.seed_ephemeral` en la base no coincide con `SEED_EPHEMERAL_MARKER`. No abre conexión hasta validar la configuración. `SEED_DATABASE_URL` (provisioner) es preferido frente a `DATABASE_MIGRATION_URL`. `--reset` requiere `SEED_ALLOW_RESET=1`. Ningún dato real de clientes se usa fuera de producción. Ver `docs/deployment-f0.md`.
 
 ## 1. Ejecución
 

@@ -75,3 +75,4 @@ No es la fuente de avance. Workspace objetivo `1600300000002171`, lista `1600300
 - 2026-11-03 — Arranque monorepo: `predev` compila `@fabsoft/shared` en backend/frontend; `with-env.mjs` invoca `dbmate.cmd` en Windows; README exige Node 22 y comandos desde la raíz.
 - 2026-11-04 — HU-05 backend productos. API `GET/POST/PATCH /api/v1/products`, dominio/aplicación/infra PG, Zod en `@fabsoft/shared`, tests unitarios + `products.db.test.ts` + `T-RN02-01`; e2e products sigue en fixme.
 - 2026-11-04 — HU-05 seguimiento QA. Contratos AJV (`product-schema`, `additionalProperties`), mapa `STATUS_BY_CODE`, `T-HU05-04` desactivar, `T-RN14-01` DELETE en `app.products`; sin cambios en migraciones.
+- 2026-11-08 — Sprint1 Foundation F0. Rol `fabsoft_migrator` (LOGIN, no superusuario) vía harness de aprovisionamiento; URLs provision/migrate/runtime; seed fail-closed; pruebas fresh+upgrade y runtime en CI.

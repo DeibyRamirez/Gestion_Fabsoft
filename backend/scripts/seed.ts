@@ -7,11 +7,11 @@
  */
 import pg from 'pg';
 import { Argon2PasswordHasher } from '../src/infrastructure/security/argon2-password-hasher.js';
-import { assertNonProduction } from './guard.js';
+import { assertEphemeralMarker, assertSeedConfiguration, loadSessionIdentity } from './guard.js';
+import { redactDatabaseUrl } from './database-url.js';
 
-assertNonProduction();
-const url = process.env.DATABASE_MIGRATION_URL;
-if (!url) throw new Error('DATABASE_MIGRATION_URL no definido');
+const seedConfig = assertSeedConfiguration();
+const url = seedConfig.url;
 const reset = process.argv.includes('--reset');
 
 const id = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
@@ -256,7 +256,15 @@ const subId = (n: number) => id(0x400 + n);
 const hasher = new Argon2PasswordHasher();
 const db = new pg.Client({ connectionString: url });
 await db.connect();
+const q = (sql: string, params?: unknown[]) => db.query(sql, params);
 try {
+  const identity = await loadSessionIdentity(q);
+  if (identity.sessionUser !== seedConfig.expectedUser) {
+    throw new Error(
+      `Seed: identidad inesperada ${identity.sessionUser} (destino ${redactDatabaseUrl(url)})`,
+    );
+  }
+  await assertEphemeralMarker(q, seedConfig.ephemeralMarker);
   await db.query('begin');
   await db.query(
     `select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true), set_config('app.request_id','seed',true)`,
@@ -402,11 +410,14 @@ try {
   await task(4, 'other', 8, C.andina, -30, 'Confirmar pago del trimestre anterior', 'completed');
 
   await db.query('commit');
-  console.log(`Seed aplicado (hoy=${today}). Credenciales de desarrollo:`);
-  for (const u of users)
-    console.log(
-      `  ${u.email.padEnd(24)} ${u.role.padEnd(9)} ${u.pw}${u.status === 'disabled' ? ' (desactivado)' : ''}${u.must ? ' (cambio obligatorio)' : ''}`,
-    );
+  console.log(`Seed aplicado (hoy=${today}) en ${redactDatabaseUrl(url)}.`);
+  if (process.env.APP_ENV === 'dev') {
+    console.log('Credenciales de desarrollo (ver docs/seed-data.md):');
+    for (const u of users)
+      console.log(
+        `  ${u.email.padEnd(24)} ${u.role.padEnd(9)}${u.status === 'disabled' ? ' (desactivado)' : ''}${u.must ? ' (cambio obligatorio)' : ''}`,
+      );
+  }
 } catch (err) {
   await db.query('rollback').catch(() => undefined);
   throw err;
