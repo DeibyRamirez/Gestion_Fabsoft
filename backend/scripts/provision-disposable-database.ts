@@ -141,6 +141,21 @@ async function installHarnessProvenance(dbName: string): Promise<void> {
   }
 }
 
+async function grantMigratorMigrationCatalogAccess(dbName: string): Promise<void> {
+  const dbClient = new pg.Client({
+    connectionString: urlForDatabase(provisionConnectionUrl, dbName),
+  });
+  await dbClient.connect();
+  try {
+    await dbClient.query(`grant usage on schema public to ${quoteIdent(MIGRATOR_ROLE)}`);
+    await dbClient.query(
+      `grant select on table public.schema_migrations to ${quoteIdent(MIGRATOR_ROLE)}`,
+    );
+  } finally {
+    await dbClient.end();
+  }
+}
+
 async function grantMigratorOnDatabase(dbName: string): Promise<void> {
   await provision.query(
     `grant connect, create, temporary on database ${quoteIdent(dbName)} to ${quoteIdent(MIGRATOR_ROLE)}`,
@@ -316,6 +331,7 @@ async function profileDevelopHistoricalUpgrade(): Promise<void> {
   const ownerUrl = urlForDatabase(provisionConnectionUrl, upgradeDb);
   const migUrl = migratorUrl(upgradeDb);
   await runDbmate(ownerUrl, join(ROOT, 'migrations'));
+  await grantMigratorMigrationCatalogAccess(upgradeDb);
   await applyDevelopMinimalData(ownerUrl);
   const preMigrator = await migrationInventory(migUrl);
   if (preMigrator.length !== migCount) {
@@ -409,6 +425,7 @@ async function profileFoundationHarness(): Promise<void> {
 
   const ownerUpgradeUrl = urlForDatabase(provisionConnectionUrl, upgradeDb);
   await runDbmate(ownerUpgradeUrl, join(ROOT, 'migrations'));
+  await grantMigratorMigrationCatalogAccess(upgradeDb);
   await applyDevelopMinimalData(ownerUpgradeUrl);
   const ownerVersions = await migrationInventory(ownerUpgradeUrl);
   if (ownerVersions.length !== migCount) {
