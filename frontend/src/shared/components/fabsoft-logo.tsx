@@ -37,7 +37,13 @@ export function FabSoftLogo({
 
   if (href != null) {
     return (
-      <Link href={href} className={cn(wrapperClass, 'rounded-md focus-visible:outline-none')}>
+      <Link
+        href={href}
+        className={cn(
+          wrapperClass,
+          'rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2',
+        )}
+      >
         {content}
       </Link>
     );
