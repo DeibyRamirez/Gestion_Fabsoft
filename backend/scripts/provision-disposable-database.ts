@@ -410,7 +410,8 @@ async function profileCiMain(): Promise<void> {
     SEED_ALLOWED_PORTS: target.port,
     SEED_ALLOW_RESET: '1',
     SEED_FORBIDDEN_HOSTS: '-',
-    SEED_SESSION_ROLE: 'fabsoft_seed_writer',
+    SEED_ALLOW_HARNESS_SUPERUSER: '1',
+    SEED_SESSION_ROLE: target.user,
   });
 }
 

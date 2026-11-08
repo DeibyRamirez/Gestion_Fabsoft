@@ -199,8 +199,9 @@ jobs:
         run: |
           pnpm db:migrate
           pnpm db:roles:dev
-          export SEED_DATABASE_URL="postgres://fabsoft_seed_writer@localhost:5432/${POSTGRES_DB}?sslmode=disable"
-          export SEED_SESSION_ROLE=fabsoft_seed_writer
+          export SEED_DATABASE_URL="postgres://${POSTGRES_USER}@localhost:5432/${POSTGRES_DB}?sslmode=disable"
+          export SEED_SESSION_ROLE="${POSTGRES_USER}"
+          export SEED_ALLOW_HARNESS_SUPERUSER=1
           pnpm db:seed
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
