@@ -56,6 +56,10 @@ try {
   );
   await client.query(`grant execute on all functions in schema app to ${quoteIdent(SEED_WRITER)}`);
   await client.query(`grant ${quoteIdent('fabsoft_bootstrap')} to ${quoteIdent(SEED_WRITER)}`);
+  await client.query(`grant usage on schema fabsoft_harness to ${quoteIdent(SEED_WRITER)}`);
+  await client.query(
+    `grant select on table fabsoft_harness.ephemeral_provenance to ${quoteIdent(SEED_WRITER)}`,
+  );
 
   const seedUrl = `postgres://${encodeURIComponent(SEED_WRITER)}@${target.host}:${target.port}/${encodeURIComponent(db)}?sslmode=disable`;
   const file = process.env.GITHUB_ENV;
