@@ -1,6 +1,7 @@
 /**
  * Aplica migraciones con conexión directa fabsoft_migrator (LOGIN, sin superusuario).
- * El harness administrativo pre-crea membresías mínimas exigidas por 0003–0005 histórico.
+ * Si hay pendientes tras un upgrade histórico (esquema app propiedad del owner), el
+ * provisioner reconcilia ownership mínimo antes de dbmate.
  */
 import { readdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
@@ -16,6 +17,7 @@ import {
 } from './database-url.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const MIGRATOR = 'fabsoft_migrator';
 
 const migratorUrlRaw = process.env.DATABASE_MIGRATION_URL?.trim();
 const provisionUrlRaw = process.env.DATABASE_PROVISION_URL?.trim();
@@ -33,6 +35,51 @@ async function listMigrationSqlFiles(): Promise<string[]> {
     throw new Error(`No hay migraciones en ${dir}`);
   }
   return files;
+}
+
+async function pendingMigrationVersions(
+  databaseUrl: string,
+  expectedFiles: readonly string[],
+): Promise<string[]> {
+  const expected = expectedFiles.map((f) => f.replace(/\.sql$/, ''));
+  const c = new pg.Client({ connectionString: databaseUrl });
+  await c.connect();
+  try {
+    const { rows } = await c.query<{ version: string }>(
+      `select version from public.schema_migrations`,
+    );
+    const applied = new Set(rows.map((r) => r.version));
+    return expected.filter((v) => !applied.has(v));
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    if (code === '42P01') return [...expected];
+    throw err;
+  } finally {
+    await c.end();
+  }
+}
+
+async function reconcileOwnerSchemaForPending(
+  provisionConn: string,
+  migratorConn: string,
+  pending: string[],
+): Promise<void> {
+  if (pending.length === 0) return;
+  const prov = new pg.Client({ connectionString: provisionConn });
+  await prov.connect();
+  try {
+    const { rows } = await prov.query<{ owner: string | null }>(
+      `select pg_catalog.pg_get_userbyid(nspowner)::text as owner
+       from pg_catalog.pg_namespace where nspname = 'app'`,
+    );
+    const owner = rows[0]?.owner;
+    if (!owner || owner === MIGRATOR) return;
+    await prov.query(`alter schema app owner to ${quoteIdent(MIGRATOR)}`);
+    await prov.query(`grant all on schema app to ${quoteIdent(MIGRATOR)} with grant option`);
+    console.log(JSON.stringify({ reconcileAppSchemaForUpgrade: true, previousOwner: owner }));
+  } finally {
+    await prov.end();
+  }
 }
 
 function runDbmate(databaseUrl: string, migrationsDir: string): void {
@@ -93,5 +140,12 @@ console.log(
     migrations: migrationFiles,
   }),
 );
+const provDbUrl = (() => {
+  const u = new URL(provisionUrl);
+  u.pathname = new URL(migratorUrl).pathname;
+  return u.toString();
+})();
+const pending = await pendingMigrationVersions(migratorUrl, migrationFiles);
+await reconcileOwnerSchemaForPending(provDbUrl, migratorUrl, pending);
 runDbmate(migratorUrl, migrationsDir);
 await assertMigratorInventory(migratorUrl, migrationFiles);

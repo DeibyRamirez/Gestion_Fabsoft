@@ -14,6 +14,8 @@ const baseEnv = {
   SEED_ALLOWED_DATABASES: 'fabsoft_test',
   SEED_EPHEMERAL_MARKER: 'marker-ci',
   SEED_HARNESS_RUN_ID: 'run-test-1',
+  SEED_FORBIDDEN_HOSTS: '-',
+  SEED_SESSION_ROLE: 'fabsoft_owner',
 };
 
 function withEnv(overrides: Record<string, string | undefined>, fn: () => void): void {
@@ -40,6 +42,32 @@ describe('guard fail-closed', () => {
     } finally {
       process.env = snapshot;
     }
+  });
+
+  it('rechaza host staging sin SEED_ALLOW_REMOTE=1', () => {
+    withEnv(
+      {
+        SEED_DATABASE_URL: 'postgres://fabsoft_owner@my-staging.example/fabsoft_test',
+        SEED_FORBIDDEN_HOSTS: '-',
+      },
+      () => {
+        expect(() => assertSeedConfiguration()).toThrow(/staging\/remoto/);
+      },
+    );
+  });
+
+  it('rechaza SEED_FORBIDDEN_HOSTS ausente', () => {
+    withEnv(
+      {
+        SEED_DATABASE_URL: 'postgres://fabsoft_owner@localhost/fabsoft_test',
+      },
+      () => {
+        delete process.env.SEED_FORBIDDEN_HOSTS;
+        expect(() => resolveGuardedDatabaseUrl(['SEED_DATABASE_URL'])).toThrow(
+          /SEED_FORBIDDEN_HOSTS/,
+        );
+      },
+    );
   });
 
   it('rechaza staging sin SEED_ALLOW_STAGING=1', () => {

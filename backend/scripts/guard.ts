@@ -20,10 +20,26 @@ function requireEnv(name: string): string {
 function parseList(name: string): string[] {
   const raw = process.env[name];
   if (raw === undefined) return [];
+  if (name === 'SEED_FORBIDDEN_HOSTS' && (raw.trim() === '' || raw.trim() === '-')) return [];
   return raw
     .split(',')
     .map((h) => h.trim())
     .filter(Boolean);
+}
+
+function requireForbiddenHostsConfigured(): void {
+  if (process.env.SEED_FORBIDDEN_HOSTS === undefined) {
+    throw new Error(
+      'SEED_FORBIDDEN_HOSTS debe estar definido ("-" si no hay hosts extra en lista)',
+    );
+  }
+}
+
+function assertImplicitStagingBlocked(host: string): void {
+  if (process.env.SEED_ALLOW_REMOTE === '1') return;
+  if (/staging/i.test(host) || host.endsWith('.supabase.co')) {
+    throw new Error(`Host de staging/remoto rechazado (use SEED_ALLOW_REMOTE=1): ${host}`);
+  }
 }
 
 function parseAllowedDatabases(): string[] {
@@ -65,6 +81,8 @@ function assertHostAllowed(
   target: ReturnType<typeof parseDatabaseTarget>,
   denylist: string[],
 ): void {
+  requireForbiddenHostsConfigured();
+  assertImplicitStagingBlocked(target.host);
   if (denylist.includes(target.host)) {
     throw new Error(`Host prohibido (${target.host})`);
   }
@@ -139,13 +157,13 @@ export function resolveGuardedDatabaseUrl(
 
 export type SeedGuardExpectation = {
   url: string;
-  expectedUser: string;
+  expectedSessionRole: string;
   ephemeralMarker: string;
   harnessRunId: string;
   expectedDatabase: string;
 };
 
-const SEED_WRITER_ROLES = ['fabsoft_owner', 'postgres', 'fabsoft_provisioner'] as const;
+const SEED_WRITER_ROLES = ['fabsoft_owner', 'fabsoft_provisioner'] as const;
 
 /** Validación estática para seed: no abre conexión. */
 export function assertSeedConfiguration(): SeedGuardExpectation {
@@ -163,16 +181,21 @@ export function assertSeedConfiguration(): SeedGuardExpectation {
     defined.map((d) => d.envVar),
     { allowUsers: [...SEED_WRITER_ROLES] },
   );
-  const expectedUser = resolved.target.user;
-  if (!SEED_WRITER_ROLES.includes(expectedUser as (typeof SEED_WRITER_ROLES)[number])) {
-    throw new Error(`SEED: rol ${expectedUser} no autorizado para escritura de fixtures`);
+  const expectedSessionRole = requireEnv('SEED_SESSION_ROLE');
+  if (!SEED_WRITER_ROLES.includes(expectedSessionRole as (typeof SEED_WRITER_ROLES)[number])) {
+    throw new Error(`SEED_SESSION_ROLE=${expectedSessionRole} no autorizado para fixtures`);
+  }
+  if (resolved.target.user !== expectedSessionRole) {
+    throw new Error(
+      `URL de seed usa ${resolved.target.user} pero SEED_SESSION_ROLE=${expectedSessionRole}`,
+    );
   }
   if (process.argv.includes('--reset') && process.env.SEED_ALLOW_RESET !== '1') {
     throw new Error('seed --reset requiere SEED_ALLOW_RESET=1 y destino efímero verificado');
   }
   return {
     url: resolved.url,
-    expectedUser,
+    expectedSessionRole,
     ephemeralMarker,
     harnessRunId,
     expectedDatabase: resolved.target.database,
@@ -284,14 +307,21 @@ export async function assertSeedSession(
   expected: SeedGuardExpectation,
 ): Promise<void> {
   const identity = await loadSessionIdentity(query);
-  if (identity.sessionUser !== expected.expectedUser) {
-    throw new Error(`Seed: session_user inesperado ${identity.sessionUser}`);
+  if (identity.sessionUser !== expected.expectedSessionRole) {
+    throw new Error(
+      `Seed: session_user=${identity.sessionUser} distinto del rol harness ${expected.expectedSessionRole}`,
+    );
   }
   if (identity.currentUser !== identity.sessionUser) {
     throw new Error(`Seed: current_user (${identity.currentUser}) distinto de session_user`);
   }
-  if (identity.rolsuper || identity.rolcreaterole || identity.rolcreatedb) {
-    throw new Error('Seed: rol con privilegios de escalación no permitidos');
+  if (
+    identity.rolsuper ||
+    identity.rolcreaterole ||
+    identity.rolcreatedb ||
+    identity.rolbypassrls
+  ) {
+    throw new Error('Seed: rol con privilegios de escalación no permitidos (incl. superusuario)');
   }
   await assertEphemeralMarker(query, expected.ephemeralMarker);
   await assertHarnessProvenance(query, {

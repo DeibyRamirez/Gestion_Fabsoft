@@ -28,6 +28,7 @@
     "db:roles:dev": "tsx --env-file-if-exists=.env scripts/dev-roles.ts",
     "db:provision:ci": "tsx scripts/provision-disposable-database.ts ci-main",
     "db:provision:foundation": "tsx scripts/provision-disposable-database.ts foundation-harness",
+    "db:provision:develop-upgrade": "tsx scripts/provision-disposable-database.ts develop-historical-upgrade",
     "db:provision:dev": "tsx --env-file-if-exists=.env scripts/provision-disposable-database.ts ci-main"
   },
   "dependencies": {

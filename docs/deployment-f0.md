@@ -33,14 +33,9 @@ pnpm test:security
 
 ## Bootstrap administrativo mínimo (honesto)
 
-El SQL histórico `0003`–`0005` exige membresía en roles stub (`AUTHORIZATION fabsoft_worker`, `ALTER OWNER TO fabsoft_secure_view`, etc.). **Sin reescribir** esas migraciones, el harness provisioner:
+El provisioner **no** pre-crea roles stub ni concede `ADMIN OPTION` al migrator (provocaría `42501` al ejecutar `0002`). Crea `fabsoft_migrator` restringido y privilegios de BD/esquema `public`. Las migraciones `0001`–`0005` las ejecuta **fabsoft_migrator** en instalación vacía.
 
-1. Crea `fabsoft_migrator` (`LOGIN`, `NOCREATEROLE`, `NOCREATEDB`, `NOINHERIT`) sólo si no existe con atributos distintos (falla cerrado).
-2. Crea roles stub **sólo si no existen** (mismos atributos que en las migraciones).
-3. Ejecuta `GRANT stub TO fabsoft_migrator` **sin** `ADMIN OPTION`.
-4. No altera contraseñas/login de roles preexistentes en instalaciones externas.
-
-Las sentencias DDL de las migraciones las ejecuta **únicamente** la sesión `fabsoft_migrator`.
+**Upgrade develop:** el owner aplica la cadena histórica completa; el migrator ejecuta `dbmate up` (sin reaplicar) y, si hubiera pendientes, el provisioner reconcilia ownership de `app` antes de migrar.
 
 ## Seed endurecido
 
@@ -51,6 +46,10 @@ Requiere `APP_ENV` explícito (`dev`|`test`, o `staging` con `SEED_ALLOW_STAGING
 - Event trigger `fabsoft_enforce_rls` (0003) sólo si el ejecutor es superusuario; con `fabsoft_migrator` la red de seguridad es `app.assert_rls_everywhere()` en migraciones y CI.
 - `ON CONFLICT DO NOTHING` en seed no reconcilia fixtures incompletos.
 - No se validó Supabase gestionado en este corte.
+
+## GitGuardian — incidente histórico
+
+El escaneo [39807174](https://github.com/DeibyRamirez/Gestion_Fabsoft/security/secret-scanning/39807174) apunta a credenciales de ejemplo en commits **publicados** del workflow (`ci_owner` / `ci_app` en `ci.yml`, commit `5c024f9`). El HEAD actual exporta URIs sin contraseña vía `export-ci-database-url.sh`. **No** se autorizó reescritura de historial (`rebase`/`force-push`/`amend`); limpiar el incidente en GitHub requiere decisión del propietario del repositorio (revocar/false positive documentado), no exclusiones del escáner.
 
 ## Bloqueador conocido (sin bypass silencioso)
 

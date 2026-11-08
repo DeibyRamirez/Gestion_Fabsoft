@@ -4,8 +4,7 @@
  * Sólo entornos dev|test|CI; nunca prod.
  */
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, cp, rm, appendFile, readdir } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { appendFile, readdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -25,13 +24,6 @@ import {
 
 const MIGRATOR_ROLE = 'fabsoft_migrator';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const STUB_ROLES = [
-  'fabsoft_app',
-  'fabsoft_worker',
-  'fabsoft_secure_view',
-  'fabsoft_auth_definer',
-  'fabsoft_bootstrap',
-] as const;
 
 assertNonProduction();
 
@@ -92,31 +84,6 @@ const provision = new pg.Client({ connectionString: provisionConnectionUrl });
 await provision.connect();
 const provIdentity = await loadSessionIdentity((sql, params) => provision.query(sql, params));
 assertProvisionerSession(provIdentity.sessionUser);
-
-async function bootstrapStubRolesForHistoricalMigrations(): Promise<void> {
-  const specs: Record<string, string> = {
-    fabsoft_app: 'nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls',
-    fabsoft_worker: 'nologin nosuperuser nocreatedb nocreaterole inherit nobypassrls',
-    fabsoft_secure_view: 'nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls',
-    fabsoft_auth_definer: 'nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls',
-    fabsoft_bootstrap: 'nologin nosuperuser nocreatedb nocreaterole inherit nobypassrls',
-  };
-  for (const role of STUB_ROLES) {
-    await assertRoleAttributes(provision, role, {
-      super: false,
-      createrole: false,
-      createdb: false,
-    });
-    const { rows } = await provision.query<{ exists: boolean }>(
-      `select exists(select 1 from pg_roles where rolname = $1) as exists`,
-      [role],
-    );
-    if (!rows[0]?.exists) {
-      await provision.query(`create role ${quoteIdent(role)} ${specs[role]}`);
-    }
-    await provision.query(`grant ${quoteIdent(role)} to ${quoteIdent(MIGRATOR_ROLE)}`);
-  }
-}
 
 async function ensureMigratorRole(): Promise<void> {
   const { rows } = await provision.query<{ exists: boolean }>(
@@ -318,9 +285,59 @@ async function expectedMigrationCount(): Promise<number> {
   return names.filter((n) => /^\d+_.+\.sql$/.test(n)).length;
 }
 
+async function applyDevelopMinimalData(databaseUrl: string): Promise<void> {
+  const c = new pg.Client({ connectionString: normalizeDatabaseUrl(databaseUrl) });
+  await c.connect();
+  try {
+    await c.query('begin');
+    await c.query(
+      `select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true)`,
+    );
+    await c.query(
+      `insert into app.products (id, name, product_type, status)
+       values ('00000000-0000-0000-0000-0000000000f1', 'Harness QA', 'third_party', 'active')
+       on conflict (id) do nothing`,
+    );
+    await c.query('commit');
+  } finally {
+    await c.end();
+  }
+}
+
+async function profileDevelopHistoricalUpgrade(): Promise<void> {
+  await ensureMigratorRole();
+  const suffix = harnessRunId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12);
+  const upgradeDb = `${target.database}_f0_${suffix}_develop`;
+  const migCount = await expectedMigrationCount();
+  await createHarnessDatabase(upgradeDb);
+  const ownerUrl = urlForDatabase(provisionConnectionUrl, upgradeDb);
+  const migUrl = migratorUrl(upgradeDb);
+  await runDbmate(ownerUrl, join(ROOT, 'migrations'));
+  await applyDevelopMinimalData(ownerUrl);
+  const preMigrator = await migrationInventory(migUrl);
+  if (preMigrator.length !== migCount) {
+    throw new Error(`develop upgrade: owner no aplicó ${migCount} migraciones (tiene ${preMigrator.length})`);
+  }
+  await runStagedMigrate(migUrl, upgradeDb);
+  const postMigrator = await migrationInventory(migUrl);
+  if (postMigrator.length !== migCount) {
+    throw new Error(`develop upgrade: inventario migrator inesperado ${postMigrator.length}`);
+  }
+  await rlsSnapshot(migUrl);
+  console.log(
+    JSON.stringify({
+      profile: 'develop-historical-upgrade',
+      harnessRunId,
+      upgradeDb,
+      migrations: postMigrator,
+      path: 'owner-full-chain-then-migrator-dbmate',
+    }),
+  );
+  await provision.query(`drop database ${quoteIdent(upgradeDb)}`);
+}
+
 async function profileCiMain(): Promise<void> {
   await ensureMigratorRole();
-  await bootstrapStubRolesForHistoricalMigrations();
   await grantMigratorOnDatabase(target.database);
   const migUrl = migratorUrl(target.database);
   const identity = await (async () => {
@@ -365,12 +382,13 @@ async function profileCiMain(): Promise<void> {
     SEED_ALLOWED_DATABASES: target.database,
     SEED_ALLOWED_PORTS: target.port,
     SEED_ALLOW_RESET: '1',
+    SEED_FORBIDDEN_HOSTS: '-',
+    SEED_SESSION_ROLE: 'fabsoft_owner',
   });
 }
 
 async function profileFoundationHarness(): Promise<void> {
   await ensureMigratorRole();
-  await bootstrapStubRolesForHistoricalMigrations();
   const suffix = harnessRunId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12);
   const freshDb = `${target.database}_f0_${suffix}_fresh`;
   const upgradeDb = `${target.database}_f0_${suffix}_upg`;
@@ -385,15 +403,12 @@ async function profileFoundationHarness(): Promise<void> {
   const freshRls = await rlsSnapshot(freshUrl);
   const freshPolicies = await policySnapshot(freshUrl);
 
-  const partialDir = await mkdtemp(join(tmpdir(), 'fabsoft-mig-'));
-  await cp(join(ROOT, 'migrations', '0001_schema.sql'), join(partialDir, '0001_schema.sql'));
-  await runDbmate(upgradeUrl, partialDir);
-  const partialVersions = await migrationInventory(upgradeUrl);
-  const only0001 = partialVersions.length === 1 && partialVersions[0]!.startsWith('0001');
-  if (!only0001) {
-    throw new Error(
-      `fixture upgrade: se esperaba solo 0001 aplicada, obtuvo ${partialVersions.join(',')}`,
-    );
+  const ownerUpgradeUrl = urlForDatabase(provisionConnectionUrl, upgradeDb);
+  await runDbmate(ownerUpgradeUrl, join(ROOT, 'migrations'));
+  await applyDevelopMinimalData(ownerUpgradeUrl);
+  const ownerVersions = await migrationInventory(ownerUpgradeUrl);
+  if (ownerVersions.length !== migCount) {
+    throw new Error(`upgrade histórico: owner aplicó ${ownerVersions.length}/${migCount}`);
   }
   await runStagedMigrate(upgradeUrl, upgradeDb);
   const upgradeVersions = await migrationInventory(upgradeUrl);
@@ -411,7 +426,6 @@ async function profileFoundationHarness(): Promise<void> {
   if (freshPolicies !== upgradePolicies) {
     throw new Error('Políticas RLS fresh vs upgrade no coinciden');
   }
-  await rm(partialDir, { recursive: true, force: true });
   console.log(
     JSON.stringify({
       profile: 'foundation-harness',
@@ -433,6 +447,9 @@ switch (profile) {
     break;
   case 'foundation-harness':
     await profileFoundationHarness();
+    break;
+  case 'develop-historical-upgrade':
+    await profileDevelopHistoricalUpgrade();
     break;
   default:
     throw new Error(`Perfil de aprovisionamiento desconocido: ${profile}`);
