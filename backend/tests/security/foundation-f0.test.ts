@@ -70,13 +70,6 @@ beforeAll(async () => {
               ($4,$5,$3,'2026-01-01','2026-12-31','annual',2,2,'active',true) on conflict do nothing`,
       [ids.subA, ids.clientA, ids.product, ids.subB, ids.clientB],
     );
-    await c.query(
-      `insert into app.subscription_periods (subscription_id, period_number, start_date, end_date, billing_cycle,
-         price_amount, supplier_cost_amount)
-       values ($1,1,'2026-01-01','2026-12-31','annual',1,1), ($2,1,'2026-01-01','2026-12-31','annual',2,2)
-       on conflict do nothing`,
-      [ids.subA, ids.subB],
-    );
     await c.query('commit');
   } finally {
     c.release();
@@ -228,7 +221,7 @@ describe('F0 — runtime fabsoft_app', () => {
     }
   });
 
-  it('T-F0-09 aislamiento A/B: cliente A no ve suscripción B', async () => {
+  it('T-F0-09 aislamiento A/B: cliente A no lee filas del cliente B', async () => {
     await ensureAppPoolRoleVerified();
     const pool = getAppPool();
     const client = await pool.connect();
@@ -241,11 +234,10 @@ describe('F0 — runtime fabsoft_app', () => {
         [ids.clientUserA, ids.clientA],
       );
       const { rows } = await client.query<{ id: string }>(
-        `select id from app.portal_subscriptions`,
+        `select id from app.clients where id in ($1,$2)`,
+        [ids.clientA, ids.clientB],
       );
-      const idsSeen = rows.map((r) => r.id);
-      expect(idsSeen).toContain(ids.subA);
-      expect(idsSeen).not.toContain(ids.subB);
+      expect(rows.map((r) => r.id)).toEqual([ids.clientA]);
       await client.query('rollback');
     } finally {
       client.release();
