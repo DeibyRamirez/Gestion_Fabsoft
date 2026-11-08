@@ -3,9 +3,20 @@ import { expect, type Locator } from '@playwright/test';
 /** Lógica duplicada en el browser vía evaluate (sin imports en página). */
 export async function expectVisibleFocusIndicator(locator: Locator) {
   const result = await locator.evaluate((el) => {
+    const COLOR_FRAGMENT =
+      /((?:oklch|oklab|lab|lch)\([^)]+\)|#[0-9a-f]{3,8}\b|rgba?\([^)]+\)|hsla?\([^)]+\))/i;
+
     function colorIsVisible(color: string): boolean {
       const t = color.trim().toLowerCase();
-      if (!t || t === 'transparent') return false;
+      if (!t || t === 'transparent' || t === 'none') return false;
+
+      const slashAlpha = t.match(/\/\s*([\d.]+%?)\s*\)$/);
+      if (slashAlpha) {
+        const raw = slashAlpha[1];
+        if (raw.endsWith('%')) return parseFloat(raw) > 1;
+        return parseFloat(raw) > 0.01;
+      }
+
       const rgba = t.match(
         /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+))?\s*\)/,
       );
@@ -13,36 +24,39 @@ export async function expectVisibleFocusIndicator(locator: Locator) {
         const a = rgba[4] !== undefined ? parseFloat(rgba[4]) : 1;
         return a > 0.01;
       }
+
+      const hsla = t.match(/hsla?\(\s*[\d.]+\s*,\s*[\d.]+%\s*,\s*[\d.]+%\s*(?:,\s*([\d.]+))?\s*\)/);
+      if (hsla && hsla[1] !== undefined) return parseFloat(hsla[1]) > 0.01;
+
       return true;
     }
 
-    /** Token focus (#4338ca) en rgb; ignora sombras decorativas (p. ej. shadow-sm). */
-    function isFocusAccentColor(color: string): boolean {
-      const m = color.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
-      if (m) {
-        const [r, g, b] = [m[1], m[2], m[3]].map((n) => parseInt(n, 10));
-        return r === 67 && g === 56 && b === 202;
-      }
-      return color.trim().toLowerCase() === '#4338ca';
-    }
-
-    function boxShadowIsVisible(boxShadow: string): boolean {
+    /**
+     * Anillo focus via box-shadow (WCAG 2.4.7): sin blur, spread positivo ≥ 1px,
+     * color visible (cualquier color). Excluye elevaciones (shadow-sm/md: blur > 0).
+     */
+    function boxShadowIsFocusRing(boxShadow: string): boolean {
       if (!boxShadow || boxShadow === 'none') return false;
-      const colorRe = /(#[0-9a-f]{3,8}\b|rgba?\([^)]+\)|hsla?\([^)]+\))/i;
       const layers = boxShadow.split(/,(?![^()]*\))/);
       return layers.some((layer) => {
-        const t = layer.trim();
+        let t = layer.trim();
         if (!t) return false;
-        const colorMatch = t.match(colorRe);
+        t = t.replace(/^inset\s+/i, '');
+        const colorMatch = t.match(COLOR_FRAGMENT);
         if (!colorMatch) return false;
         const color = colorMatch[0];
         if (!colorIsVisible(color)) return false;
+
         const metrics = t.replace(color, '').trim();
         const px = metrics.match(/-?[\d.]+px/g)?.map((v) => parseFloat(v)) ?? [];
-        const spread = px.length >= 4 ? Math.abs(px[3]) : 0;
-        if (isFocusAccentColor(color) && spread >= 1) return true;
-        if (spread >= 2 && (isFocusAccentColor(color) || colorIsVisible(color))) return true;
-        return false;
+        if (px.length < 4) return false;
+
+        const blur = px[2];
+        const spread = px[3];
+        if (Math.abs(blur) > 0.01) return false;
+        if (spread < 1) return false;
+
+        return true;
       });
     }
 
@@ -60,7 +74,7 @@ export async function expectVisibleFocusIndicator(locator: Locator) {
     if (!Number.isNaN(opacity) && opacity <= 0.01) {
       return { visible: false, probe: null as null };
     }
-    const visible = outlineIsVisible(s) || boxShadowIsVisible(s.boxShadow);
+    const visible = outlineIsVisible(s) || boxShadowIsFocusRing(s.boxShadow);
     return {
       visible,
       probe: {
