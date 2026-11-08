@@ -93,12 +93,23 @@ async function ensureMigratorRole(): Promise<void> {
 }
 
 async function grantMigratorOnDatabase(dbName: string): Promise<void> {
+  const markerLit = (
+    await provision.query<{ q: string }>('select quote_literal($1) as q', [marker])
+  ).rows[0]!.q;
   await provision.query(
-    `alter database ${quoteIdent(dbName)} owner to ${quoteIdent(MIGRATOR_ROLE)}`,
+    `alter database ${quoteIdent(dbName)} set fabsoft.seed_ephemeral = ${markerLit}`,
   );
   await provision.query(
-    `alter database ${quoteIdent(dbName)} set fabsoft.seed_ephemeral = ${(await provision.query<{ q: string }>('select quote_literal($1) as q', [marker])).rows[0]!.q}`,
+    `grant all privileges on database ${quoteIdent(dbName)} to ${quoteIdent(MIGRATOR_ROLE)} with grant option`,
   );
+  await provision.query(
+    `grant create on database ${quoteIdent(dbName)} to ${quoteIdent(MIGRATOR_ROLE)}`,
+  );
+  // public: schema_migrations (dbmate) y objetos bootstrap
+  await provision.query(
+    `grant all on schema public to ${quoteIdent(MIGRATOR_ROLE)} with grant option`,
+  );
+  await provision.query(`alter schema public owner to ${quoteIdent(MIGRATOR_ROLE)}`);
 }
 
 function migratorUrl(dbName: string, host = target.host, port = target.port): string {
@@ -117,6 +128,30 @@ async function writeGithubEnv(lines: Record<string, string>): Promise<void> {
     .map(([k, v]) => `${k}=${v}`)
     .join('\n');
   await appendFile(file, `${body}\n`);
+}
+
+function urlForDatabase(base: string, dbName: string): string {
+  const u = new URL(base);
+  u.pathname = `/${dbName}`;
+  return u.toString();
+}
+
+async function runStagedMigrate(databaseUrl: string, dbName: string): Promise<void> {
+  const env = {
+    ...process.env,
+    DATABASE_MIGRATION_URL: databaseUrl,
+    DATABASE_PROVISION_URL: urlForDatabase(provisionConnectionUrl, dbName),
+  };
+  const r = spawnSync('pnpm', ['exec', 'tsx', 'scripts/dbmate-staged-up.ts'], {
+    cwd: ROOT,
+    env,
+    encoding: 'utf8',
+  });
+  if (r.status !== 0) {
+    throw new Error(
+      `staged migrate falló (${redactDatabaseUrl(databaseUrl)}): ${r.stderr || r.stdout}`,
+    );
+  }
 }
 
 async function runDbmate(databaseUrl: string, migrationsDir: string): Promise<void> {
@@ -223,13 +258,12 @@ async function profileFoundationHarness(): Promise<void> {
   }
   const freshUrl = migratorUrl(freshDb);
   const upgradeUrl = migratorUrl(upgradeDb);
-  const migrations = join(ROOT, 'migrations');
-  await runDbmate(freshUrl, migrations);
+  await runStagedMigrate(freshUrl, freshDb);
   const freshVersions = await migrationInventory(freshUrl);
   const freshRls = await rlsSnapshot(freshUrl);
 
   const partialDir = await mkdtemp(join(tmpdir(), 'fabsoft-mig-'));
-  await cp(join(migrations, '0001_schema.sql'), join(partialDir, '0001_schema.sql'));
+  await cp(join(ROOT, 'migrations', '0001_schema.sql'), join(partialDir, '0001_schema.sql'));
   await runDbmate(upgradeUrl, partialDir);
   const partialVersions = await migrationInventory(upgradeUrl);
   const only0001 = partialVersions.length === 1 && partialVersions[0]!.startsWith('0001');
@@ -238,7 +272,7 @@ async function profileFoundationHarness(): Promise<void> {
       `fixture upgrade: se esperaba solo 0001 aplicada, obtuvo ${partialVersions.join(',')}`,
     );
   }
-  await runDbmate(upgradeUrl, migrations);
+  await runStagedMigrate(upgradeUrl, upgradeDb);
   const upgradeVersions = await migrationInventory(upgradeUrl);
   const upgradeRls = await rlsSnapshot(upgradeUrl);
 

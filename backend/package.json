@@ -18,7 +18,7 @@
     "test:perf": "cross-env TZ=UTC REQUIRE_DB_TESTS=1 vitest run --project perf",
     "test:security": "cross-env TZ=UTC REQUIRE_DB_TESTS=1 vitest run --project security",
     "check-coverage-paths": "tsx scripts/check-coverage-paths.ts",
-    "db:migrate": "node scripts/with-env.mjs -- dbmate --env DATABASE_MIGRATION_URL --migrations-dir migrations --migrations-table public.schema_migrations --no-dump-schema up",
+    "db:migrate": "tsx scripts/dbmate-staged-up.ts",
     "db:migrate:test": "node scripts/with-env.mjs -- dbmate --env TEST_DATABASE_MIGRATION_URL --migrations-dir migrations --migrations-table public.schema_migrations --no-dump-schema up",
     "db:rollback": "node scripts/with-env.mjs -- dbmate --env DATABASE_MIGRATION_URL --migrations-dir migrations --migrations-table public.schema_migrations --no-dump-schema rollback",
     "db:status": "node scripts/with-env.mjs -- dbmate --env DATABASE_MIGRATION_URL --migrations-dir migrations --migrations-table public.schema_migrations status",
