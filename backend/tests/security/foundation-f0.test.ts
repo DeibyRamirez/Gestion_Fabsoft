@@ -65,10 +65,17 @@ beforeAll(async () => {
     );
     await c.query(
       `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
-         price_amount, supplier_cost_amount, status)
-       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1,1,'active'),
-              ($4,$5,$3,'2026-01-01','2026-12-31','annual',2,2,'active') on conflict do nothing`,
+         price_amount, supplier_cost_amount, status, visible_in_portal)
+       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1,1,'active',true),
+              ($4,$5,$3,'2026-01-01','2026-12-31','annual',2,2,'active',true) on conflict do nothing`,
       [ids.subA, ids.clientA, ids.product, ids.subB, ids.clientB],
+    );
+    await c.query(
+      `insert into app.subscription_periods (subscription_id, period_number, start_date, end_date, billing_cycle,
+         price_amount, supplier_cost_amount)
+       values ($1,1,'2026-01-01','2026-12-31','annual',1,1), ($2,1,'2026-01-01','2026-12-31','annual',2,2)
+       on conflict do nothing`,
+      [ids.subA, ids.subB],
     );
     await c.query('commit');
   } finally {

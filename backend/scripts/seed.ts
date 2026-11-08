@@ -259,6 +259,9 @@ await db.connect();
 const q = (sql: string, params?: unknown[]) => db.query(sql, params);
 try {
   await assertSeedSession(q, seedConfig);
+  if (seedConfig.expectedSessionRole === 'fabsoft_seed_writer') {
+    await db.query('set local role fabsoft_bootstrap');
+  }
   await db.query('begin');
   await db.query(
     `select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true), set_config('app.request_id','seed',true)`,
