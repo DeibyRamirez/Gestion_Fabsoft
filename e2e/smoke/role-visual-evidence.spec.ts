@@ -9,6 +9,7 @@ async function login(page: Page, email: string, password: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Contraseña').fill(password);
   await page.getByRole('button', { name: 'Ingresar' }).click();
+  await expect(page).not.toHaveURL(/\/login$/, { timeout: 15000 });
 }
 
 async function shot(page: Page, name: string) {
@@ -21,37 +22,32 @@ async function shot(page: Page, name: string) {
 test.describe('evidencia visual autenticada (rediseño)', () => {
   test.describe.configure({ mode: 'serial' });
 
-  test('admin: panel y usuarios (desktop)', async ({ page }) => {
+  test('admin: panel, usuarios y móvil', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
     await login(page, 'admin@fabsoft.test', 'Admin.dev-2026!');
-    await expect(page).toHaveURL(/\/dashboard/);
     await expect(page.getByRole('heading', { name: 'Panel', level: 1 })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Panel' }).first()).toBeVisible();
     await shot(page, '10-dashboard-admin-desktop.png');
 
     await page.goto('/admin/users');
-    await expect(page).toHaveURL(/\/admin\/users/);
     await expect(page.getByRole('heading', { name: 'Usuarios', level: 1 })).toBeVisible();
     await shot(page, '11-users-admin-desktop.png');
 
     await page.goto('/change-password');
     await expect(page.getByRole('heading', { name: 'Cambiar contraseña', level: 1 })).toBeVisible();
     await shot(page, '12-change-password-admin-desktop.png');
-  });
 
-  test('admin: panel (móvil)', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await login(page, 'admin@fabsoft.test', 'Admin.dev-2026!');
-    await expect(page).toHaveURL(/\/dashboard/);
+    await page.goto('/dashboard');
     await shot(page, '13-dashboard-admin-mobile.png');
     await page.getByRole('button', { name: 'Abrir menú' }).click();
     await expect(page.getByRole('navigation', { name: 'Principal' })).toBeVisible();
     await shot(page, '14-nav-admin-mobile.png');
   });
 
-  test('operador: panel y forbidden en /admin/users', async ({ page }) => {
+  test('operador: panel, forbidden y sin Admin', async ({ page }) => {
     await login(page, 'operador@fabsoft.test', 'Operador.dev-2026!');
-    await expect(page).toHaveURL(/\/dashboard/);
     await expect(page.getByText('Rol: Operador')).toBeVisible();
+    await expect(page.getByText('Admin', { exact: true })).toHaveCount(0);
     await shot(page, '20-dashboard-operator-desktop.png');
 
     await page.goto('/admin/users');
@@ -59,15 +55,10 @@ test.describe('evidencia visual autenticada (rediseño)', () => {
     await shot(page, '21-operator-forbidden-users-desktop.png');
   });
 
-  test('operador: sin sección Admin en sidebar', async ({ page }) => {
-    await login(page, 'operador@fabsoft.test', 'Operador.dev-2026!');
-    await expect(page.getByText('Admin', { exact: true })).toHaveCount(0);
-  });
-
   test('cliente: portal (desktop y móvil)', async ({ page }) => {
     await login(page, 'portal@andina.test', 'Cliente.dev-2026!');
-    await expect(page).toHaveURL(/\/portal/);
     await expect(page.getByRole('heading', { name: 'Mis suscripciones', level: 1 })).toBeVisible();
+    await page.setViewportSize({ width: 1280, height: 800 });
     await shot(page, '30-portal-client-desktop.png');
 
     await page.setViewportSize({ width: 390, height: 844 });

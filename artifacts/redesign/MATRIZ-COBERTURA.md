@@ -1,67 +1,68 @@
-# Matriz ruta × rol × diseño × pruebas
+# Matriz ruta × rol × diseño × verificación
 
-**Implementado** = pantalla existe en el repo. **Verificado** = smoke local con sesión real (Playwright) o prueba automatizada equivalente.
+**Implementado** = existe `page.tsx`. **Verificado** = Playwright con sesión real (seed `docs/seed-data.md`) y/o asserts en este corte.
 
-Leyenda diseño: **Sí** = tokens/shells del rediseño.  
-Pruebas: **UT** vitest, **E2E** Playwright (`e2e/smoke`), **Build** next build.
+| Ruta / escenario                        | admin | operator | client  | Diseño | Verificado                  | Spec E2E                                |
+| --------------------------------------- | ----- | -------- | ------- | ------ | --------------------------- | --------------------------------------- |
+| `/login`                                | ✓     | ✓        | ✓       | Sí     | Sí                          | `auth`, `redesign-edge-states`, handoff |
+| Login usuario `inactivo@` (disabled)    | —     | —        | —       | Sí     | Sí (401, mensaje genérico)  | `redesign-edge-states`                  |
+| Foco / skip link login                  | ✓     | ✓        | ✓       | Sí     | Sí (Tab + outline ≠ 0)      | `redesign-edge-states`                  |
+| `/change-password` sin sesión           | —     | —        | —       | Sí     | Sí (redirige/carga)         | handoff                                 |
+| `/change-password` voluntario           | ✓     | ✓        | ✓       | Sí     | Sí (admin capturado)        | `role-visual-evidence`, handoff         |
+| `/change-password` obligatorio          | —     | —        | ✓       | Sí     | Sí (`portal@cafetal.test`)  | `role-visual-evidence`, handoff         |
+| `/dashboard` + API OK                   | ✓     | ✓        | —       | Sí     | Sí                          | `auth`, `role-visual`, handoff          |
+| `/dashboard` API loading                | ✓     | —        | —       | Sí     | Sí («Comprobando…»)         | `redesign-edge-states`, handoff         |
+| `/dashboard` API unreachable            | ✓     | —        | —       | Sí     | Sí («No disponible»)        | `redesign-edge-states`, handoff         |
+| `/admin/users`                          | ✓     | —        | —       | Sí     | Sí (tabla seed)             | `role-visual`, handoff                  |
+| `/admin/users` forbidden                | —     | ✓        | —       | Sí     | Sí → `/dashboard`           | `auth`, `role-visual`, handoff          |
+| `/portal` placeholder                   | —     | —        | ✓       | Sí     | Sí                          | `role-visual`, handoff                  |
+| Nav «próximamente»                      | ✓     | ✓        | parcial | Sí     | Sí (operator sin Admin)     | `role-visual`                           |
+| Rutas sin página (clientes, productos…) | —     | —        | —       | N/A    | No (solo nav deshabilitado) | —                                       |
 
-## Cobertura por ruta
+## Capturas PNG (agente) — ruta completa por archivo
 
-| Ruta                     | admin | operator     | client  | Diseño | Verificado (rol)                                            | Pruebas automáticas              |
-| ------------------------ | ----- | ------------ | ------- | ------ | ----------------------------------------------------------- | -------------------------------- |
-| `/login`                 | ✓     | ✓            | ✓       | Sí     | admin/operator/client (flujo login)                         | UT login-form; E2E auth + visual |
-| `/change-password`       | ✓     | ✓            | ✓       | Sí     | admin voluntario; client obligatorio (`mustChangePassword`) | UT form + page view; E2E visual  |
-| `/dashboard`             | ✓     | ✓            | —       | Sí     | admin + operator (panel + API health)                       | E2E auth + visual; Build         |
-| `/admin/users`           | ✓     | —            | —       | Sí     | admin (tabla usuarios seed)                                 | E2E visual admin                 |
-| `/admin/users` forbidden | —     | ✓ (redirige) | —       | Sí     | operator → `/dashboard`                                     | E2E auth + visual                |
-| `/portal`                | —     | —            | ✓       | Sí     | client (placeholder honesto)                                | E2E visual                       |
-| `/`                      | ✓     | ✓            | ✓       | Sí     | indirecto vía login                                         | Build                            |
-| Nav «próximamente»       | ✓     | ✓            | parcial | Sí     | operator sin bloque Admin                                   | UT app-shell nav; E2E operator   |
+| Archivo                                                                          | Rol / contexto | Qué muestra                                      |
+| -------------------------------------------------------------------------------- | -------------- | ------------------------------------------------ |
+| `/opt/cursor/artifacts/redesign/01-login-desktop.png`                            | público        | Login escritorio                                 |
+| `/opt/cursor/artifacts/redesign/05-login-mobile.png`                             | público        | Login móvil                                      |
+| `/opt/cursor/artifacts/redesign/02-change-password-unauth-desktop.png`           | sin sesión     | `/change-password` sin auth                      |
+| `/opt/cursor/artifacts/redesign/06-login-skip-link-focus-desktop.png`            | a11y           | Skip link con foco teclado                       |
+| `/opt/cursor/artifacts/redesign/07-login-email-focus-desktop.png`                | a11y           | Campo email con `:focus-visible`                 |
+| `/opt/cursor/artifacts/redesign/08-login-inactive-user-error-desktop.png`        | login fallido  | `inactivo@fabsoft.test` → credenciales inválidas |
+| `/opt/cursor/artifacts/redesign/10-dashboard-admin-desktop.png`                  | admin          | Panel escritorio                                 |
+| `/opt/cursor/artifacts/redesign/11-users-admin-desktop.png`                      | admin          | Usuarios                                         |
+| `/opt/cursor/artifacts/redesign/12-change-password-admin-desktop.png`            | admin          | Cambio contraseña en AppShell                    |
+| `/opt/cursor/artifacts/redesign/13-dashboard-admin-mobile.png`                   | admin          | Panel móvil                                      |
+| `/opt/cursor/artifacts/redesign/14-nav-admin-mobile.png`                         | admin          | Menú sheet móvil                                 |
+| `/opt/cursor/artifacts/redesign/15-dashboard-api-unreachable-admin-desktop.png`  | admin          | Badge «No disponible»                            |
+| `/opt/cursor/artifacts/redesign/16-dashboard-api-loading-admin-desktop.png`      | admin          | Badge «Comprobando…»                             |
+| `/opt/cursor/artifacts/redesign/20-dashboard-operator-desktop.png`               | operator       | Panel escritorio                                 |
+| `/opt/cursor/artifacts/redesign/21-operator-forbidden-users-desktop.png`         | operator       | Tras `/admin/users` → dashboard                  |
+| `/opt/cursor/artifacts/redesign/22-dashboard-operator-mobile.png`                | operator       | Panel móvil                                      |
+| `/opt/cursor/artifacts/redesign/30-portal-client-desktop.png`                    | client         | Portal escritorio                                |
+| `/opt/cursor/artifacts/redesign/31-portal-client-mobile.png`                     | client         | Portal móvil                                     |
+| `/opt/cursor/artifacts/redesign/32-change-password-mandatory-client-desktop.png` | client         | Cambio obligatorio                               |
 
-## Rutas no implementadas (solo nav deshabilitado)
+## Accesibilidad (evidencia automatizada)
 
-Sin `page.tsx`: clientes, suscripciones, solicitudes, tareas, alertas, productos, integraciones, auditoría, etc. **Diseño N/A en pantalla**; enlace «Próximamente» verificado en sidebar.
+- Skip link «Saltar al contenido» recibe foco con primer Tab (`06-*`).
+- Input email: `outlineWidth !== 0px` tras Tab (`07-*`).
+- Contraste AA: tokens documentados en `docs/design.md` §1.1 (fg `#14213D` sobre `bg` `#F6F8FC`, primario `#4338CA`); sin auditoría Lighthouse en este corte.
 
-## Stack local usado para verificación (VM agente)
-
-Docker no disponible (`docker: command not found`). Alternativa segura aplicada:
-
-1. `sudo apt-get install postgresql` + servicio local PG 16
-2. BD aislada `fabsoft_test`, rol `fabsoft_owner` (solo VM)
-3. `pnpm db:migrate:test` → `pnpm db:roles:dev` → `pnpm db:seed` (`docs/seed-data.md`)
-4. API `localhost:4000`, Next `localhost:3000` con `NEXT_PUBLIC_API_BASE_URL`
-5. Credenciales seed (no producción): `admin@fabsoft.test` / `Admin.dev-2026!`, etc.
-
-## Comandos (resultado real, 2026-11-08)
+## Comandos (última verificación local)
 
 ```text
-pnpm db:migrate:test && pnpm db:roles:dev && pnpm db:seed     → OK
-pnpm exec playwright test smoke/auth.spec.ts smoke/role-visual-evidence.spec.ts → 8 passed
-pnpm --filter @fabsoft/frontend test                          → 21 passed
-pnpm test (monorepo unit)                                     → OK
-pnpm lint / pnpm typecheck                                    → OK
+pnpm format:check                                      → OK
+pnpm lint / pnpm typecheck / pnpm test               → OK
+pnpm exec playwright test smoke/auth.spec.ts \
+  smoke/role-visual-evidence.spec.ts \
+  smoke/redesign-edge-states.spec.ts                 → OK (con API reiniciada si hubo 429)
+VISUAL_OUT_DIR=/opt/cursor/artifacts/redesign \
+  pnpm exec playwright test smoke/redesign-handoff-capture.spec.ts → OK (local, skip en CI)
 ```
 
-## Capturas autenticadas (`/opt/cursor/artifacts/redesign/`)
+## Limitaciones
 
-| Archivo                                           | Rol      | Vista                        |
-| ------------------------------------------------- | -------- | ---------------------------- |
-| `10-dashboard-admin-desktop.png`                  | admin    | Panel                        |
-| `11-users-admin-desktop.png`                      | admin    | Usuarios                     |
-| `12-change-password-admin-desktop.png`            | admin    | Cambio voluntario            |
-| `13-dashboard-admin-mobile.png`                   | admin    | Panel móvil                  |
-| `14-nav-admin-mobile.png`                         | admin    | Menú sheet                   |
-| `20-dashboard-operator-desktop.png`               | operator | Panel                        |
-| `21-operator-forbidden-users-desktop.png`         | operator | Tras intentar `/admin/users` |
-| `30-portal-client-desktop.png`                    | client   | Portal                       |
-| `31-portal-client-mobile.png`                     | client   | Portal móvil                 |
-| `32-change-password-mandatory-client-desktop.png` | client   | Cambio obligatorio           |
-
-Públicas previas: `01-login-desktop.png`, `05-login-mobile.png`, `02-change-password-unauth-desktop.png`.
-
-## Limitaciones explícitas
-
-- **No** se afirma cobertura de pantallas futuras (clientes, productos, licencias, etc.).
-- **QA FabSoft** sigue pendiente (revisión humana formal).
-- Estado **error API** en panel: no capturado con API caída (health OK en smoke).
-- **Teclado/foco/contraste AA**: cubiertos por UT + `docs/design.md`; sin auditoría automatizada Lighthouse en este corte.
+- Vacío real en tablas (sin registros) no probado en usuarios (seed siempre trae datos).
+- QA FabSoft formal pendiente.
+- `redesign-handoff-capture.spec.ts` omitido en CI (`test.skip(!!process.env.CI)`) para evitar rate-limit; CI usa specs atómicos.

@@ -1,31 +1,43 @@
-# Log smoke por rol (sesión real, VM local)
+# Log smoke por rol (sesión real)
 
-Fecha: 2026-11-08  
-Herramienta: Playwright `e2e/smoke/role-visual-evidence.spec.ts` + `auth.spec.ts`  
-BD: PostgreSQL 16 sistema (`fabsoft_test`), seed `pnpm db:seed`
+**Fecha:** 2026-11-08  
+**Stack:** PostgreSQL 16 local (`fabsoft_test`), `pnpm db:seed`, API `:4000`, Next `:3000`  
+**Specs:** `auth.spec.ts`, `role-visual-evidence.spec.ts`, `redesign-edge-states.spec.ts`, `redesign-handoff-capture.spec.ts` (solo local)
 
 ## admin@fabsoft.test
 
-- Login → `/dashboard`; heading «Panel»; `ApiStatus` con API alcanzable.
-- `/admin/users`: tabla con usuarios seed; formulario «Nuevo usuario».
-- `/change-password`: formulario dentro de `AppShell`.
-- Móvil: menú hamburguesa abre navegación «Principal».
+- Login → panel; `ApiStatus` con versión cuando health OK.
+- Panel con health bloqueado (gate) → «Comprobando…».
+- Health 503 simulado → «No disponible» (sin apagar auth).
+- `/admin/users`: tabla seed visible.
+- `/change-password` voluntario dentro de AppShell.
+- Móvil: menú hamburguesa + navegación Gestión.
 
 ## operador@fabsoft.test
 
-- Login → `/dashboard`; footer «Rol: Operador».
-- `/admin/users` → redirección a `/dashboard` (RoleGate, sin relajar permisos).
-- Sidebar sin sección «Admin».
+- Panel; footer «Rol: Operador»; sin bloque Admin.
+- `/admin/users` → redirección UX a `/dashboard` (RoleGate); API seguiría en 403.
+- Móvil: panel 390×844.
 
 ## portal@andina.test (client)
 
-- Login → `/portal`; texto placeholder honesto (sin datos demo).
+- Portal: placeholder sin datos demo.
 
 ## portal@cafetal.test (client, mustChangePassword)
 
-- Login → `/change-password` layout auth centrado (obligatorio).
+- Login → `/change-password` layout auth centrado.
 
-## No ejecutado
+## inactivo@fabsoft.test (operator disabled)
 
-- Usuario `inactivo@fabsoft.test` (disabled): pendiente de spec E2E dedicado.
-- Captura con API caída: pendiente.
+- Login permanece en `/login`; alerta «Credenciales inválidas.» (igual que credencial mala; RN-15).
+
+## Público / a11y
+
+- Tab: skip link enfocado; email con outline visible.
+- `/change-password` sin cookie → redirige a login.
+
+## No verificado en este corte
+
+- Tabla usuarios vacía (sin seed reset).
+- Portal con suscripciones conectadas a API (pantalla aún placeholder).
+- Contraste con herramienta automatizada Lighthouse/axe.
