@@ -54,10 +54,7 @@ export async function fetchFabsoftAppSelectQuals(client: SqlClient): Promise<Map
      join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'app'
        and p.polcmd = 'r'
-       and 'fabsoft_app' = any (
-         select r.rolname::text from unnest(p.polroles) oid
-         join pg_roles r on r.oid = oid
-       )`,
+       and (select oid from pg_roles where rolname = 'fabsoft_app') = any (p.polroles)`,
   );
   const out = new Map<string, string>();
   for (const r of rows) {
