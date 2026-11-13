@@ -111,7 +111,6 @@ export async function repairMigratorSchemaPrivileges(owner: QueryFn): Promise<vo
     owner,
     `grant usage, select on all sequences in schema app to ${quoteIdent(MIGRATOR)}`,
   );
-  await exec(owner, `grant execute on all functions in schema app to ${quoteIdent(MIGRATOR)}`);
 }
 
 const HISTORICAL_SCHEMA_DDL_ROLES = [

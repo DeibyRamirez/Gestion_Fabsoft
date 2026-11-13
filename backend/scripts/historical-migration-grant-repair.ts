@@ -80,6 +80,13 @@ export async function repairHistoricalMigrationGrants(owner: QueryFn): Promise<v
   for (const sql of stmts) await run(owner, sql);
 }
 
+const denyExtra = [
+  { role: 'fabsoft_worker', execute: false },
+  { role: 'fabsoft_seed_writer', execute: false },
+  { role: 'fabsoft_migrator', execute: false },
+  { role: 'fabsoft_auth_definer', execute: false },
+] as const;
+
 export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
   {
     fn: 'app.bootstrap_first_admin(text,text,text)',
@@ -87,6 +94,7 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
       { role: 'public', execute: false },
       { role: 'fabsoft_app', execute: false },
       { role: 'fabsoft_bootstrap', execute: true },
+      ...denyExtra,
     ],
   },
   {
@@ -94,6 +102,7 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
     roles: [
       { role: 'public', execute: false },
       { role: 'fabsoft_app', execute: true },
+      ...denyExtra,
     ],
   },
   {
@@ -101,6 +110,7 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
     roles: [
       { role: 'public', execute: false },
       { role: 'fabsoft_app', execute: true },
+      ...denyExtra,
     ],
   },
   {
@@ -108,6 +118,7 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
     roles: [
       { role: 'public', execute: false },
       { role: 'fabsoft_app', execute: true },
+      ...denyExtra,
     ],
   },
   {
@@ -116,6 +127,7 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
       { role: 'public', execute: false },
       { role: 'fabsoft_app', execute: true },
       { role: 'fabsoft_secure_view', execute: true },
+      ...denyExtra,
     ],
   },
 ] as const;

@@ -6,8 +6,6 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
-import { restoreCanonicalFabsoftAppPolicies } from './canonical-rls-policies.js';
-
 const url = process.env.TEST_DATABASE_MIGRATION_URL;
 // Sin BD de tests (p. ej. `pnpm test` local sin Postgres) la suite se omite en vez de romper el resto.
 // En CI TEST_DATABASE_MIGRATION_URL es obligatorio: definir REQUIRE_DB_TESTS=1 para que falle si falta.
@@ -124,7 +122,6 @@ beforeAll(async () => {
       `insert into app.client_contacts (client_id, full_name, email) values ($1,'Contacto A','sec-c@a.co') on conflict do nothing`,
       [ids.clientA],
     );
-    await restoreCanonicalFabsoftAppPolicies(c);
     await c.query('commit');
   } finally { c.release(); }
 });

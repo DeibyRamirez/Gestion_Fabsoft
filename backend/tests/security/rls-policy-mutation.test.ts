@@ -4,7 +4,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { getAppPool, migrationUrl } from '../helpers/db.js';
-import { restoreCanonicalFabsoftAppPolicies } from './canonical-rls-policies.js';
 import {
   assertClientIsolationNoLeak,
   clientLeaksStaffRow,
@@ -24,6 +23,7 @@ const ids: RlsFixtureIds = {
   clientA: '00000000-0000-4000-8ff0-000000000001',
   clientB: '00000000-0000-4000-8ff0-000000000002',
   clientUserA: '00000000-0000-4000-8ff0-0000000000a3',
+  clientUserB: '00000000-0000-4000-8ff0-0000000000b3',
   subA: '00000000-0000-4000-8ff0-000000000f01',
   subB: '00000000-0000-4000-8ff0-000000000f02',
   renewalA: '00000000-0000-4000-8ff0-00000000b601',
@@ -73,8 +73,9 @@ describe.skipIf(!ownerUrl)('RLS policy mutations (deben detectar fuga)', () => {
       );
       await c.query(
         `insert into app.users (id, email, full_name, password_hash, role, client_id) values
-          ($1,'mut-ca@t.co','Cli','h','client',$2) on conflict do nothing`,
-        [ids.clientUserA, ids.clientA],
+          ($1,'mut-ca@t.co','Cli A','h','client',$2),
+          ($3,'mut-cb@t.co','Cli B','h','client',$4) on conflict do nothing`,
+        [ids.clientUserA, ids.clientA, ids.clientUserB, ids.clientB],
       );
       await c.query(
         `insert into app.products (id, name, product_type) values ($1,'Prod Mut','third_party') on conflict do nothing`,
@@ -122,7 +123,7 @@ describe.skipIf(!ownerUrl)('RLS policy mutations (deben detectar fuga)', () => {
          select $1,'expiration_alert','in_app',$2,now(),$3,'2026-12-31', ar.id,'exp:$3:TSTMUT:2026-12-31:in_app:$2'
          from app.alert_rules ar where ar.code = 'TSTMUT'
          on conflict do nothing`,
-        [ids.notifB, '00000000-0000-4000-8ff0-0000000000a1', ids.subB],
+        [ids.notifB, ids.clientUserB, ids.subB],
       );
       await c.query(
         `insert into app.renewal_requests (id, subscription_id, client_id, requested_by_user_id, status)
@@ -135,10 +136,9 @@ describe.skipIf(!ownerUrl)('RLS policy mutations (deben detectar fuga)', () => {
           ids.renewalB,
           ids.subB,
           ids.clientB,
-          '00000000-0000-4000-8ff0-0000000000b3',
+          ids.clientUserB,
         ],
       );
-      await restoreCanonicalFabsoftAppPolicies(c);
       await c.query('commit');
     } catch (e) {
       await c.query('rollback');
@@ -149,19 +149,6 @@ describe.skipIf(!ownerUrl)('RLS policy mutations (deben detectar fuga)', () => {
   });
 
   afterAll(async () => {
-    const c = await owner.connect();
-    try {
-      await c.query('begin');
-      await c.query(
-        `select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true)`,
-      );
-      await restoreCanonicalFabsoftAppPolicies(c);
-      await c.query('commit');
-    } catch {
-      await c.query('rollback').catch(() => undefined);
-    } finally {
-      c.release();
-    }
     await owner.end();
     if (appUrl) await getAppPool().end();
   });

@@ -41,16 +41,43 @@ describe.skipIf(!migUrl || !provUrl)('prosecdef gate mutations', () => {
     } finally {
       c.release();
     }
-    const { status, text } = runMigrate();
-    expect(status).not.toBe(0);
-    expect(text).toMatch(/prosecdef|PUBLIC|Gate|EXECUTE/i);
-    const fix = await owner.connect();
     try {
-      await fix.query(
-        `revoke execute on function app.bootstrap_first_admin(text, text, text) from public`,
-      );
+      const { status, text } = runMigrate();
+      expect(status).not.toBe(0);
+      expect(text).toMatch(/prosecdef|PUBLIC|Gate|EXECUTE/i);
     } finally {
-      fix.release();
+      const fix = await owner.connect();
+      try {
+        await fix.query(
+          `revoke execute on function app.bootstrap_first_admin(text, text, text) from public`,
+        );
+      } finally {
+        fix.release();
+      }
+    }
+  });
+
+  it('SECURITY DEFINER en public con EXECUTE a PUBLIC → db:migrate falla', async () => {
+    const c = await owner.connect();
+    try {
+      await c.query(`
+        create or replace function public.gate_mutation_evil_probe() returns void
+        language sql security definer as $$ select 1 $$`);
+      await c.query(`grant execute on function public.gate_mutation_evil_probe() to public`);
+    } finally {
+      c.release();
+    }
+    try {
+      const { status, text } = runMigrate();
+      expect(status).not.toBe(0);
+      expect(text).toMatch(/allowlist|prosecdef|Gate/i);
+    } finally {
+      const fix = await owner.connect();
+      try {
+        await fix.query(`drop function if exists public.gate_mutation_evil_probe()`);
+      } finally {
+        fix.release();
+      }
     }
   });
 
@@ -61,14 +88,70 @@ describe.skipIf(!migUrl || !provUrl)('prosecdef gate mutations', () => {
     } finally {
       c.release();
     }
-    const { status, text } = runMigrate();
-    expect(status).not.toBe(0);
-    expect(text).toMatch(/auth_password_hash|fabsoft_worker|Gate prosecdef/i);
-    const fix = await owner.connect();
     try {
-      await fix.query(`revoke execute on function app.auth_password_hash(uuid) from fabsoft_worker`);
+      const { status, text } = runMigrate();
+      expect(status).not.toBe(0);
+      expect(text).toMatch(/auth_password_hash|fabsoft_worker|Gate prosecdef/i);
     } finally {
-      fix.release();
+      const fix = await owner.connect();
+      try {
+        await fix.query(`revoke execute on function app.auth_password_hash(uuid) from fabsoft_worker`);
+      } finally {
+        fix.release();
+      }
+    }
+  });
+
+  it('GRANT EXECUTE bootstrap_first_admin a fabsoft_seed_writer → db:migrate falla', async () => {
+    const c = await owner.connect();
+    try {
+      await c.query(
+        `grant execute on function app.bootstrap_first_admin(text, text, text) to fabsoft_seed_writer`,
+      );
+    } finally {
+      c.release();
+    }
+    try {
+      const { status, text } = runMigrate();
+      expect(status).not.toBe(0);
+      expect(text).toMatch(/bootstrap_first_admin|fabsoft_seed_writer|Gate prosecdef/i);
+    } finally {
+      const fix = await owner.connect();
+      try {
+        await fix.query(
+          `revoke execute on function app.bootstrap_first_admin(text, text, text) from fabsoft_seed_writer`,
+        );
+      } finally {
+        fix.release();
+      }
+    }
+  });
+
+  it('EXECUTE bootstrap vía membresía heredada (worker → rol hijo) → db:migrate falla', async () => {
+    const c = await owner.connect();
+    try {
+      await c.query(`create role fabsoft_gate_inherit_probe nologin`);
+      await c.query(`grant fabsoft_worker to fabsoft_gate_inherit_probe`);
+      await c.query(
+        `grant execute on function app.bootstrap_first_admin(text, text, text) to fabsoft_worker`,
+      );
+    } finally {
+      c.release();
+    }
+    try {
+      const { status, text } = runMigrate();
+      expect(status).not.toBe(0);
+      expect(text).toMatch(/bootstrap|fabsoft_gate_inherit_probe|Gate prosecdef/i);
+    } finally {
+      const fix = await owner.connect();
+      try {
+        await fix.query(
+          `revoke execute on function app.bootstrap_first_admin(text, text, text) from fabsoft_worker`,
+        );
+        await fix.query(`drop role if exists fabsoft_gate_inherit_probe`);
+      } finally {
+        fix.release();
+      }
     }
   });
 });

@@ -7,6 +7,7 @@ export type RlsFixtureIds = {
   clientA: string;
   clientB: string;
   clientUserA: string;
+  clientUserB: string;
   subA: string;
   subB: string;
   renewalA: string;

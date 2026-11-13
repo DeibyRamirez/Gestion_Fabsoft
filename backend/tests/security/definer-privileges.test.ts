@@ -51,13 +51,19 @@ describe.skipIf(!migratorUrl)('F0 — privilegios definer (P0)', () => {
   }
 
   describe('T-SEC-30 fabsoft_app sin EXECUTE bootstrap (sin admin activo)', () => {
-    const restoreAdminId = '00000000-0000-4000-8ff0-0000000000a1';
+    const ctxAdminId = '00000000-0000-4000-8ff0-0000000000a1';
 
     async function withoutAdmin<T>(fn: () => Promise<T>): Promise<T> {
       if (!ownerUrl) throw new Error('TEST_DATABASE_MIGRATION_URL requerido');
       const owner = new pg.Client({ connectionString: ownerUrl });
       await owner.connect();
+      let saved: Record<string, unknown>[] = [];
       try {
+        const snap = await owner.query(
+          `select id::text, email, full_name, password_hash, role::text, client_id::text, status::text
+           from app.users where role = 'admin'`,
+        );
+        saved = snap.rows;
         await owner.query('begin');
         await owner.query(`set local session_replication_role = replica`);
         await owner.query(`delete from app.users where role = 'admin'`);
@@ -65,19 +71,33 @@ describe.skipIf(!migratorUrl)('F0 — privilegios definer (P0)', () => {
         await owner.query('commit');
         return await fn();
       } finally {
+        await owner.query('begin');
+        await owner.query(`set local session_replication_role = replica`);
         try {
-          await owner.query('begin');
-          await owner.query(`set local session_replication_role = replica`);
-          await owner.query(
-            `insert into app.users (id, email, full_name, password_hash, role, client_id, status)
-             values ($1,'sec-admin-restore@t.co','Admin','hash-admin','admin',null,'active')
-             on conflict (id) do update set role = excluded.role, status = excluded.status`,
-            [restoreAdminId],
-          );
+          for (const row of saved) {
+            await owner.query(
+              `insert into app.users (id, email, full_name, password_hash, role, client_id, status)
+               values ($1::uuid,$2,$3,$4,$5::app.user_role,$6::uuid,$7::app.user_status)
+               on conflict (id) do update set
+                 email = excluded.email, full_name = excluded.full_name, password_hash = excluded.password_hash,
+                 role = excluded.role, client_id = excluded.client_id, status = excluded.status`,
+              [
+                row.id,
+                row.email,
+                row.full_name,
+                row.password_hash,
+                row.role,
+                row.client_id,
+                row.status,
+              ],
+            );
+          }
           await owner.query(`set local session_replication_role = origin`);
           await owner.query('commit');
-        } catch {
-          await owner.query('rollback').catch(() => undefined);
+        } catch (err) {
+          await owner.query('rollback');
+          await owner.end();
+          throw err;
         }
         await owner.end();
       }
@@ -94,7 +114,7 @@ describe.skipIf(!migratorUrl)('F0 — privilegios definer (P0)', () => {
           await client.query(
             `select set_config('app.actor_type','user',true), set_config('app.actor_role','admin',true),
                     set_config('app.current_user_id',$1,true)`,
-            [restoreAdminId],
+            [ctxAdminId],
           );
           await expectBootstrapDenied(client, 'admin');
           const { rows: after } = await client.query<{ n: number }>(

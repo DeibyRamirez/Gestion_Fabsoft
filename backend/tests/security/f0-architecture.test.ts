@@ -5,16 +5,21 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { detectsOwnerBypassInTestSource } from '../helpers/owner-bypass-detector.js';
 
 const testsRoot = fileURLToPath(new URL('..', import.meta.url));
 
 const SCAN_DIRS = ['security', 'api', 'integration'] as const;
 
 /** Únicos archivos que pueden importar helpers/owner-system (fixtures de seguridad). */
-const OWNER_SYSTEM_ALLOWLIST = new Set(['fixtures/factories.ts']);
+const OWNER_SYSTEM_ALLOWLIST = new Set([
+  'fixtures/factories.ts',
+  'helpers/owner-bypass-detector.ts',
+  'helpers/owner-system.ts',
+  'helpers/db.ts',
+]);
 
 const OWNER_SYSTEM_MODULE = /helpers\/owner-system(?:\.js)?['"]/;
-const SYMBOL = /\bwithOwnerSystemContext\b/;
 
 function collectTestFiles(dir: string): string[] {
   const out: string[] = [];
@@ -29,14 +34,6 @@ function collectTestFiles(dir: string): string[] {
   return out;
 }
 
-/** Detecta bypass owner en código de test (estático, dinámico o re-export). */
-export function detectsOwnerBypassInTestSource(body: string): boolean {
-  if (!SYMBOL.test(body) && !OWNER_SYSTEM_MODULE.test(body)) return false;
-  if (/export\s+\{[^}]*\bwithOwnerSystemContext\b/.test(body)) return true;
-  if (/export\s+\*\s+from\s+['"][^'"]*owner-system/.test(body)) return true;
-  return SYMBOL.test(body) || OWNER_SYSTEM_MODULE.test(body);
-}
-
 describe('F0 — arquitectura tests (sin bypass owner)', () => {
   const evasions: { label: string; body: string }[] = [
     {
@@ -44,16 +41,24 @@ describe('F0 — arquitectura tests (sin bypass owner)', () => {
       body: `import * as h from '../helpers/owner-system.js';\nawait h.withOwnerSystemContext(async () => {});`,
     },
     {
-      label: 'desestructuración',
-      body: `import { withOwnerSystemContext as w } from '../helpers/owner-system.js';\nawait w(async () => {});`,
+      label: 'desestructuración alias',
+      body: `import { withOwnerSystemContext as ctx } from '../helpers/owner-system.js';\nawait ctx(async () => {});`,
     },
     {
-      label: 'import() dinámico',
-      body: `const m = await import('../helpers/owner-system.js');\nawait m.withOwnerSystemContext(async () => {});`,
+      label: 'import() ruta concatenada',
+      body: `const p = '../helpers/' + 'owner-system.js';\nconst m = await import(p);\nawait m.withOwnerSystemContext(async () => {});`,
     },
     {
-      label: 're-export',
-      body: `export { withOwnerSystemContext } from '../helpers/owner-system.js';`,
+      label: 're-export * hermano',
+      body: `export * from './owner-system.js';\nexport { withOwnerSystemContext as ctx };`,
+    },
+    {
+      label: 're-export nombrado',
+      body: `export { withOwnerSystemContext as ctx } from '../helpers/owner-system.js';`,
+    },
+    {
+      label: 'getOwnerPool directo',
+      body: `import { getOwnerPool } from '../helpers/db.js';\nawait getOwnerPool().query('select 1');`,
     },
   ];
 
@@ -63,7 +68,7 @@ describe('F0 — arquitectura tests (sin bypass owner)', () => {
     });
   }
 
-  it('T-F0-05 ningún *.test.ts en security/api/integration referencia owner-system / withOwnerSystemContext', () => {
+  it('T-F0-05 ningún *.test.ts en security/api/integration referencia owner-system / withOwnerSystemContext / getOwnerPool', () => {
     const offenders: string[] = [];
     for (const sub of SCAN_DIRS) {
       const dir = join(testsRoot, sub);
@@ -100,5 +105,16 @@ describe('F0 — arquitectura tests (sin bypass owner)', () => {
     expect(offenders, `Import owner-system fuera de allowlist: ${offenders.join(', ')}`).toEqual(
       [],
     );
+  });
+
+  it('T-F0-05 helpers sin re-export de owner-system', () => {
+    const helpersDir = join(testsRoot, 'helpers');
+    const bad: string[] = [];
+    for (const name of readdirSync(helpersDir)) {
+      if (!name.endsWith('.ts') || name === 'owner-system.ts') continue;
+      const body = readFileSync(join(helpersDir, name), 'utf8');
+      if (/export\s+\*\s+from\s+['"][^'"]*owner-system/.test(body)) bad.push(name);
+    }
+    expect(bad).toEqual([]);
   });
 });

@@ -9,7 +9,6 @@ import {
   assertClientIsolationNoLeak,
   type RlsFixtureIds,
 } from './rls-isolation-checks.js';
-import { restoreCanonicalFabsoftAppPolicies } from './canonical-rls-policies.js';
 import { expectPgError } from './pg-expect.js';
 
 const migratorUrl = process.env.DATABASE_MIGRATION_URL;
@@ -133,7 +132,6 @@ beforeAll(async () => {
        values ($1,$2,$3,$4,'pending_review'),($5,$6,$7,$8,'pending_review') on conflict do nothing`,
       [ids.renewalA, ids.subA, ids.clientA, ids.clientUserA, ids.renewalB, ids.subB, ids.clientB, ids.clientUserB],
     );
-    await restoreCanonicalFabsoftAppPolicies(c);
     await c.query('commit');
   } finally {
     c.release();
@@ -310,13 +308,17 @@ describe.skipIf(!appUrl)('F0 — aislamiento (T-F0-09)', () => {
         'integrations',
         'integration_clients',
         'api_credentials',
+        'idempotency_keys',
         'audit_logs',
       ] as const) {
         const { rows } = await c.query<{ n: number }>(`select count(*)::int as n from app.${table}`);
         expect(rows[0]!.n, table).toBe(0);
       }
-      const settings = await c.query(`select count(*)::int as n from app.app_settings`);
-      expect(settings.rows[0]!.n).toBeGreaterThanOrEqual(0);
+      const settings = await c.query<{ key: string }>(
+        `select key from app.app_settings order by key`,
+      );
+      expect(settings.rowCount).toBe(1);
+      expect(settings.rows[0]!.key).toBe('contact_channel');
 
       await expectPgError(
         c,
@@ -356,6 +358,11 @@ describe.skipIf(!appUrl)('F0 — aislamiento (T-F0-09)', () => {
       expect(contacts.rowCount).toBeGreaterThanOrEqual(1);
       const tasks = await client.query(`select id from app.tasks`);
       expect(tasks.rowCount).toBeGreaterThanOrEqual(1);
+      const wrote = await client.query(
+        `update app.subscriptions set renewal_terms = 'operador-qa' where id = $1 returning id`,
+        [ids.subA],
+      );
+      expect(wrote.rowCount).toBe(1);
       await client.query('rollback');
     } finally {
       client.release();

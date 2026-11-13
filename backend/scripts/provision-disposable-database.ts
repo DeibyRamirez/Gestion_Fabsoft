@@ -456,8 +456,10 @@ async function profileDevelopHistoricalUpgrade(): Promise<void> {
           encoding: 'utf8',
         },
       );
+      const vitestOut = `${vitestRun.stdout}\n${vitestRun.stderr}`;
+      console.log(vitestOut);
       if (vitestRun.status !== 0) {
-        throw new Error(`develop-upgrade T-F0-08b vitest: ${vitestRun.stderr || vitestRun.stdout}`);
+        throw new Error(`develop-upgrade T-F0-08b vitest: ${vitestOut}`);
       }
     }
     console.log(

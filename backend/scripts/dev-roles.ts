@@ -56,7 +56,6 @@ try {
   await client.query(
     `grant usage, select on all sequences in schema app to ${quoteIdent(SEED_WRITER)}`,
   );
-  await client.query(`grant execute on all functions in schema app to ${quoteIdent(SEED_WRITER)}`);
   await client.query(
     `revoke execute on function app.bootstrap_first_admin(text, text, text) from ${quoteIdent(SEED_WRITER)}`,
   );
