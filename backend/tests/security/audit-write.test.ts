@@ -1,7 +1,7 @@
 /**
  * app.audit_write — contrato F0 (SECURITY DEFINER, sin INSERT directo, idempotencia, redacción).
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import {
   appDatabaseUrl,
