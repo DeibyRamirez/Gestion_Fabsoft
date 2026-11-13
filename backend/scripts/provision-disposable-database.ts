@@ -444,14 +444,7 @@ async function profileDevelopHistoricalUpgrade(): Promise<void> {
       }
       const vitestRun = spawnSync(
         'pnpm',
-        [
-          'exec',
-          'vitest',
-          'run',
-          '--project',
-          'security',
-          'tests/security/t-f0-08b-event-trigger.test.ts',
-        ],
+        ['exec', 'vitest', 'run', 'tests/security/t-f0-08b-event-trigger.test.ts'],
         {
           cwd: ROOT,
           env: {
