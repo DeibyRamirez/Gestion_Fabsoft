@@ -195,10 +195,6 @@ export async function elevateMigratorForHistoricalMigrations(
   );
   await exec(
     owner,
-    `grant ${quoteIdent('fabsoft_audit_definer')} to ${quoteIdent(MIGRATOR)} with inherit false, set true, admin true`,
-  );
-  await exec(
-    owner,
     `grant ${quoteIdent('fabsoft_app')} to ${quoteIdent(MIGRATOR)} with inherit false, set true, admin true`,
   );
 }
@@ -234,14 +230,31 @@ export async function revokeMigratorHistoricalElevation(
 
 /** SET temporal hacia fabsoft_audit_definer para ALTER OWNER en 0006 (revocar antes de gates). */
 export async function elevateMigratorForFutureMigrations(owner: QueryFn): Promise<void> {
+  // INHERIT TRUE: PG exige membresía efectiva para ALTER OWNER; SET solo no basta (42501 schema app).
   await exec(
     owner,
-    `grant ${quoteIdent('fabsoft_audit_definer')} to ${quoteIdent(MIGRATOR)} with inherit false, set true, admin true`,
+    `grant ${quoteIdent('fabsoft_audit_definer')} to ${quoteIdent(MIGRATOR)} with inherit true, set true, admin true`,
   );
 }
 
 export async function revokeMigratorFutureElevation(owner: QueryFn): Promise<void> {
   await exec(owner, `revoke ${quoteIdent('fabsoft_audit_definer')} from ${quoteIdent(MIGRATOR)}`);
+}
+
+/** Tras 0006: migrator crea la función; el dueño definer lo fija el provisioner (ALTER OWNER). */
+export async function assignAuditWriteDefinerOwner(owner: QueryFn): Promise<void> {
+  const { rows } = (await owner(
+    `select exists (
+       select 1 from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'app' and p.proname = 'audit_write'
+     ) as ok`,
+  )) as { rows: { ok: boolean }[] };
+  if (!rows[0]?.ok) return;
+  await exec(
+    owner,
+    `alter function app.audit_write(text, text, text, jsonb, text, inet) owner to fabsoft_audit_definer`,
+  );
 }
 
 export async function assertMigratorElevationClosed(owner: QueryFn): Promise<void> {

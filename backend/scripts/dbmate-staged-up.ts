@@ -30,6 +30,7 @@ import {
   revokeMigratorHistoricalElevation,
   elevateMigratorForFutureMigrations,
   revokeMigratorFutureElevation,
+  assignAuditWriteDefinerOwner,
 } from './migrator-historical-elevation.js';
 import {
   assertStrictNoPublicExecuteOnAppDefiners,
@@ -308,6 +309,9 @@ try {
             await mkdir(dirF, { recursive: true });
             await copyFiles([f], dirF);
             runDbmate(migratorUrl, dirF);
+            if (f === '0006_audit_write.sql') {
+              await assignAuditWriteDefinerOwner(q);
+            }
           }
         } finally {
           await revokeMigratorFutureElevation(q);

@@ -16,6 +16,7 @@ import {
 } from './guard.js';
 import { assertSchemaAclParity, captureSchemaAclSnapshot } from './schema-acl-snapshot.js';
 import { reconcileFabsoftOwnerAppObjectsToMigrator } from './reconcile-owner-to-migrator.js';
+import { assignAuditWriteDefinerOwner } from './migrator-historical-elevation.js';
 import {
   assertSameDatabaseInstallation,
   normalizeDatabaseUrl,
@@ -408,6 +409,15 @@ async function profileDevelopHistoricalUpgrade(): Promise<void> {
     const ownerUrl = urlForDatabase(provisionConnectionUrl, upgradeDb);
     const migUrl = migratorUrl(upgradeDb);
     await runDbmate(ownerUrl, join(ROOT, 'migrations'));
+    {
+      const owner = new pg.Client({ connectionString: ownerUrl });
+      await owner.connect();
+      try {
+        await assignAuditWriteDefinerOwner((sql, params) => owner.query(sql, params));
+      } finally {
+        await owner.end();
+      }
+    }
     await grantMigratorMigrationCatalogAccess(upgradeDb);
     await applyDevelopMinimalData(ownerUrl);
     const preMigrator = await migrationInventory(migUrl);
@@ -550,6 +560,15 @@ async function profileFoundationHarness(): Promise<void> {
 
     const ownerUpgradeUrl = urlForDatabase(provisionConnectionUrl, upgradeDb);
     await runDbmate(ownerUpgradeUrl, join(ROOT, 'migrations'));
+    {
+      const owner = new pg.Client({ connectionString: ownerUpgradeUrl });
+      await owner.connect();
+      try {
+        await assignAuditWriteDefinerOwner((sql, params) => owner.query(sql, params));
+      } finally {
+        await owner.end();
+      }
+    }
     await grantMigratorMigrationCatalogAccess(upgradeDb);
     await applyDevelopMinimalData(ownerUpgradeUrl);
     const ownerVersions = await migrationInventory(ownerUpgradeUrl);

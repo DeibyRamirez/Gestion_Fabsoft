@@ -291,7 +291,8 @@ begin
   return v_id;
 end $$;
 
-alter function app.audit_write(text, text, text, jsonb, text, inet) owner to fabsoft_audit_definer;
+-- OWNER fabsoft_audit_definer: aplicado por provisioner tras dbmate (ALTER OWNER exige superusuario
+-- o cadena que el migrator LOGIN no satisface en PG16; ver dbmate-staged-up.ts).
 revoke all on function app.audit_write(text, text, text, jsonb, text, inet) from public;
 grant execute on function app.audit_write(text, text, text, jsonb, text, inet) to fabsoft_app;
 
