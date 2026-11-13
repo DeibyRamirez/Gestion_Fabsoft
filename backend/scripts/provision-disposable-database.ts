@@ -14,10 +14,7 @@ import {
   assertNonProduction,
   loadSessionIdentity,
 } from './guard.js';
-import {
-  assertSchemaAclParity,
-  captureSchemaAclSnapshot,
-} from './schema-acl-snapshot.js';
+import { assertSchemaAclParity, captureSchemaAclSnapshot } from './schema-acl-snapshot.js';
 import {
   assertSameDatabaseInstallation,
   normalizeDatabaseUrl,
@@ -414,7 +411,9 @@ async function assertAppTablesNotOwnedByBootstrap(migratorDatabaseUrl: string): 
          and pg_catalog.pg_get_userbyid(c.relowner) = 'fabsoft_owner'`,
     );
     if (rows.length > 0) {
-      throw new Error(`T-F0-10 upgrade: tablas app aún owner fabsoft_owner: ${rows.map((r) => r.tablename).join(',')}`);
+      throw new Error(
+        `T-F0-10 upgrade: tablas app aún owner fabsoft_owner: ${rows.map((r) => r.tablename).join(',')}`,
+      );
     }
   } finally {
     await c.end();
@@ -564,7 +563,7 @@ async function profileFoundationHarness(): Promise<void> {
     if (ownerVersions.length !== migCount) {
       throw new Error(`upgrade histórico: owner aplicó ${ownerVersions.length}/${migCount}`);
     }
-  const reassigned = await reassignAppSchemaFromOwnerToMigrator(ownerUpgradeUrl);
+    const reassigned = await reassignAppSchemaFromOwnerToMigrator(ownerUpgradeUrl);
     await runStagedMigrate(upgradeUrl, upgradeDb);
     const upgradeVersions = await migrationInventory(upgradeUrl);
     const upgradeRls = await rlsSnapshot(upgradeUrl);
