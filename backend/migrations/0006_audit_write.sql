@@ -28,7 +28,7 @@ grant execute on function app.ctx_actor_type(), app.ctx_role(), app.ctx_user_id(
   to fabsoft_audit_definer;
 
 grant insert on app.audit_logs to fabsoft_audit_definer;
-grant select (id, client_id) on app.clients to fabsoft_audit_definer;
+grant select (id) on app.clients to fabsoft_audit_definer;
 grant select (id, client_id) on app.client_contacts to fabsoft_audit_definer;
 grant select (id, client_id) on app.client_notes to fabsoft_audit_definer;
 grant select (id) on app.products to fabsoft_audit_definer;
