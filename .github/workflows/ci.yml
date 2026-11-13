@@ -119,6 +119,12 @@ jobs:
             "REVOKE CREATE ON DATABASE ${POSTGRES_DB} FROM fabsoft_app, fabsoft_worker;"
       - name: LOGIN roles runtime (provisioner)
         run: pnpm db:roles:dev
+      - name: SEED_DATABASE_URL (fabsoft_seed_writer)
+        run: |
+          DB=$(node -p "new URL(process.env.DATABASE_PROVISION_URL).pathname.replace(/^\\//,'').split('/')[0]")
+          HOST=$(node -p "new URL(process.env.DATABASE_PROVISION_URL).hostname")
+          PORT=$(node -p "new URL(process.env.DATABASE_PROVISION_URL).port || '5432'")
+          echo "SEED_DATABASE_URL=postgres://fabsoft_seed_writer@${HOST}:${PORT}/${DB}?sslmode=disable" >> "$GITHUB_ENV"
       - name: Assert RLS en todas las tablas
         run: psql "$DATABASE_MIGRATION_URL" -v ON_ERROR_STOP=1 -c 'SELECT app.assert_rls_everywhere();'
       - name: Tests de seguridad + foundation F0

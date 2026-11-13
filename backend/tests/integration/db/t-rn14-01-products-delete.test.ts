@@ -42,7 +42,9 @@ describe.skipIf(!dbTestsConfigured())('T-RN14-01 DELETE en app.products', () => 
     const product = await factories.product();
     const admin = await factories.adminUser();
 
-    await withAppContext({ role: 'admin', userId: admin.id, requestId: 't-rn14-01' }, async (c) => {
+    await withAppContext(
+      { role: 'admin', userId: admin.id, clientId: null, requestId: 't-rn14-01' },
+      async (c) => {
       await expectPgError(c, 'delete from app.products where id = $1', [product.id], '42501');
     });
   });

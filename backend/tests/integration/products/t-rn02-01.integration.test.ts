@@ -34,7 +34,7 @@ describe.skipIf(!dbTestsConfigured())('T-RN02-01 producto con múltiples suscrip
 
     const admin = await factories.adminUser();
     const rows = await withAppContext(
-      { role: 'admin', userId: admin.id, requestId: 't-rn02-01' },
+      { role: 'admin', userId: admin.id, clientId: null, requestId: 't-rn02-01' },
       async (c) => {
         const { rows: r } = await c.query<{ id: string; product_id: string }>(
           `select id, product_id from app.subscriptions where product_id = $1 order by id`,

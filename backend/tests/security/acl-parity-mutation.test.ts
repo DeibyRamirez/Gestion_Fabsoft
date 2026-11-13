@@ -66,6 +66,24 @@ describe.skipIf(!migUrl || !provUrl)('ACL parity mutations', () => {
     }
   });
 
+  it('N6: default fabsoft_owner GRANT SELECT a worker → paridad falla', async () => {
+    const base = await captureSchemaAclSnapshot(migUrl!);
+    const c = new pg.Client({ connectionString: provUrl! });
+    await c.connect();
+    try {
+      await c.query(
+        `alter default privileges for role fabsoft_owner in schema app grant select on tables to fabsoft_worker`,
+      );
+      const corrupt = await captureSchemaAclSnapshot(migUrl!);
+      expect(() => assertSchemaAclParity(base, corrupt)).toThrow(/ACL aclexplode/);
+    } finally {
+      await c.query(
+        `alter default privileges for role fabsoft_owner in schema app revoke select on tables from fabsoft_worker`,
+      );
+      await c.end();
+    }
+  });
+
   it('M4: default global EXECUTE a worker → paridad falla', async () => {
     const base = await captureSchemaAclSnapshot(migUrl!);
     const c = new pg.Client({ connectionString: provUrl! });

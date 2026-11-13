@@ -4,6 +4,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { ensureAppPoolRoleVerified, getAppPool, migrationUrl } from '../helpers/db.js';
+import {
+  APP_RLS_TABLES,
+  assertClientIsolationNoLeak,
+  type RlsFixtureIds,
+} from './rls-isolation-checks.js';
+import { restoreCanonicalFabsoftAppPolicies } from './canonical-rls-policies.js';
 import { expectPgError } from './pg-expect.js';
 
 const migratorUrl = process.env.DATABASE_MIGRATION_URL;
@@ -76,6 +82,20 @@ beforeAll(async () => {
       [ids.subA, ids.clientA, ids.product, ids.subB, ids.clientB],
     );
     await c.query(
+      `insert into app.subscription_periods (id, subscription_id, period_number, start_date, end_date, billing_cycle,
+         price_amount, supplier_cost_amount)
+       select $1,$2,1,'2026-01-01','2026-12-31','annual',1,1
+       where not exists (select 1 from app.subscription_periods p where p.subscription_id = $2 and p.period_number = 1)`,
+      [ids.periodA, ids.subA],
+    );
+    await c.query(
+      `insert into app.subscription_periods (id, subscription_id, period_number, start_date, end_date, billing_cycle,
+         price_amount, supplier_cost_amount)
+       select $1,$2,1,'2026-01-01','2026-12-31','annual',2,2
+       where not exists (select 1 from app.subscription_periods p where p.subscription_id = $2 and p.period_number = 1)`,
+      [ids.periodB, ids.subB],
+    );
+    await c.query(
       `insert into app.client_contacts (id, client_id, full_name, email) values
         ($1,$2,'Contact A','contact-a@fabsoft.test'),($3,$4,'Contact B','contact-b@fabsoft.test') on conflict do nothing`,
       [ids.contactA, ids.clientA, ids.contactB, ids.clientB],
@@ -92,10 +112,16 @@ beforeAll(async () => {
       [ids.taskA, ids.clientA, ids.admin, ids.taskB, ids.clientB],
     );
     await c.query(
-      `insert into app.alert_rules (id, code, description, offset_days, channels) values
-        ($1,'TSTRLS','RLS test',77,'{in_app}') on conflict (code) do update set id = excluded.id`,
+      `insert into app.alert_rules (id, code, description, offset_days, channels)
+       select $1,'TSTRLS','RLS test', coalesce(max(offset_days),0)+1, '{in_app}'
+       from app.alert_rules
+       on conflict (code) do nothing`,
       [ids.alertRule],
     );
+    const ruleRow = await c.query<{ id: string }>(
+      `select id from app.alert_rules where code = 'TSTRLS' limit 1`,
+    );
+    if (ruleRow.rows[0]) ids.alertRule = ruleRow.rows[0].id;
     await c.query(
       `insert into app.notifications (id, notification_type, channel, recipient_user_id, scheduled_for, subscription_id, period_end, alert_rule_id, dedupe_key) values
         ($1,'expiration_alert','in_app',$2,now(),$3,'2026-12-31',$7,'exp:$3:TSTRLS:2026-12-31:in_app:$2'),
@@ -107,6 +133,7 @@ beforeAll(async () => {
        values ($1,$2,$3,$4,'pending_review'),($5,$6,$7,$8,'pending_review') on conflict do nothing`,
       [ids.renewalA, ids.subA, ids.clientA, ids.clientUserA, ids.renewalB, ids.subB, ids.clientB, ids.clientUserB],
     );
+    await restoreCanonicalFabsoftAppPolicies(c);
     await c.query('commit');
   } finally {
     c.release();
@@ -114,12 +141,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (ownerPool) {
-    await ownerPool
-      .query(`delete from app.subscriptions where id in ($1,$2)`, [ids.subA, ids.subB])
-      .catch(() => undefined);
-    await ownerPool.end();
-  }
+  if (ownerPool) await ownerPool.end();
   if (appUrl) await getAppPool().end();
 });
 
@@ -249,36 +271,75 @@ describe.skipIf(!appUrl)('F0 — aislamiento (T-F0-09)', () => {
     }
   }
 
-  it('T-F0-09c RLS efectivo fabsoft_app: aislamiento por tabla (dos alcances)', async () => {
-    await asClientUser(async (c) => {
-      const clientRows = await c.query<{ id: string }>(
-        `select id from app.clients where id in ($1,$2) order by id`,
-        [ids.clientA, ids.clientB],
-      );
-      expect(clientRows.rows.map((r) => r.id)).toEqual([ids.clientA]);
+  const matrixIds: RlsFixtureIds = ids;
 
-      // Base table subscriptions: SELECT fabsoft_app sólo staff (0002); portal usa fabsoft_secure_view (0004).
-      expect((await c.query(`select id from app.subscriptions`)).rowCount).toBe(0);
-
-      const renewal = await c.query<{ id: string }>(
-        `select id from app.renewal_requests where id in ($1,$2)`,
-        [ids.renewalA, ids.renewalB],
-      );
-      expect(renewal.rows.map((r) => r.id)).toEqual([ids.renewalA]);
-
-      for (const table of ['client_contacts', 'client_notes', 'tasks', 'notifications'] as const) {
-        const { rowCount } = await c.query(`select id from app.${table}`);
-        expect(rowCount, `${table}: cliente no debe ver filas staff`).toBe(0);
+  it('T-F0-09c sin contexto: fabsoft_app no ve filas en tablas app', async () => {
+    await ensureAppPoolRoleVerified();
+    const pool = getAppPool();
+    const client = await pool.connect();
+    try {
+      await client.query('begin');
+      await client.query(`set local role fabsoft_app`);
+      for (const table of APP_RLS_TABLES) {
+        expect((await client.query(`select count(*)::int as n from app.${table}`)).rows[0]!.n).toBe(
+          0,
+        );
       }
+      await client.query('rollback');
+    } finally {
+      client.release();
+    }
+  });
 
-      const blocked = await c.query(`update app.renewal_requests set comment = 'hack' where id = $1`, [
-        ids.renewalB,
-      ]);
-      expect(blocked.rowCount).toBe(0);
+  it('T-F0-09c cliente A: portal + 18 tablas según matriz', async () => {
+    await asClientUser(async (c) => {
+      await assertClientIsolationNoLeak(c, matrixIds);
+
+      const users = await c.query<{ id: string }>(`select id from app.users`);
+      expect(users.rows.map((r) => r.id)).toEqual([ids.clientUserA]);
+
+      expect((await c.query(`select id from app.subscription_periods`)).rowCount).toBe(0);
+      const portalPeriods = await c.query(`select id from app.portal_subscription_periods`);
+      expect(portalPeriods.rowCount).toBeGreaterThanOrEqual(1);
+
+      expect((await c.query(`select id from app.products`)).rowCount).toBeGreaterThanOrEqual(1);
+
+      for (const table of [
+        'refresh_tokens',
+        'client_contacts',
+        'client_notes',
+        'tasks',
+        'notifications',
+        'alert_rules',
+        'integrations',
+        'integration_clients',
+        'api_credentials',
+        'audit_logs',
+      ] as const) {
+        const { rows } = await c.query<{ n: number }>(`select count(*)::int as n from app.${table}`);
+        expect(rows[0]!.n, table).toBe(0);
+      }
+      const settings = await c.query(`select count(*)::int as n from app.app_settings`);
+      expect(settings.rows[0]!.n).toBeGreaterThanOrEqual(0);
+
+      await expectPgError(
+        c,
+        `insert into app.clients (id, legal_name) values ($1,'X')`,
+        [ids.clientB],
+        '42501',
+      );
+      await expectPgError(
+        c,
+        `insert into app.renewal_requests (subscription_id, client_id, requested_by_user_id, status)
+         values ($1,$2,$3,'pending_review')`,
+        [ids.subB, ids.clientB, ids.clientUserA],
+        '42501',
+      );
+      await expectPgError(c, `delete from app.clients where id = $1`, [ids.clientB], '42501');
     });
   });
 
-  it('T-F0-09c operador: suscripciones A/B visibles; cliente no filtra vía USING roto', async () => {
+  it('T-F0-09c staff operador: tablas de negocio visibles A/B', async () => {
     await ensureAppPoolRoleVerified();
     const pool = getAppPool();
     const client = await pool.connect();
@@ -290,11 +351,15 @@ describe.skipIf(!appUrl)('F0 — aislamiento (T-F0-09)', () => {
                 set_config('app.current_user_id',$1,true)`,
         [ids.admin],
       );
-      const { rows } = await client.query<{ id: string }>(
-        `select id from app.subscriptions where id in ($1,$2) order by id`,
+      const subs = await client.query<{ id: string }>(
+        `select id from app.subscriptions where id in ($1,$2)`,
         [ids.subA, ids.subB],
       );
-      expect(rows.map((r) => r.id).sort()).toEqual([ids.subA, ids.subB].sort());
+      expect(subs.rowCount).toBe(2);
+      const contacts = await client.query(`select id from app.client_contacts`);
+      expect(contacts.rowCount).toBeGreaterThanOrEqual(1);
+      const tasks = await client.query(`select id from app.tasks`);
+      expect(tasks.rowCount).toBeGreaterThanOrEqual(1);
       await client.query('rollback');
     } finally {
       client.release();

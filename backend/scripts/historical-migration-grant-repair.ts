@@ -14,8 +14,25 @@ async function run(owner: QueryFn, sql: string): Promise<void> {
 }
 
 /** Fail-closed si hay EXECUTE a PUBLIC fuera del set que el repair va a revocar. */
+/** Fail-closed tras migrate sin repair histórico: ningún prosecdef app con PUBLIC. */
+export async function assertStrictNoPublicExecuteOnAppDefiners(owner: QueryFn): Promise<void> {
+  const { rows } = (await owner(
+    `select p.proname::text || '(' || pg_catalog.oidvectortypes(p.proargtypes) || ')' as sig
+     from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'app'
+       and p.prosecdef
+       and has_function_privilege('public', p.oid, 'EXECUTE')`,
+  )) as pg.QueryResult<{ sig: string }>;
+  if (rows.length > 0) {
+    throw new Error(
+      `EXECUTE a PUBLIC en SECURITY DEFINER (sin repair): ${rows.map((r) => r.sig).join(', ')}`,
+    );
+  }
+}
+
 export async function assertNoUnexpectedPublicExecuteBeforeRepair(owner: QueryFn): Promise<void> {
-  const { rows } = await owner<{ sig: string }>(
+  const { rows } = (await owner(
     `select p.proname::text || '(' || pg_catalog.oidvectortypes(p.proargtypes) || ')' as sig
      from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
@@ -29,7 +46,7 @@ export async function assertNoUnexpectedPublicExecuteBeforeRepair(owner: QueryFn
          'bootstrap_first_admin',
          'revoke_user_sessions'
        )`,
-  );
+  )) as pg.QueryResult<{ sig: string }>;
   if (rows.length > 0) {
     throw new Error(
       `GRANT EXECUTE inesperado a PUBLIC (SECURITY DEFINER) antes de repair: ${rows.map((r) => r.sig).join(', ')}`,
@@ -98,6 +115,7 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
     roles: [
       { role: 'public', execute: false },
       { role: 'fabsoft_app', execute: true },
+      { role: 'fabsoft_secure_view', execute: true },
     ],
   },
 ] as const;

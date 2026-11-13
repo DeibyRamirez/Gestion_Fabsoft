@@ -2,14 +2,20 @@
  * seed --reset fail-closed (ronda 6): no borrar BDs sin marcador / sin coincidir con seed.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  assertSeedConfiguration,
-  assertSeedResetProvisionerTarget,
-} from '../../scripts/guard.js';
+import { assertSeedResetProvisionerTarget } from '../../scripts/guard.js';
 import { parseDatabaseTarget } from '../../scripts/database-url.js';
 
 const ownerUrl = process.env.DATABASE_PROVISION_URL;
-const seedUrl = process.env.SEED_DATABASE_URL;
+
+function resolveSeedWriterUrl(): string | undefined {
+  const raw = process.env.SEED_DATABASE_URL?.trim();
+  if (raw && parseDatabaseTarget(raw).user === 'fabsoft_seed_writer') return raw;
+  if (!ownerUrl) return undefined;
+  const t = parseDatabaseTarget(ownerUrl);
+  return `postgres://fabsoft_seed_writer@${t.host}:${t.port}/${encodeURIComponent(t.database)}?sslmode=disable`;
+}
+
+const seedUrl = resolveSeedWriterUrl();
 const marker = process.env.SEED_EPHEMERAL_MARKER;
 const runId = process.env.SEED_HARNESS_RUN_ID;
 const db = process.env.SEED_ALLOWED_DATABASES?.split(',')[0] ?? 'fabsoft_test';
@@ -24,21 +30,13 @@ afterEach(() => {
 
 describe.skipIf(!ownerUrl || !seedUrl)('seed --reset guard', () => {
   it('rechaza reset si procedencia harness no coincide (sin TRUNCATE)', async () => {
-    const target = parseDatabaseTarget(seedUrl!);
-    Object.assign(process.env, {
-      APP_ENV: 'test',
-      SEED_ALLOWED_HOSTS: target.host,
-      SEED_ALLOWED_PORTS: target.port,
-      SEED_FORBIDDEN_HOSTS: 'prod.example.com',
-      SEED_ALLOW_RESET: '1',
-      SEED_SESSION_ROLE: 'fabsoft_seed_writer',
-      SEED_DATABASE_URL: seedUrl,
-      SEED_ALLOWED_DATABASES: db,
-      SEED_EPHEMERAL_MARKER: marker,
-      SEED_HARNESS_RUN_ID: 'run-inventado-no-harness',
-      DATABASE_PROVISION_URL: ownerUrl,
-    });
-    const cfg = assertSeedConfiguration();
+    const cfg = {
+      url: seedUrl!,
+      expectedSessionRole: 'fabsoft_seed_writer',
+      ephemeralMarker: marker!,
+      harnessRunId: 'run-inventado-no-harness',
+      expectedDatabase: db,
+    };
     await expect(assertSeedResetProvisionerTarget(cfg)).rejects.toThrow(/procedencia|marcador/i);
   });
 });

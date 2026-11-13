@@ -28,9 +28,12 @@ import {
   repairMigratorSchemaPrivileges,
   revokeMigratorHistoricalElevation,
 } from './migrator-historical-elevation.js';
-import { repairHistoricalMigrationGrants } from './historical-migration-grant-repair.js';
+import {
+  assertStrictNoPublicExecuteOnAppDefiners,
+  repairHistoricalMigrationGrants,
+} from './historical-migration-grant-repair.js';
 import { assertNoFabsoftOwnerInApp } from './reconcile-owner-to-migrator.js';
-import { assertNoSecurityDefinerPublicExecute } from './migration-security-gates.js';
+import { assertDefinerExecuteAllowlist } from './migration-security-gates.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATOR = 'fabsoft_migrator';
@@ -230,6 +233,10 @@ console.log(
   }),
 );
 
+const historicalFiles = [...migrator, ...provisioner];
+const pendingHistoricalAtStart = await pendingMigrationVersions(migratorUrl, historicalFiles);
+const runHistoricalGrantRepair = pendingHistoricalAtStart.length > 0;
+
 const pending = await pendingMigrationVersions(migratorUrl, migrationFiles);
 console.log(JSON.stringify({ pendingMigrations: pending.length, versions: pending }));
 await reconcileMigratorOwnershipAndGrants();
@@ -289,14 +296,21 @@ await assertInventory(migratorUrl, provisionUrlForMigratorDb(), migrationFiles);
   const prov = new pg.Client({ connectionString: provisionUrlForMigratorDb() });
   await prov.connect();
   try {
-    await repairHistoricalMigrationGrants((sql, params) => prov.query(sql, params));
+    const q = (sql: string, params?: unknown[]) => prov.query(sql, params);
+    if (runHistoricalGrantRepair) {
+      console.log(JSON.stringify({ historicalGrantRepair: true }));
+      await repairHistoricalMigrationGrants(q);
+    } else {
+      console.log(JSON.stringify({ historicalGrantRepair: false, mode: 'fail-closed' }));
+      await assertStrictNoPublicExecuteOnAppDefiners(q);
+    }
   } finally {
     await prov.end();
   }
 }
 
 await assertNoFabsoftOwnerInApp(migratorUrl, 'db:migrate fresh');
-await assertNoSecurityDefinerPublicExecute(migratorUrl);
+await assertDefinerExecuteAllowlist(migratorUrl);
 
 const rlsClient = new pg.Client({ connectionString: migratorUrl });
 await rlsClient.connect();

@@ -113,8 +113,15 @@ export async function captureSchemaAclSnapshot(databaseUrl: string): Promise<Sch
 
 const ALLOWED_EVENT_TRIGGER_ASYMMETRY = ['fabsoft_enforce_rls'] as const;
 
+/** defacl residuales del upgrade owner→migrator (fabsoft_app). No ocultar grants a fabsoft_worker (N6). */
+function isBenignOwnerDefaclLine(line: string): boolean {
+  if (!line.startsWith(`defacl|${LEGACY_OWNER}:`)) return false;
+  if (line.includes('fabsoft_worker')) return false;
+  return line.includes(':fabsoft_app');
+}
+
 function normalizeAclLines(lines: string[]): string[] {
-  return lines.filter((l) => !l.startsWith(`defacl|${LEGACY_OWNER}:`));
+  return lines.filter((l) => !isBenignOwnerDefaclLine(l));
 }
 
 export function assertSchemaAclParity(a: SchemaAclSnapshot, b: SchemaAclSnapshot): void {

@@ -442,6 +442,34 @@ async function profileDevelopHistoricalUpgrade(): Promise<void> {
       } finally {
         await etClient.end();
       }
+      const vitestRun = spawnSync(
+        'pnpm',
+        [
+          'exec',
+          'vitest',
+          'run',
+          '--project',
+          'security',
+          'tests/security/rls-effective.test.ts',
+          '-t',
+          'T-F0-08b',
+        ],
+        {
+          cwd: ROOT,
+          env: {
+            ...process.env,
+            DATABASE_MIGRATION_URL: migUrl,
+            FABSOFT_EXPECT_EVENT_TRIGGER: '1',
+            REQUIRE_DB_TESTS: '1',
+          },
+          encoding: 'utf8',
+        },
+      );
+      if (vitestRun.status !== 0) {
+        throw new Error(
+          `develop-upgrade T-F0-08b vitest: ${vitestRun.stderr || vitestRun.stdout}`,
+        );
+      }
     }
     console.log(
       JSON.stringify({

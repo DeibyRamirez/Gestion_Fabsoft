@@ -53,7 +53,7 @@ describe.skipIf(!dbTestsConfigured())('T-HU05-04 desactivar producto', () => {
       return { sub: subs.rows[0], periods: periods.rows };
     };
     const before = await withAppContext(
-      { role: 'admin', userId: admin.id, requestId: 't-hu05-04' },
+      { role: 'admin', userId: admin.id, clientId: null, requestId: 't-hu05-04' },
       readState,
     );
 
@@ -65,7 +65,7 @@ describe.skipIf(!dbTestsConfigured())('T-HU05-04 desactivar producto', () => {
     expect(patch.body.status).toBe('inactive');
 
     const after = await withAppContext(
-      { role: 'admin', userId: admin.id, requestId: 't-hu05-04' },
+      { role: 'admin', userId: admin.id, clientId: null, requestId: 't-hu05-04' },
       readState,
     );
 
