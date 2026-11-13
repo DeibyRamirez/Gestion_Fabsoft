@@ -169,7 +169,7 @@ end $$;
 -- PG no admite RULE ON SELECT sobre tablas; lectura redactada vía función invoker (operador vs admin).
 create or replace function app.audit_logs_reader_changes(p_changes jsonb, p_resource_type text)
 returns jsonb
-language sql stable security invoker set search_path = app, pg_catalog as $$
+language sql stable security definer set search_path = app, pg_catalog as $$
   select case
     when app.is_admin() or app.is_system() then p_changes
     when p_changes is null then null

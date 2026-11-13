@@ -16,6 +16,7 @@ const HELPER_FIXTURE_ALLOWLIST = new Set([
   'helpers/db.ts',
   'helpers/owner-bypass-detector.ts',
   'fixtures/factories.ts',
+  'misc/t-f0-05-glob-probe.ts',
 ]);
 
 const OWNER_SYSTEM_MODULE = /helpers\/owner-system(?:\.js|\.ts)?['"]/;

@@ -278,14 +278,15 @@ try {
       await boot.query('begin');
       await boot.query(
         `update app.alert_rules set updated_by = null;
-         update app.app_settings set updated_by = null`,
+         update app.app_settings set updated_by = null;
+         update app.integrations set created_by = null, updated_by = null`,
       );
-      await boot.query(`truncate app.tasks, app.renewal_requests, app.subscription_periods, app.subscriptions, app.client_notes,
-        app.client_contacts, app.refresh_tokens, app.idempotency_keys, app.notifications, app.audit_logs restart identity`);
       await boot.query(
-        `update app.clients set owner_user_id = null, created_by = null, updated_by = null`,
+        `truncate app.integration_clients, app.api_credentials, app.tasks, app.renewal_requests,
+          app.subscription_periods, app.subscriptions, app.client_notes, app.client_contacts,
+          app.refresh_tokens, app.idempotency_keys, app.notifications, app.audit_logs,
+          app.users, app.clients, app.products restart identity`,
       );
-      await boot.query(`truncate app.users, app.clients, app.products restart identity`);
       await boot.query('commit');
     } finally {
       await boot.end();

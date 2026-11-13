@@ -19,6 +19,7 @@ if (process.env.REQUIRE_DB_TESTS === '1' && (!ownerUrl || !appUrl)) {
 
 const productId = '00000000-0000-4000-8ff0-0000000000aa';
 const adminId = '00000000-0000-4000-8ff0-0000000000ab';
+const operatorId = '00000000-0000-4000-8000-000000000102';
 
 async function withCtx<T>(
   ctx: {
@@ -74,6 +75,12 @@ describe.skipIf(!ownerUrl || !appUrl)('app.audit_write', () => {
          values ($1,'aud-admin@t.co','Aud Admin','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','admin',null)
          on conflict do nothing`,
         [adminId],
+      );
+      await c.query(
+        `insert into app.users (id, email, full_name, password_hash, role, client_id, status)
+         values ($1,'aud-op@t.co','Aud Op','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','operator',null,'active')
+         on conflict do nothing`,
+        [operatorId],
       );
       await c.query(
         `insert into app.products (id, name, product_type, status)
@@ -354,8 +361,8 @@ describe.skipIf(!ownerUrl || !appUrl)('app.audit_write', () => {
 
   it('mismo request_id servidor: admin no reutiliza fila del operador', async () => {
     const req = `req-shared-${Date.now()}`;
-    const adminRow = await withCtx(
-      { type: 'user', role: 'operator', userId: adminId, requestId: req },
+    const opRow = await withCtx(
+      { type: 'user', role: 'operator', userId: operatorId, requestId: req },
       async (c) => {
         const { rows } = await c.query<{ id: string }>(
           `select app.audit_write('product.updated','product',$1::text,null,null,null)::text as id`,
@@ -376,7 +383,7 @@ describe.skipIf(!ownerUrl || !appUrl)('app.audit_write', () => {
       },
       true,
     );
-    expect(adminIdem).not.toBe(adminRow);
+    expect(adminIdem).not.toBe(opRow);
   });
 
   it('operador LOGIN no ve supplier_cost_amount (incl. fila escrita por admin)', async () => {
