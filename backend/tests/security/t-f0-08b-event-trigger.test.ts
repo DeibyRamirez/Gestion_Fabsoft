@@ -26,4 +26,5 @@ describe.skipIf(!migratorUrl || process.env.FABSOFT_EXPECT_EVENT_TRIGGER !== '1'
       await client.end();
     }
   });
-});
+  },
+);
