@@ -61,7 +61,8 @@ const ownerBypassInSource = [
     message: 'T-F0-05: no import owner-system.',
   },
   {
-    selector: 'ImportDeclaration[source.value=/helpers\\/db/] ImportSpecifier[imported.name="getOwnerPool"]',
+    selector:
+      'ImportDeclaration[source.value=/helpers\\/db/] ImportSpecifier[imported.name="getOwnerPool"]',
     message: 'T-F0-05: no import getOwnerPool.',
   },
   ...reexportOwnerSyntax,
@@ -76,7 +77,9 @@ const ownerBypassInSource = [
   ...nonLiteralDynamicImport,
 ];
 
-const allowlistRel = OWNER_ALLOWLIST.map((abs) => path.relative(backendRoot, abs).replace(/\\/g, '/'));
+const allowlistRel = OWNER_ALLOWLIST.map((abs) =>
+  path.relative(backendRoot, abs).replace(/\\/g, '/'),
+);
 
 /** Reglas aplicadas a fixtures T-F0-05 bajo lint explícito (--config eslint.t-f0-05-fixtures.config.js). */
 export const f0FixtureLintBlock = {
@@ -115,7 +118,10 @@ export const f0TestOwnerBypassRules = [
     files: ['tests/helpers/**/*.ts'],
     ignores: OWNER_ALLOWLIST.map((abs) => path.relative(backendRoot, abs)),
     rules: {
-      'no-restricted-imports': ['error', { patterns: [...ownerImportPatterns, ...poolImportPatterns] }],
+      'no-restricted-imports': [
+        'error',
+        { patterns: [...ownerImportPatterns, ...poolImportPatterns] },
+      ],
       'no-restricted-syntax': [
         'error',
         ...reexportOwnerSyntax,
