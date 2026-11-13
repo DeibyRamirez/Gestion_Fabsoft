@@ -168,6 +168,17 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
       ...denyNonApp,
     ],
   },
+  {
+    fn: 'app.audit_logs_reader_changes(jsonb,text)',
+    roles: [
+      { role: 'public', execute: false },
+      { role: 'fabsoft_app', execute: true },
+      workerInheritsAppExecute,
+      { role: 'fabsoft_auth_definer', execute: false },
+      { role: 'fabsoft_bootstrap', execute: false },
+      ...denyNonApp,
+    ],
+  },
   ...[
     'app.audit_is_secret_key(text)',
     'app.audit_allowlist_keys(text)',
