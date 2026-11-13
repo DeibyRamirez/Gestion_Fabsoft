@@ -134,11 +134,8 @@ export async function revokeMigratorHistoricalElevation(
   await exec(owner, `revoke ${quoteIdent('fabsoft_app')} from ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `revoke create on database ${db} from ${quoteIdent('fabsoft_app')}`);
   await exec(owner, `revoke create on database ${db} from ${quoteIdent('fabsoft_worker')}`);
-  await exec(
-    owner,
-    `revoke grant option for create on database ${db} from ${quoteIdent(MIGRATOR)}`,
-  );
-  await exec(owner, `revoke create on database ${db} from ${quoteIdent(MIGRATOR)}`);
+  await exec(owner, `revoke all privileges on database ${db} from ${quoteIdent(MIGRATOR)}`);
+  await exec(owner, `grant connect on database ${db} to ${quoteIdent(MIGRATOR)}`);
 }
 
 export async function assertMigratorElevationClosed(owner: QueryFn): Promise<void> {
