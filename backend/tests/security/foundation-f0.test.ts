@@ -127,8 +127,10 @@ describe('F0 — migrator (LOGIN directo)', () => {
 
 describe('F0 — harness', () => {
   it('T-F0-05 procedencia efímera en base principal', async () => {
-    const runId = process.env.SEED_HARNESS_RUN_ID;
+    const runId = process.env.SEED_HARNESS_RUN_ID ?? process.env.FABSOFT_HARNESS_RUN_ID;
+    const marker = process.env.SEED_EPHEMERAL_MARKER;
     expect(runId).toBeTruthy();
+    expect(marker).toBeTruthy();
     const client = new pg.Client({ connectionString: provisionUrl! });
     await client.connect();
     try {
@@ -137,7 +139,7 @@ describe('F0 — harness', () => {
         [runId],
       );
       expect(rows).toHaveLength(1);
-      expect(rows[0]!.marker).toBe(process.env.SEED_EPHEMERAL_MARKER);
+      expect(rows[0]!.marker).toBe(marker);
     } finally {
       await client.end();
     }

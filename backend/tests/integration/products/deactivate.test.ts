@@ -1,4 +1,5 @@
 import request from 'supertest';
+import type pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createFactories, type Factories } from '../../fixtures/factories.js';
 import {
@@ -39,7 +40,7 @@ describe.skipIf(!dbTestsConfigured())('T-HU05-04 desactivar producto', () => {
     const subscription = await factories.subscription(client, product, { status: 'active' });
     const extraPeriod = await factories.period(subscription);
 
-    const readState = async (c: import('pg').PoolClient) => {
+    const readState = async (c: pg.PoolClient) => {
       const subs = await c.query(
         `select status, price_amount::text from app.subscriptions where id = $1`,
         [subscription.id],

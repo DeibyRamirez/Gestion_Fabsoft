@@ -85,12 +85,10 @@ describe.skipIf(!migratorUrl)('F0 — privilegios definer (P0)', () => {
         );
         await owner.query(`set local session_replication_role = origin`);
         await owner.query('commit');
-      } catch (err) {
+      } catch {
         await owner.query('rollback').catch(() => undefined);
-        throw err;
-      } finally {
-        await owner.end();
       }
+      await owner.end();
     }
   });
 

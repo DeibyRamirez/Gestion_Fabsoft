@@ -76,14 +76,8 @@ beforeAll(async () => {
       [ids.subA, ids.clientA, ids.product, ids.subB, ids.clientB],
     );
     await c.query(
-      `insert into app.subscription_periods (id, subscription_id, period_number, start_date, end_date, billing_cycle, price_amount)
-       values ($1,$2,1,'2026-01-01','2026-06-30','annual',1),
-              ($3,$4,1,'2026-01-01','2026-06-30','annual',2) on conflict do nothing`,
-      [ids.periodA, ids.subA, ids.periodB, ids.subB],
-    );
-    await c.query(
       `insert into app.client_contacts (id, client_id, full_name, email) values
-        ($1,$2,'Contact A','a@c.co'),($3,$4,'Contact B','b@c.co') on conflict do nothing`,
+        ($1,$2,'Contact A','contact-a@fabsoft.test'),($3,$4,'Contact B','contact-b@fabsoft.test') on conflict do nothing`,
       [ids.contactA, ids.clientA, ids.contactB, ids.clientB],
     );
     await c.query(
@@ -99,13 +93,13 @@ beforeAll(async () => {
     );
     await c.query(
       `insert into app.alert_rules (id, code, description, offset_days, channels) values
-        ($1,'TST','RLS test',30,'{in_app}') on conflict (code) do nothing`,
+        ($1,'TSTRLS','RLS test',77,'{in_app}') on conflict (code) do update set id = excluded.id`,
       [ids.alertRule],
     );
     await c.query(
       `insert into app.notifications (id, notification_type, channel, recipient_user_id, scheduled_for, subscription_id, period_end, alert_rule_id, dedupe_key) values
-        ($1,'expiration_alert','in_app',$2,now(),$3,'2026-12-31',$7,'exp:$3:TST:2026-12-31:in_app:$2'),
-        ($4,'expiration_alert','in_app',$5,now(),$6,'2026-12-31',$7,'exp:$6:TST:2026-12-31:in_app:$5') on conflict do nothing`,
+        ($1,'expiration_alert','in_app',$2,now(),$3,'2026-12-31',$7,'exp:$3:TSTRLS:2026-12-31:in_app:$2'),
+        ($4,'expiration_alert','in_app',$5,now(),$6,'2026-12-31',$7,'exp:$6:TSTRLS:2026-12-31:in_app:$5') on conflict do nothing`,
       [ids.notifA, ids.admin, ids.subA, ids.notifB, ids.clientUserB, ids.subB, ids.alertRule],
     );
     await c.query(
@@ -263,34 +257,48 @@ describe.skipIf(!appUrl)('F0 — aislamiento (T-F0-09)', () => {
       );
       expect(clientRows.rows.map((r) => r.id)).toEqual([ids.clientA]);
 
-      const subs = await c.query<{ id: string }>(
-        `select id from app.subscriptions where id in ($1,$2)`,
-        [ids.subA, ids.subB],
-      );
-      expect(subs.rows.map((r) => r.id).sort()).toEqual([ids.subA]);
-
-      const periods = await c.query<{ id: string }>(
-        `select id from app.subscription_periods where id in ($1,$2)`,
-        [ids.periodA, ids.periodB],
-      );
-      expect(periods.rows.map((r) => r.id)).toEqual([ids.periodA]);
-
-      for (const table of ['client_contacts', 'client_notes', 'tasks', 'notifications'] as const) {
-        const { rowCount } = await c.query(`select id from app.${table}`);
-        expect(rowCount, `${table}: cliente no debe ver filas staff`).toBe(0);
-      }
-
-      const blocked = await c.query(`update app.subscriptions set price_amount = 999 where id = $1`, [
-        ids.subB,
-      ]);
-      expect(blocked.rowCount).toBe(0);
+      // Base table subscriptions: SELECT fabsoft_app sólo staff (0002); portal usa fabsoft_secure_view (0004).
+      expect((await c.query(`select id from app.subscriptions`)).rowCount).toBe(0);
 
       const renewal = await c.query<{ id: string }>(
         `select id from app.renewal_requests where id in ($1,$2)`,
         [ids.renewalA, ids.renewalB],
       );
       expect(renewal.rows.map((r) => r.id)).toEqual([ids.renewalA]);
+
+      for (const table of ['client_contacts', 'client_notes', 'tasks', 'notifications'] as const) {
+        const { rowCount } = await c.query(`select id from app.${table}`);
+        expect(rowCount, `${table}: cliente no debe ver filas staff`).toBe(0);
+      }
+
+      const blocked = await c.query(`update app.renewal_requests set comment = 'hack' where id = $1`, [
+        ids.renewalB,
+      ]);
+      expect(blocked.rowCount).toBe(0);
     });
+  });
+
+  it('T-F0-09c operador: suscripciones A/B visibles; cliente no filtra vía USING roto', async () => {
+    await ensureAppPoolRoleVerified();
+    const pool = getAppPool();
+    const client = await pool.connect();
+    try {
+      await client.query('begin');
+      await client.query(`set local role fabsoft_app`);
+      await client.query(
+        `select set_config('app.actor_type','user',true), set_config('app.actor_role','operator',true),
+                set_config('app.current_user_id',$1,true)`,
+        [ids.admin],
+      );
+      const { rows } = await client.query<{ id: string }>(
+        `select id from app.subscriptions where id in ($1,$2) order by id`,
+        [ids.subA, ids.subB],
+      );
+      expect(rows.map((r) => r.id).sort()).toEqual([ids.subA, ids.subB].sort());
+      await client.query('rollback');
+    } finally {
+      client.release();
+    }
   });
 
   it('T-F0-09 aislamiento A/B: cliente A no lee ni escribe filas del cliente B', async () => {

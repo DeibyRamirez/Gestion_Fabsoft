@@ -111,21 +111,21 @@ describe.skipIf(!ownerUrl)('RLS policy mutations (deben romper aislamiento)', ()
         ['00000000-0000-4000-8ff0-000000000f01', ids.clientA, '00000000-0000-4000-8ff0-0000000000f1', ids.subB, ids.clientB],
       );
       await c.query(
-        `insert into app.client_contacts (id, client_id, full_name, email) values ($1,$2,'B','b@c') on conflict do nothing`,
+        `insert into app.client_contacts (id, client_id, full_name, email) values ($1,$2,'Contact B','contact-b@fabsoft.test') on conflict do nothing`,
         [ids.contactB, ids.clientB],
       );
       await c.query(
         `insert into app.tasks (id, task_type, client_id, title, due_date, status) values
-          ($1,'contact_client',$2,'T','2026-12-31','pending') on conflict do nothing`,
+          ($1,'contact_client',$2,'Task B','2026-12-31','pending') on conflict do nothing`,
         [ids.taskB, ids.clientB],
       );
       await c.query(
         `insert into app.alert_rules (id, code, description, offset_days, channels) values
-          ('00000000-0000-4000-8ff0-00000000b701','TST2','mut',15,'{in_app}') on conflict (code) do nothing`,
+          ('00000000-0000-4000-8ff0-00000000b801','TSTMUT','mut',78,'{in_app}') on conflict (code) do nothing`,
       );
       await c.query(
         `insert into app.notifications (id, notification_type, channel, recipient_user_id, scheduled_for, subscription_id, period_end, alert_rule_id, dedupe_key)
-         values ($1,'expiration_alert','in_app',$2,now(),$3,'2026-12-31','00000000-0000-4000-8ff0-00000000b701','exp:$3:TST2:2026-12-31:in_app:$2') on conflict do nothing`,
+         values ($1,'expiration_alert','in_app',$2,now(),$3,'2026-12-31','00000000-0000-4000-8ff0-00000000b801','exp:$3:TSTMUT:2026-12-31:in_app:$2') on conflict do nothing`,
         [ids.notifB, '00000000-0000-4000-8ff0-0000000000a1', ids.subB],
       );
       await c.query('commit');
