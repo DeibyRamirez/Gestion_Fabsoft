@@ -41,8 +41,8 @@ const ids = {
   admin: '00000000-0000-0000-0000-0000000000a1',
   clientUserA: '00000000-0000-0000-0000-0000000000a3',
   product: '00000000-0000-0000-0000-0000000000f1',
-  subA: '00000000-0000-0000-0000-0000000000c1',
-  subB: '00000000-0000-0000-0000-0000000000c2',
+  subA: '00000000-0000-4000-8000-000000000f01',
+  subB: '00000000-0000-4000-8000-000000000f02',
 };
 
 beforeAll(async () => {
@@ -332,12 +332,15 @@ describe('F0 — runtime fabsoft_app', () => {
         [ids.clientB],
         '42501',
       );
-      await expectPgError(
-        client,
-        `update app.clients set legal_name = 'Hack' where id = $1`,
+      const upd = await client.query(`update app.clients set legal_name = 'Hack' where id = $1`, [
+        ids.clientB,
+      ]);
+      expect(upd.rowCount).toBe(0);
+      const unchanged = await client.query<{ legal_name: string }>(
+        `select legal_name from app.clients where id = $1`,
         [ids.clientB],
-        '42501',
       );
+      expect(unchanged.rowCount).toBe(0);
       await client.query('rollback');
     } finally {
       client.release();

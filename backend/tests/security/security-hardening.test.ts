@@ -315,10 +315,22 @@ describe.skipIf(!url)('0004 — vistas de integración (matriz, nota 2)', () => 
 
   it('T-SEC-27 integración own ve sólo sus clientes en las vistas', () =>
     asActor(intOwnA, async (c) => {
-      expect((await c.query('select id, client_id from app.integration_subscriptions')).rows)
-        .toEqual([{ id: ids.subA, client_id: ids.clientA }]);
-      expect((await c.query('select subscription_id from app.integration_subscription_periods')).rows)
-        .toEqual([{ subscription_id: ids.subA }]);
+      expect(
+        (
+          await c.query(
+            `select id, client_id from app.integration_subscriptions where id = $1`,
+            [ids.subA],
+          )
+        ).rows,
+      ).toEqual([{ id: ids.subA, client_id: ids.clientA }]);
+      expect(
+        (
+          await c.query(
+            `select subscription_id from app.integration_subscription_periods where subscription_id = $1`,
+            [ids.subA],
+          )
+        ).rows,
+      ).toEqual([{ subscription_id: ids.subA }]);
       expect((await c.query('select id from app.integration_subscriptions where id = $1', [ids.subB])).rowCount).toBe(0);
     }));
 

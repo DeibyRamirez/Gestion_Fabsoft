@@ -93,14 +93,12 @@ async function reconcileMigratorOwnershipAndGrants(): Promise<void> {
     await prov.query(
       `grant select, insert, update, delete on all tables in schema app to ${quoteIdent(MIGRATOR)}`,
     );
-    await prov.query(`grant usage, select on all sequences in schema app to ${quoteIdent(MIGRATOR)}`);
     await prov.query(
-      `grant execute on all functions in schema app to ${quoteIdent(MIGRATOR)}`,
+      `grant usage, select on all sequences in schema app to ${quoteIdent(MIGRATOR)}`,
     );
+    await prov.query(`grant execute on all functions in schema app to ${quoteIdent(MIGRATOR)}`);
     await prov.query(`grant usage on schema public to ${quoteIdent(MIGRATOR)}`);
-    await prov.query(
-      `grant select on table public.schema_migrations to ${quoteIdent(MIGRATOR)}`,
-    );
+    await prov.query(`grant select on table public.schema_migrations to ${quoteIdent(MIGRATOR)}`);
   } finally {
     await prov.end();
   }

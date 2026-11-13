@@ -67,9 +67,9 @@ async function exec(owner: QueryFn, statement: string): Promise<void> {
 
 /** Sólo BD con marcador fabsoft.seed_ephemeral (harness / CI desechable). */
 export async function assertEphemeralDatabase(query: QueryFn): Promise<void> {
-  const { rows } = (await query(
-    `select current_setting('fabsoft.seed_ephemeral', true) as m`,
-  )) as { rows: { m: string | null }[] };
+  const { rows } = (await query(`select current_setting('fabsoft.seed_ephemeral', true) as m`)) as {
+    rows: { m: string | null }[];
+  };
   const marker = rows[0]?.m?.trim();
   if (!marker) {
     throw new Error(
@@ -124,11 +124,20 @@ export async function revokeMigratorHistoricalElevation(
 ): Promise<void> {
   const db = quoteIdent(databaseName);
   await exec(owner, `grant ${quoteIdent('fabsoft_app')} to ${quoteIdent('fabsoft_worker')}`);
+  await exec(
+    owner,
+    `revoke admin option for ${quoteIdent('fabsoft_app')} from ${quoteIdent(MIGRATOR)}`,
+  );
   await exec(owner, `revoke ${quoteIdent('fabsoft_worker')} from ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `revoke ${quoteIdent('fabsoft_secure_view')} from ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `revoke ${quoteIdent('fabsoft_auth_definer')} from ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `revoke ${quoteIdent('fabsoft_app')} from ${quoteIdent(MIGRATOR)}`);
-  await exec(owner, `revoke grant option for create on database ${db} from ${quoteIdent(MIGRATOR)}`);
+  await exec(owner, `revoke create on database ${db} from ${quoteIdent('fabsoft_app')}`);
+  await exec(owner, `revoke create on database ${db} from ${quoteIdent('fabsoft_worker')}`);
+  await exec(
+    owner,
+    `revoke grant option for create on database ${db} from ${quoteIdent(MIGRATOR)}`,
+  );
   await exec(owner, `revoke create on database ${db} from ${quoteIdent(MIGRATOR)}`);
 }
 
@@ -144,9 +153,7 @@ export async function assertMigratorElevationClosed(owner: QueryFn): Promise<voi
     rows: { granted_role: string; admin_option: boolean; set_option: boolean }[];
   };
   if (rows.length > 0) {
-    throw new Error(
-      `Migrator conserva membresías tras cierre efímero: ${JSON.stringify(rows)}`,
-    );
+    throw new Error(`Migrator conserva membresías tras cierre efímero: ${JSON.stringify(rows)}`);
   }
   const { rows: privs } = (await owner(
     `select rolname, rolcreatedb, rolcreaterole from pg_roles where rolname = $1`,
