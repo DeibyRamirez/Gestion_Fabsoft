@@ -112,9 +112,11 @@ export async function assertNoNoinheritSetPathToSensitive(databaseUrl: string): 
            and w.depth < 16
            and not gr.rolname::text = any (w.path)
        )
-       select distinct login_member, current_role as reached, depth
-       from walk
-       where current_role = any ($1::text[])
+       select distinct w.login_member, w.current_role as reached, w.depth
+       from walk w
+       join pg_catalog.pg_roles lm on lm.rolname = w.login_member
+       where w.current_role = any ($1::text[])
+         and lm.rolcanlogin
        order by 1, 2`,
       [[...sensitive]],
     );

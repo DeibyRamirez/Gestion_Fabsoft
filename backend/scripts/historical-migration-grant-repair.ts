@@ -70,8 +70,6 @@ export async function repairHistoricalMigrationGrants(owner: QueryFn): Promise<v
     `grant execute on function app.bootstrap_first_admin(text, text, text) to fabsoft_bootstrap`,
     `revoke execute on function app.revoke_user_sessions(uuid, text, text) from public`,
     `grant execute on function app.revoke_user_sessions(uuid, text, text) to fabsoft_app`,
-    `revoke execute on function app.audit_write(text, text, text, jsonb, text, inet) from public`,
-    `grant execute on function app.audit_write(text, text, text, jsonb, text, inet) to fabsoft_app`,
     `revoke execute on function app.tg_enforce_rls_on_create() from fabsoft_app`,
     // PO: default global + schema app — sin EXECUTE a PUBLIC en funciones nuevas del migrator
     `alter default privileges for role ${quoteIdent(MIGRATOR)} revoke execute on functions from public`,
@@ -81,6 +79,23 @@ export async function repairHistoricalMigrationGrants(owner: QueryFn): Promise<v
     `alter default privileges for role ${quoteIdent(MIGRATOR)} in schema app grant usage, select on sequences to fabsoft_app`,
   ];
   for (const sql of stmts) await run(owner, sql);
+  const { rows: hasAuditWrite } = (await owner(
+    `select exists (
+       select 1 from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'app' and p.proname = 'audit_write'
+     ) as ok`,
+  )) as pg.QueryResult<{ ok: boolean }>;
+  if (hasAuditWrite.rows[0]?.ok) {
+    await run(
+      owner,
+      `revoke execute on function app.audit_write(text, text, text, jsonb, text, inet) from public`,
+    );
+    await run(
+      owner,
+      `grant execute on function app.audit_write(text, text, text, jsonb, text, inet) to fabsoft_app`,
+    );
+  }
 }
 
 /** Roles que heredan EXECUTE de `fabsoft_app` vía `GRANT fabsoft_app TO fabsoft_worker` (0003). */
