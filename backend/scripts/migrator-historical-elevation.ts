@@ -90,6 +90,29 @@ export async function precreateStubRoles(owner: QueryFn): Promise<void> {
 }
 
 /** Membresías y CREATE temporales para que el migrador ejecute 0002–0005 sin CREATEROLE. */
+/** Restaura USAGE/OWNER en `app` tras cierre (CASCADE puede afectar privilegios efectivos). */
+export async function repairMigratorSchemaPrivileges(owner: QueryFn): Promise<void> {
+  const { rows } = (await owner(
+    `select pg_catalog.pg_get_userbyid(nspowner)::text as owner
+     from pg_catalog.pg_namespace where nspname = 'app'`,
+  )) as { rows: { owner: string | null }[] };
+  if (!rows[0]?.owner) return;
+  if (rows[0].owner !== MIGRATOR) {
+    await exec(owner, `alter schema app owner to ${quoteIdent(MIGRATOR)}`);
+  }
+  await exec(owner, `grant usage, create on schema public to ${quoteIdent(MIGRATOR)}`);
+  await exec(owner, `grant all on schema app to ${quoteIdent(MIGRATOR)} with grant option`);
+  await exec(
+    owner,
+    `grant select, insert, update, delete on all tables in schema app to ${quoteIdent(MIGRATOR)}`,
+  );
+  await exec(
+    owner,
+    `grant usage, select on all sequences in schema app to ${quoteIdent(MIGRATOR)}`,
+  );
+  await exec(owner, `grant execute on all functions in schema app to ${quoteIdent(MIGRATOR)}`);
+}
+
 export async function elevateMigratorForHistoricalMigrations(
   owner: QueryFn,
   databaseName: string,
@@ -135,10 +158,7 @@ export async function revokeMigratorHistoricalElevation(
   await exec(owner, `revoke ${quoteIdent('fabsoft_auth_definer')} from ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `revoke ${quoteIdent('fabsoft_app')} from ${quoteIdent(MIGRATOR)}`);
   // CASCADE sólo sobre privilegios de DATABASE otorgados por el migrador (p. ej. CREATE a app en 0002).
-  await exec(
-    owner,
-    `revoke all privileges on database ${db} from ${quoteIdent(MIGRATOR)} cascade`,
-  );
+  await exec(owner, `revoke all privileges on database ${db} from ${quoteIdent(MIGRATOR)} cascade`);
   await exec(owner, `grant connect on database ${db} to ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `grant ${quoteIdent('fabsoft_app')} to ${quoteIdent('fabsoft_worker')}`);
 }

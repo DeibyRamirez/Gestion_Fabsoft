@@ -23,6 +23,7 @@ import {
   assertMigratorElevationClosed,
   elevateMigratorForHistoricalMigrations,
   precreateStubRoles,
+  repairMigratorSchemaPrivileges,
   revokeMigratorHistoricalElevation,
 } from './migrator-historical-elevation.js';
 
@@ -238,10 +239,12 @@ try {
         await assertEphemeralDatabase(q);
         await precreateStubRoles(q);
         await elevateMigratorForHistoricalMigrations(q, dbName);
+        await repairMigratorSchemaPrivileges(q);
         try {
           runDbmate(migratorUrl, dirP);
         } finally {
           await revokeMigratorHistoricalElevation(q, dbName);
+          await repairMigratorSchemaPrivileges(q);
           await assertMigratorElevationClosed(q);
         }
       } finally {
