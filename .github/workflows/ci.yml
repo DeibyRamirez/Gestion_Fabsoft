@@ -195,11 +195,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Aprovisionar migrator + marcador efímero
         run: pnpm --filter @fabsoft/backend db:provision:ci
-      - name: Migraciones y seed
-        run: |
-          pnpm db:migrate
-          pnpm db:roles:dev
-          pnpm db:seed
+      - name: Migraciones
+        run: pnpm db:migrate
+      - name: LOGIN roles runtime (provisioner)
+        run: pnpm db:roles:dev
+      - name: Seed datos de prueba
+        run: pnpm db:seed
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
