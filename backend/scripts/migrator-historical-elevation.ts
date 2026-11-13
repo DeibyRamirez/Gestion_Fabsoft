@@ -251,10 +251,19 @@ export async function assignAuditWriteDefinerOwner(owner: QueryFn): Promise<void
      ) as ok`,
   )) as { rows: { ok: boolean }[] };
   if (!rows[0]?.ok) return;
-  await exec(
-    owner,
-    `alter function app.audit_write(text, text, text, jsonb, text, inet) owner to fabsoft_audit_definer`,
-  );
+  const auditFns = [
+    'app.audit_is_secret_key(text)',
+    'app.audit_allowlist_keys(text)',
+    'app.audit_redact_jsonb(jsonb, text[], boolean)',
+    'app.audit_redact_jsonb_array(jsonb, text[], boolean)',
+    'app.audit_prepare_changes(text, text, jsonb, boolean)',
+    'app.audit_resolve_client_id(text, text)',
+    'app.audit_resource_exists(text, text)',
+    'app.audit_write(text, text, text, jsonb, text, inet)',
+  ];
+  for (const fn of auditFns) {
+    await exec(owner, `alter function ${fn} owner to fabsoft_audit_definer`);
+  }
 }
 
 export async function assertMigratorElevationClosed(owner: QueryFn): Promise<void> {

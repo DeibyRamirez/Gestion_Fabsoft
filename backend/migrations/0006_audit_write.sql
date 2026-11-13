@@ -64,14 +64,14 @@ create unique index if not exists audit_logs_idempotent_uq on app.audit_logs (re
 
 -- Claves sensibles (redacción recursiva).
 create or replace function app.audit_is_secret_key(p_key text) returns boolean
-language sql immutable parallel safe set search_path = pg_catalog as $$
+language sql immutable parallel safe security definer set search_path = pg_catalog as $$
   select lower(p_key) ~ '^(password|password_hash|passwordhash|apikey|api_key|key_hash|keyhash|token|secret|authorization|connection_string|database_url|.*_token)$'
      or lower(p_key) like '%password%'
      or lower(p_key) like '%secret%';
 $$;
 
 create or replace function app.audit_allowlist_keys(p_resource_type text) returns text[]
-language sql immutable parallel safe set search_path = pg_catalog as $$
+language sql immutable parallel safe security definer set search_path = pg_catalog as $$
   select case p_resource_type
     when 'user' then array['email','full_name','role','client_id','status','must_change_password']
     when 'client' then array['legal_name','tax_id','status','owner_user_id','archived_at']
@@ -92,7 +92,7 @@ language sql immutable parallel safe set search_path = pg_catalog as $$
 $$;
 
 create or replace function app.audit_redact_jsonb(p_val jsonb, p_allow text[], p_admin boolean) returns jsonb
-language plpgsql immutable set search_path = pg_catalog as $$
+language plpgsql immutable security definer set search_path = pg_catalog as $$
 declare k text; out jsonb := '{}'::jsonb; v jsonb;
 begin
   if p_val is null or jsonb_typeof(p_val) <> 'object' then
@@ -117,7 +117,7 @@ begin
 end $$;
 
 create or replace function app.audit_redact_jsonb_array(p_val jsonb, p_allow text[], p_admin boolean) returns jsonb
-language plpgsql immutable set search_path = pg_catalog as $$
+language plpgsql immutable security definer set search_path = pg_catalog as $$
 declare i jsonb; out jsonb := '[]'::jsonb;
 begin
   if p_val is null or jsonb_typeof(p_val) <> 'array' then return p_val; end if;
@@ -138,7 +138,7 @@ end $$;
 create or replace function app.audit_prepare_changes(
   p_action text, p_resource_type text, p_changes jsonb, p_admin boolean)
 returns jsonb
-language plpgsql immutable set search_path = app, pg_catalog as $$
+language plpgsql immutable security definer set search_path = app, pg_catalog as $$
 declare ch jsonb; allow text[];
 begin
   if p_changes is null then return null; end if;
@@ -152,7 +152,7 @@ end $$;
 
 create or replace function app.audit_resolve_client_id(p_resource_type text, p_resource_id text)
 returns uuid
-language plpgsql stable security invoker set search_path = app, pg_catalog as $$
+language plpgsql stable security definer set search_path = app, pg_catalog as $$
 declare v uuid;
 begin
   case p_resource_type
@@ -178,7 +178,7 @@ begin
 end $$;
 
 create or replace function app.audit_resource_exists(p_resource_type text, p_resource_id text) returns boolean
-language plpgsql stable security invoker set search_path = app, pg_catalog as $$
+language plpgsql stable security definer set search_path = app, pg_catalog as $$
 begin
   if p_resource_id = 'unknown' then
     return p_resource_type = 'user';

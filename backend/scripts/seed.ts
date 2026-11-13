@@ -300,7 +300,9 @@ try {
       await boot.query(
         `update app.clients set owner_user_id = null, created_by = null, updated_by = null`,
       );
-      await boot.query(`truncate app.users, app.clients, app.products`);
+      await boot.query(
+        `truncate app.refresh_tokens, app.users, app.clients, app.products restart identity cascade`,
+      );
       await boot.query(REINSERT_REFERENCE_SQL);
       await boot.query('commit');
     } finally {
