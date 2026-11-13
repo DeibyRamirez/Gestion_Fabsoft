@@ -84,7 +84,12 @@ export async function captureSchemaAclSnapshot(databaseUrl: string): Promise<Sch
 export function assertSchemaAclParity(
   a: SchemaAclSnapshot,
   b: SchemaAclSnapshot,
-): { relaclDiff: boolean; proaclDiff: boolean } {
+): {
+  relaclDiff: boolean;
+  proaclDiff: boolean;
+  nspaclDiff: boolean;
+  defaultAclDiff: boolean;
+} {
   if (JSON.stringify(a.tableOwners) !== JSON.stringify(b.tableOwners)) {
     throw new Error(
       `Owners de tablas app difieren fresh vs upgrade: ${JSON.stringify({ a: a.tableOwners, b: b.tableOwners })}`,
