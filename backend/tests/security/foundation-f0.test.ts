@@ -13,6 +13,7 @@ import {
 import { assertSameDatabaseInstallation, redactDatabaseUrl } from '../../scripts/database-url.js';
 import { ensureAppPoolRoleVerified, getAppPool, migrationUrl } from '../helpers/db.js';
 import { expectPgError } from './pg-expect.js';
+import { SET_ROLE_TARGETS } from '../../scripts/migrator-historical-elevation.js';
 
 const migratorUrl = process.env.DATABASE_MIGRATION_URL;
 const provisionUrl = process.env.DATABASE_PROVISION_URL ?? process.env.TEST_DATABASE_MIGRATION_URL;
@@ -110,11 +111,81 @@ describe('F0 — migrator (LOGIN directo)', () => {
     await client.connect();
     try {
       await client.query('begin');
-      await expectPgError(client, 'set local role fabsoft_auth_definer', [], '42501');
+      for (const role of SET_ROLE_TARGETS) {
+        await expectPgError(client, `set local role ${role}`, [], '42501');
+      }
       await expectPgError(client, 'grant fabsoft_auth_definer to fabsoft_app', [], '42501');
       await expectPgError(client, `create role f0_evil nologin`, [], '42501');
       await expectPgError(client, 'set local role fabsoft_owner', [], '42501');
       await client.query('rollback');
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('T-F0-11 cierre efímero: migrator sin membresías SET/ADMIN en pg_auth_members', async () => {
+    const client = new pg.Client({ connectionString: migratorUrl! });
+    await client.connect();
+    try {
+      const { rows } = await client.query<{
+        granted_role: string;
+        admin_option: boolean;
+        set_option: boolean;
+      }>(
+        `select granted.rolname::text as granted_role, m.admin_option, m.set_option
+         from pg_catalog.pg_auth_members m
+         join pg_catalog.pg_roles member on member.oid = m.member
+         join pg_catalog.pg_roles granted on granted.oid = m.roleid
+         where member.rolname = 'fabsoft_migrator'`,
+      );
+      expect(rows).toEqual([]);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('T-F0-12 inventario post-migración: owners ACL y app→worker vigente', async () => {
+    const client = new pg.Client({ connectionString: migratorUrl! });
+    await client.connect();
+    try {
+      const fnOwner = async (name: string) => {
+        const { rows } = await client.query<{ owner: string }>(
+          `select pg_catalog.pg_get_userbyid(p.proowner)::text as owner
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'app' and p.proname = $1 limit 1`,
+          [name],
+        );
+        return rows[0]?.owner;
+      };
+      const relOwner = async (name: string) => {
+        const { rows } = await client.query<{ owner: string }>(
+          `select pg_catalog.pg_get_userbyid(c.relowner)::text as owner
+           from pg_class c join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'app' and c.relname = $1 limit 1`,
+          [name],
+        );
+        return rows[0]?.owner;
+      };
+      expect(await fnOwner('auth_password_hash')).toBe('fabsoft_secure_view');
+      expect(await fnOwner('bootstrap_first_admin')).toBe('fabsoft_auth_definer');
+      expect(await relOwner('portal_subscriptions')).toBe('fabsoft_secure_view');
+      const { rows: ns } = await client.query<{ owner: string }>(
+        `select pg_catalog.pg_get_userbyid(nspowner)::text as owner
+         from pg_namespace where nspname = 'pgboss'`,
+      );
+      expect(ns[0]?.owner).toBe('fabsoft_worker');
+      const { rows: workerMember } = await client.query<{ roleid: string }>(
+        `select roleid::regrole::text as roleid from pg_auth_members m
+         join pg_roles r on r.oid = m.member where r.rolname = 'fabsoft_worker'`,
+      );
+      expect(workerMember.map((r) => r.roleid)).toContain('fabsoft_app');
+      const { rows: defAcl } = await client.query<{ defaclrole: string }>(
+        `select pg_catalog.pg_get_userbyid(d.defaclrole)::text as defaclrole
+         from pg_default_acl d
+         join pg_namespace n on n.oid = d.defaclnamespace
+         where n.nspname = 'app' limit 1`,
+      );
+      expect(defAcl.length).toBeGreaterThan(0);
     } finally {
       await client.end();
     }

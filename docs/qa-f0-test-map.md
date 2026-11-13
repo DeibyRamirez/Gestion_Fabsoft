@@ -12,6 +12,8 @@
 | T-F0-08 | Inventario RLS 18 tablas | `foundation-f0.test.ts` |
 | T-F0-09 | Aislamiento A/B (SELECT/INSERT/UPDATE `clients`) | `foundation-f0.test.ts` |
 | T-F0-10 | Objetos `app` sin owner `fabsoft_owner` en tablas | `foundation-f0.test.ts` |
+| T-F0-11 | Cierre elevación: migrator sin `pg_auth_members` | `foundation-f0.test.ts` |
+| T-F0-12 | Inventario owners/ACL tras 0002–5 por migrator | `foundation-f0.test.ts` |
 | T-GUARD-01 | Denylist vacía / `-` rechazada antes de conectar | `guard.test.ts` |
 
 Bootstrap aislado: `fabsoft_owner` / `postgres` sólo en harness; no figura en `RUNTIME_LOGIN_ROLES`.

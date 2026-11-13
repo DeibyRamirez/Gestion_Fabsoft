@@ -1,0 +1,161 @@
+/**
+ * Elevación efímera para aplicar 0002–0005 como fabsoft_migrator (sin SUPERUSER/CREATEROLE)
+ * en bases desechables marcadas por el harness. Los SQL 0001–0005 no se modifican.
+ */
+import type pg from 'pg';
+import { quoteIdent } from './database-url.js';
+
+const MIGRATOR = 'fabsoft_migrator';
+const BOOTSTRAP = 'fabsoft_bootstrap';
+
+/** Roles que 0002–0005 crean condicionalmente; deben existir antes del dbmate del migrador. */
+const STUB_ROLE_DDL: readonly { name: string; sql: string }[] = [
+  {
+    name: 'fabsoft_app',
+    sql: `create role fabsoft_app nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls`,
+  },
+  {
+    name: 'fabsoft_worker',
+    sql: `create role fabsoft_worker nologin nosuperuser nocreatedb nocreaterole inherit nobypassrls`,
+  },
+  {
+    name: 'fabsoft_secure_view',
+    sql: `create role fabsoft_secure_view nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls`,
+  },
+  {
+    name: 'fabsoft_auth_definer',
+    sql: `create role fabsoft_auth_definer nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls`,
+  },
+  {
+    name: 'fabsoft_bootstrap',
+    sql: `create role fabsoft_bootstrap nologin nosuperuser nocreatedb nocreaterole inherit nobypassrls`,
+  },
+];
+
+const SET_ROLE_TARGETS = [
+  'fabsoft_app',
+  'fabsoft_worker',
+  'fabsoft_secure_view',
+  'fabsoft_auth_definer',
+  'fabsoft_bootstrap',
+] as const;
+
+type QueryFn = (sql: string, params?: unknown[]) => Promise<pg.QueryResult>;
+
+export class MigratorElevationError extends Error {
+  readonly statement: string;
+  readonly pgCode: string | undefined;
+  constructor(message: string, statement: string, pgCode?: string) {
+    super(message);
+    this.statement = statement;
+    this.pgCode = pgCode;
+  }
+}
+
+async function exec(owner: QueryFn, statement: string): Promise<void> {
+  try {
+    await owner(statement);
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+    throw new MigratorElevationError(
+      `Elevación migrator falló: ${(err as Error).message}`,
+      statement,
+      code,
+    );
+  }
+}
+
+/** Sólo BD con marcador fabsoft.seed_ephemeral (harness / CI desechable). */
+export async function assertEphemeralDatabase(query: QueryFn): Promise<void> {
+  const { rows } = (await query(
+    `select current_setting('fabsoft.seed_ephemeral', true) as m`,
+  )) as { rows: { m: string | null }[] };
+  const marker = rows[0]?.m?.trim();
+  if (!marker) {
+    throw new Error(
+      '0002–0005 con elevación efímera: la base debe tener fabsoft.seed_ephemeral (BD desechable)',
+    );
+  }
+}
+
+export async function precreateStubRoles(owner: QueryFn): Promise<void> {
+  for (const stub of STUB_ROLE_DDL) {
+    const { rows } = (await owner(
+      `select exists(select 1 from pg_catalog.pg_roles where rolname = $1) as exists`,
+      [stub.name],
+    )) as { rows: { exists: boolean }[] };
+    if (rows[0]?.exists) continue;
+    await exec(owner, stub.sql);
+  }
+}
+
+/** Membresías y CREATE temporales para que el migrador ejecute 0002–0005 sin CREATEROLE. */
+export async function elevateMigratorForHistoricalMigrations(
+  owner: QueryFn,
+  databaseName: string,
+): Promise<void> {
+  const db = quoteIdent(databaseName);
+  await exec(owner, `grant create on database ${db} to ${quoteIdent(MIGRATOR)} with grant option`);
+  await exec(
+    owner,
+    `grant ${quoteIdent('fabsoft_worker')} to ${quoteIdent(MIGRATOR)} with inherit true, set true`,
+  );
+  await exec(
+    owner,
+    `grant ${quoteIdent('fabsoft_secure_view')} to ${quoteIdent(MIGRATOR)} with inherit false, set true`,
+  );
+  await exec(
+    owner,
+    `grant ${quoteIdent('fabsoft_auth_definer')} to ${quoteIdent(MIGRATOR)} with inherit false, set true`,
+  );
+  await exec(
+    owner,
+    `grant ${quoteIdent('fabsoft_app')} to ${quoteIdent(MIGRATOR)} with inherit false, set true, admin true`,
+  );
+}
+
+/**
+ * Cierre administrativo (provisioner, no migrator): re-emite app→worker y retira la elevación.
+ * fabsoft_bootstrap no ejecuta 0002–0005; permanece aislado como rol de arranque.
+ */
+export async function revokeMigratorHistoricalElevation(
+  owner: QueryFn,
+  databaseName: string,
+): Promise<void> {
+  const db = quoteIdent(databaseName);
+  await exec(owner, `grant ${quoteIdent('fabsoft_app')} to ${quoteIdent('fabsoft_worker')}`);
+  await exec(owner, `revoke ${quoteIdent('fabsoft_worker')} from ${quoteIdent(MIGRATOR)}`);
+  await exec(owner, `revoke ${quoteIdent('fabsoft_secure_view')} from ${quoteIdent(MIGRATOR)}`);
+  await exec(owner, `revoke ${quoteIdent('fabsoft_auth_definer')} from ${quoteIdent(MIGRATOR)}`);
+  await exec(owner, `revoke ${quoteIdent('fabsoft_app')} from ${quoteIdent(MIGRATOR)}`);
+  await exec(owner, `revoke grant option for create on database ${db} from ${quoteIdent(MIGRATOR)}`);
+  await exec(owner, `revoke create on database ${db} from ${quoteIdent(MIGRATOR)}`);
+}
+
+export async function assertMigratorElevationClosed(owner: QueryFn): Promise<void> {
+  const { rows } = (await owner(
+    `select granted.rolname::text as granted_role, m.admin_option, m.set_option
+     from pg_catalog.pg_auth_members m
+     join pg_catalog.pg_roles member on member.oid = m.member
+     join pg_catalog.pg_roles granted on granted.oid = m.roleid
+     where member.rolname = $1`,
+    [MIGRATOR],
+  )) as {
+    rows: { granted_role: string; admin_option: boolean; set_option: boolean }[];
+  };
+  if (rows.length > 0) {
+    throw new Error(
+      `Migrator conserva membresías tras cierre efímero: ${JSON.stringify(rows)}`,
+    );
+  }
+  const { rows: privs } = (await owner(
+    `select rolname, rolcreatedb, rolcreaterole from pg_roles where rolname = $1`,
+    [MIGRATOR],
+  )) as { rows: { rolname: string; rolcreatedb: boolean; rolcreaterole: boolean }[] };
+  const m = privs[0];
+  if (!m || m.rolcreaterole || m.rolcreatedb) {
+    throw new Error(`Atributos inesperados en migrator tras cierre: ${JSON.stringify(m)}`);
+  }
+}
+
+export { SET_ROLE_TARGETS, STUB_ROLE_DDL, MIGRATOR, BOOTSTRAP };

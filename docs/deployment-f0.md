@@ -1,6 +1,6 @@
 # Sprint1 · Foundation F0 — Aprovisionamiento y migraciones
 
-> Corte acordado Dev/Seguridad: migrator LOGIN **sin** superusuario conectado **directamente** a **todas** las migraciones `0001`–`0005`; provisioner administrativo **mínimo** (roles stub + membresías sin `ADMIN OPTION`); runtime (`fabsoft_app`) sin DDL ni escalación. No incluye `audit_write` ni cierre de HU-08.
+> Corte acordado Dev/Seguridad: migrator LOGIN **sin** superusuario ejecuta `0001`–`0005` en BD **desechable** (`0002`–`0005` con elevación efímera administrada por el provisioner); runtime (`fabsoft_app`) sin DDL ni escalación. No incluye `audit_write` ni cierre de HU-08.
 
 ## URLs por capa
 
@@ -33,14 +33,14 @@ pnpm test:security
 
 ## Bootstrap administrativo mínimo (honesto)
 
-El provisioner **no** pre-crea roles stub. Crea `fabsoft_migrator` restringido (`NOCREATEROLE`, sin `ADMIN OPTION`).
+El provisioner crea `fabsoft_migrator` restringido (`NOCREATEROLE`) y, **sólo en BD efímera**, pre-crea roles stub + eleva/retira membresías temporales (`migrator-historical-elevation.ts`). `fabsoft_bootstrap` no ejecuta `0002`–`0005`.
 
 **SQL histórico congelado (quién ejecuta cada tramo):**
 
 | Migraciones | Ejecutor (conexión directa) | Script |
 | --- | --- | --- |
 | `0001_schema.sql` | `fabsoft_migrator` | `dbmate-staged-up.ts` (etapa migrator) |
-| `0002`–`0005` | `fabsoft_owner` vía `DATABASE_PROVISION_URL` | `dbmate-staged-up.ts` (etapa provisioner) |
+| `0002`–`0005` | `fabsoft_migrator` (elevación efímera: owner eleva → dbmate → owner cierra) | `dbmate-staged-up.ts` + `migrator-historical-elevation.ts` |
 | `0006+` (futuro) | `fabsoft_migrator` | `dbmate-staged-up.ts` (etapa future) |
 
 **Upgrade develop:** `fabsoft_owner` aplica la cadena `0001`–`0005` completa (como en `develop`); después `fabsoft_migrator` corre `dbmate-staged-up` (reconcilia ownership/grants de `app` siempre, no sólo con migraciones pendientes) y ejecuta `app.assert_rls_everywhere()` conectado como migrator.
@@ -51,7 +51,7 @@ Requiere `APP_ENV` (`dev`|`test` únicamente), listas `SEED_ALLOWED_*`, `SEED_FO
 
 ## Limitaciones documentadas
 
-- Event trigger `fabsoft_enforce_rls` (0003) sólo si el ejecutor es superusuario; con `fabsoft_migrator` la red de seguridad es `app.assert_rls_everywhere()` en migraciones y CI.
+- Event trigger `fabsoft_enforce_rls` (0003) sólo si el ejecutor es superusuario; con migrator sin superusuario el bloque `do $$ … rolsuper` emite NOTICE y **no** crea el event trigger (red de seguridad: `app.assert_rls_everywhere()` en CI). No es bypass silencioso: sentencia exacta en `0003_security_hardening.sql` líneas 73–82.
 - `ON CONFLICT DO NOTHING` en seed no reconcilia fixtures incompletos.
 - No se validó Supabase gestionado en este corte.
 

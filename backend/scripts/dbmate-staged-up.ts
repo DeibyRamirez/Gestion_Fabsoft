@@ -1,7 +1,8 @@
 /**
  * Migraciones históricas 0001–0005:
  *   0001: fabsoft_migrator (LOGIN directo)
- *   0002–0005: provisioner (CREATE ROLE / ALTER OWNER en SQL congelado; sin SET ROLE desde migrator)
+ *   0002–0005: fabsoft_migrator con elevación efímera (stub roles + membresías/CREATE temporales;
+ *             sólo BD desechable). Provisioner ejecuta elevate/teardown, no dbmate.
  * Migraciones nuevas (0006+): sólo migrator (lista dinámica).
  */
 import { copyFile, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
@@ -17,6 +18,13 @@ import {
   quoteIdent,
   redactDatabaseUrl,
 } from './database-url.js';
+import {
+  assertEphemeralDatabase,
+  assertMigratorElevationClosed,
+  elevateMigratorForHistoricalMigrations,
+  precreateStubRoles,
+  revokeMigratorHistoricalElevation,
+} from './migrator-historical-elevation.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATOR = 'fabsoft_migrator';
@@ -221,7 +229,27 @@ try {
   if (provisioner.length > 0) {
     const dirP = join(tmpBase, 'provisioner');
     await copyFiles(provisioner, dirP);
-    runDbmate(provisionUrlForMigratorDb(), dirP);
+    const pendingHistorical = await pendingMigrationVersions(migratorUrl, provisioner);
+    if (pendingHistorical.length > 0) {
+      const dbName = parseDatabaseTarget(migratorUrl).database;
+      const ownerConn = provisionUrlForMigratorDb();
+      const owner = new pg.Client({ connectionString: ownerConn });
+      await owner.connect();
+      try {
+        const q = (sql: string, params?: unknown[]) => owner.query(sql, params);
+        await assertEphemeralDatabase(q);
+        await precreateStubRoles(q);
+        await elevateMigratorForHistoricalMigrations(q, dbName);
+        try {
+          runDbmate(migratorUrl, dirP);
+        } finally {
+          await revokeMigratorHistoricalElevation(q, dbName);
+          await assertMigratorElevationClosed(q);
+        }
+      } finally {
+        await owner.end();
+      }
+    }
   }
   if (future.length > 0) {
     const dirF = join(tmpBase, 'future');
