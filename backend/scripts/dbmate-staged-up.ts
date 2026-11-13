@@ -271,6 +271,11 @@ try {
             const still = await pendingMigrationVersions(migratorUrl, [f]);
             if (still.length === 0) continue;
             await repairMigratorSchemaPrivileges(q);
+            if (f === '0006_audit_write.sql') {
+              await q(
+                `grant usage, create on schema app to ${quoteIdent(MIGRATOR)} with grant option`,
+              );
+            }
             const dirOne = join(tmpBase, `provisioner-${f.replace(/\.sql$/, '')}`);
             await mkdir(dirOne, { recursive: true });
             await copyFiles([f], dirOne);

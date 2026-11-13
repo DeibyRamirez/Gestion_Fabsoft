@@ -195,7 +195,7 @@ export async function elevateMigratorForHistoricalMigrations(
   );
   await exec(
     owner,
-    `grant ${quoteIdent('fabsoft_audit_definer')} to ${quoteIdent(MIGRATOR)} with inherit false, set true`,
+    `grant ${quoteIdent('fabsoft_audit_definer')} to ${quoteIdent(MIGRATOR)} with inherit false, set true, admin true`,
   );
   await exec(
     owner,
