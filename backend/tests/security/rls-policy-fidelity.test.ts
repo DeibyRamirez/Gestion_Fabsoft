@@ -30,7 +30,7 @@ describe.skipIf(!url)('RLS — fidelidad exacta a develop (app)', () => {
     }
   });
 
-  it('regresión: subscriptions_select OR true rompe fidelidad', async () => {
+  it('regresión: subscriptions_select USING (false OR true) rompe fidelidad', async () => {
     const c = new pg.Client({ connectionString: url! });
     await c.connect();
     try {
@@ -40,7 +40,7 @@ describe.skipIf(!url)('RLS — fidelidad exacta a develop (app)', () => {
       );
       await c.query(`drop policy if exists subscriptions_select on app.subscriptions`);
       await c.query(
-        `create policy subscriptions_select on app.subscriptions for select to fabsoft_app using (true)`,
+        `create policy subscriptions_select on app.subscriptions for select to fabsoft_app using (false OR true)`,
       );
       const live = await fetchAppSchemaPolicies(c);
       expect(() => assertAppPoliciesMatchDevelopSnapshot(live)).toThrow(/no coincide|falta política|qual/);

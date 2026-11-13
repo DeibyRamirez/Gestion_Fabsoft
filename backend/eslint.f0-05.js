@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const backendRoot = path.dirname(fileURLToPath(import.meta.url));
 
+const fixtureLint = process.env.T_F0_05_FIXTURE_LINT === '1';
+
 const OWNER_ALLOWLIST = [
   'tests/helpers/owner-system.ts',
   'tests/helpers/db.ts',
@@ -26,9 +28,10 @@ const ownerImportPaths = [
   },
 ];
 
+/** Rutas relativas (p. ej. ./db.js) no casan solo con helpers/db; incluir sufijos db. */
 const poolImportPatterns = [
   {
-    group: ['**/helpers/db', '**/helpers/db.js'],
+    group: ['**/db', '**/db.js', '**/helpers/db', '**/helpers/db.js'],
     importNames: ['getOwnerPool'],
     message: 'T-F0-05: getOwnerPool fuera de allowlist (usar fabsoft_app / API).',
   },
@@ -55,25 +58,62 @@ const nonLiteralDynamicImport = [
   },
 ];
 
-const ownerBypassInSource = [
+const ownerImportExpressionSyntax = [
   {
-    selector: 'ImportDeclaration[source.value=/owner-system/]',
-    message: 'T-F0-05: no import owner-system.',
+    selector: 'ImportExpression[source.value=/owner-system/]',
+    message: 'T-F0-05: import() hacia owner-system prohibido fuera de allowlist.',
   },
+];
+
+const dbModuleImportSpecifier = [
   {
     selector:
-      'ImportDeclaration[source.value=/helpers\\/db/] ImportSpecifier[imported.name="getOwnerPool"]',
-    message: 'T-F0-05: no import getOwnerPool.',
+      'ImportDeclaration[source.value=/^(?:\\.\\.\\/|\\.)?(?:.*\\/)?db(?:\\.js)?$/] ImportSpecifier[imported.name="getOwnerPool"], ImportDeclaration[source.value=/helpers\\/db/] ImportSpecifier[imported.name="getOwnerPool"]',
+    message: 'T-F0-05: no import getOwnerPool desde módulo db.',
   },
-  ...reexportOwnerSyntax,
+];
+
+const getOwnerPoolUsageSyntax = [
   {
     selector: 'Identifier[name="getOwnerPool"]',
     message: 'T-F0-05: no usar getOwnerPool.',
   },
   {
+    selector: 'MemberExpression[property.name="getOwnerPool"]',
+    message: 'T-F0-05: no acceder getOwnerPool en módulo db.',
+  },
+  {
+    selector:
+      'MemberExpression[computed=true][property.type="BinaryExpression"] Literal[value="getOwner"], MemberExpression[computed=true][property.type="BinaryExpression"] Literal[value="Pool"]',
+    message: 'T-F0-05: getOwnerPool vía clave computada en módulo db.',
+  },
+  {
+    selector: 'MemberExpression[computed=true][object.name="db"]',
+    message: 'T-F0-05: acceso computado al namespace del módulo db.',
+  },
+];
+
+const ownerBypassInSource = [
+  {
+    selector: 'ImportDeclaration[source.value=/owner-system/]',
+    message: 'T-F0-05: no import owner-system.',
+  },
+  ...dbModuleImportSpecifier,
+  ...reexportOwnerSyntax,
+  {
     selector: 'Identifier[name="withOwnerSystemContext"]',
     message: 'T-F0-05: no usar withOwnerSystemContext.',
   },
+  ...getOwnerPoolUsageSyntax,
+  ...ownerImportExpressionSyntax,
+  ...nonLiteralDynamicImport,
+];
+
+const helperFixtureSyntax = [
+  ...reexportOwnerSyntax,
+  ...dbModuleImportSpecifier,
+  ...getOwnerPoolUsageSyntax,
+  ...ownerImportExpressionSyntax,
   ...nonLiteralDynamicImport,
 ];
 
@@ -81,25 +121,14 @@ const allowlistRel = OWNER_ALLOWLIST.map((abs) =>
   path.relative(backendRoot, abs).replace(/\\/g, '/'),
 );
 
-/** Reglas aplicadas a fixtures T-F0-05 bajo lint explícito (--config eslint.t-f0-05-fixtures.config.js). */
-export const f0FixtureLintBlock = {
-  files: ['**/*.{ts,tsx}'],
-  rules: {
-    'no-restricted-imports': [
-      'error',
-      {
-        patterns: [...ownerImportPatterns, ...poolImportPatterns],
-        paths: ownerImportPaths,
-      },
-    ],
-    'no-restricted-syntax': ['error', ...ownerBypassInSource, ...reexportOwnerSyntax],
-  },
-};
+const eslintIgnores = fixtureLint
+  ? ['tests/eslint-fixtures/**', '!tests/eslint-fixtures/t-f0-05/**']
+  : ['tests/eslint-fixtures/**'];
 
 /** @type {import('eslint').Linter.Config[]} */
 export const f0TestOwnerBypassRules = [
   {
-    ignores: ['tests/eslint-fixtures/**'],
+    ignores: eslintIgnores,
   },
   {
     files: ['tests/{security,api,integration}/**/*.{ts,tsx}'],
@@ -115,29 +144,30 @@ export const f0TestOwnerBypassRules = [
     },
   },
   {
-    files: ['tests/helpers/**/*.ts'],
-    ignores: OWNER_ALLOWLIST.map((abs) => path.relative(backendRoot, abs)),
+    files: ['tests/helpers/**/*.ts', 'tests/fixtures/**/*.ts'],
+    ignores: allowlistRel,
     rules: {
       'no-restricted-imports': [
         'error',
         { patterns: [...ownerImportPatterns, ...poolImportPatterns] },
       ],
-      'no-restricted-syntax': [
-        'error',
-        ...reexportOwnerSyntax,
-        {
-          selector:
-            'ImportDeclaration[source.value=/helpers\\/db/] ImportSpecifier[imported.name="getOwnerPool"]',
-          message: 'T-F0-05: helper no debe importar getOwnerPool.',
-        },
-        {
-          selector: 'Identifier[name="getOwnerPool"]',
-          message: 'T-F0-05: helper no debe usar getOwnerPool.',
-        },
-        ...nonLiteralDynamicImport,
-      ],
+      'no-restricted-syntax': ['error', ...helperFixtureSyntax],
     },
   },
+  ...(fixtureLint
+    ? [
+        {
+          files: ['tests/eslint-fixtures/t-f0-05/**/*.{ts,tsx}'],
+          rules: {
+            'no-restricted-imports': [
+              'error',
+              { patterns: [...ownerImportPatterns, ...poolImportPatterns] },
+            ],
+            'no-restricted-syntax': ['error', ...helperFixtureSyntax],
+          },
+        },
+      ]
+    : []),
   {
     files: allowlistRel,
     rules: {

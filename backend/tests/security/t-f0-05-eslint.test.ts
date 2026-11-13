@@ -1,5 +1,5 @@
 /**
- * T-F0-05 mutaciones ESLint: los 3 patrones PO deben reportar error de lint.
+ * T-F0-05 mutaciones ESLint: patrones PO deben reportar error (config real del repo).
  */
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +14,7 @@ function eslintOn(file: string): { status: number | null; out: string } {
       'exec',
       'eslint',
       '--config',
-      'eslint.t-f0-05-fixtures.config.js',
+      'eslint.config.js',
       file,
       '--no-ignore',
       '--max-warnings',
@@ -23,6 +23,7 @@ function eslintOn(file: string): { status: number | null; out: string } {
     {
       cwd: backendRoot,
       encoding: 'utf8',
+      env: { ...process.env, T_F0_05_FIXTURE_LINT: '1' },
     },
   );
   return { status: run.status, out: `${run.stdout}\n${run.stderr}` };
@@ -35,9 +36,19 @@ const fixtures = [
     pattern: /T-F0-05|owner-system|re-export/i,
   },
   {
-    label: 'helper con getOwnerPool',
+    label: 'helper con getOwnerPool import',
     file: 'tests/eslint-fixtures/t-f0-05/bad-helper-owner-pool.ts',
     pattern: /T-F0-05|getOwnerPool/i,
+  },
+  {
+    label: "db['getOwner'+'Pool'] en helper",
+    file: 'tests/eslint-fixtures/t-f0-05/bad-helper-computed-pool.ts',
+    pattern: /T-F0-05|computad|getOwnerPool/i,
+  },
+  {
+    label: 'helper envuelve import() literal owner-system',
+    file: 'tests/eslint-fixtures/t-f0-05/bad-helper-owner-dynamic-import.ts',
+    pattern: /T-F0-05|owner-system|import\(\)/i,
   },
   {
     label: 'import() no literal en test',

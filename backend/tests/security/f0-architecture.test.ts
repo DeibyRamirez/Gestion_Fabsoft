@@ -5,23 +5,21 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import {
-  detectsOwnerBypassInTestSource,
-  hasNonLiteralDynamicImport,
-} from '../helpers/owner-bypass-detector.js';
+import { detectsOwnerBypassInTestSource } from '../helpers/owner-bypass-detector.js';
 
 const testsRoot = fileURLToPath(new URL('..', import.meta.url));
 
-const SCAN_DIRS = ['security', 'api', 'integration'] as const;
+const SCAN_TEST_DIRS = ['security', 'api', 'integration'] as const;
 
-const OWNER_SYSTEM_ALLOWLIST = new Set([
-  'fixtures/factories.ts',
-  'helpers/owner-bypass-detector.ts',
+const HELPER_FIXTURE_ALLOWLIST = new Set([
   'helpers/owner-system.ts',
   'helpers/db.ts',
+  'helpers/owner-bypass-detector.ts',
+  'fixtures/factories.ts',
 ]);
 
 const OWNER_SYSTEM_MODULE = /helpers\/owner-system(?:\.js|\.ts)?['"]/;
+const EXPORT_STAR_OWNER = /export\s+\*\s+from\s+['"][^'"]*owner-system[^'"]*['"]/;
 
 function collectTestFiles(dir: string): string[] {
   const out: string[] = [];
@@ -40,40 +38,31 @@ function collectTestFiles(dir: string): string[] {
   return out;
 }
 
-describe('F0 — arquitectura tests (sin bypass owner)', () => {
-  const poMutations: { label: string; body: string }[] = [
-    {
-      label: '(1) re-export símbolo owner-system con alias en helper',
-      body: `export { withOwnerSystemContext as ctx } from '../helpers/owner-system.js';`,
-    },
-    {
-      label: '(2) helper fuera de allowlist con getOwnerPool',
-      body: `import { getOwnerPool } from './db.js';\nexport const x = () => getOwnerPool();`,
-    },
-    {
-      label: '(2b) import() con clave computada hacia owner',
-      body: `const k = 'owner-system.js';\nawait import(\`../helpers/\${k}\`);`,
-    },
-    {
-      label: '(3) import() no literal en test',
-      body: `const p = '../helpers/' + 'owner-system.js';\nconst m = await import(p);`,
-    },
-  ];
-
-  for (const ev of poMutations) {
-    it(`T-F0-05 mutación QA: ${ev.label}`, () => {
-      const nonLiteral = hasNonLiteralDynamicImport(ev.body);
-      const bypass = detectsOwnerBypassInTestSource(ev.body);
-      expect(bypass || nonLiteral).toBe(true);
-      if (ev.label.includes('import()') || ev.label.includes('clave computada')) {
-        expect(nonLiteral).toBe(true);
+function collectHelperAndFixtureSources(): { rel: string; body: string }[] {
+  const out: { rel: string; body: string }[] = [];
+  for (const sub of ['helpers', 'fixtures'] as const) {
+    const dir = join(testsRoot, sub);
+    function walk(current: string, relPrefix: string): void {
+      for (const name of readdirSync(current)) {
+        const full = join(current, name);
+        const rel = `${relPrefix}/${name}`;
+        if (statSync(full).isDirectory()) {
+          walk(full, rel);
+          continue;
+        }
+        if (!name.endsWith('.ts') || rel === 'helpers/owner-bypass-detector.ts') continue;
+        out.push({ rel, body: readFileSync(full, 'utf8') });
       }
-    });
+    }
+    walk(dir, sub);
   }
+  return out;
+}
 
+describe('F0 — arquitectura tests (sin bypass owner)', () => {
   it('T-F0-05 ningún *.test.ts en security/api/integration referencia bypass owner', () => {
     const offenders: string[] = [];
-    for (const sub of SCAN_DIRS) {
+    for (const sub of SCAN_TEST_DIRS) {
       const dir = join(testsRoot, sub);
       for (const file of collectTestFiles(dir)) {
         const body = readFileSync(file, 'utf8');
@@ -81,6 +70,24 @@ describe('F0 — arquitectura tests (sin bypass owner)', () => {
           offenders.push(relative(testsRoot, file));
         }
       }
+    }
+    expect(offenders, offenders.join(', ')).toEqual([]);
+  });
+
+  it('T-F0-05 helpers/fixtures reales sin bypass (scan directorio)', () => {
+    const offenders: string[] = [];
+    for (const { rel, body } of collectHelperAndFixtureSources()) {
+      if (HELPER_FIXTURE_ALLOWLIST.has(rel)) continue;
+      if (detectsOwnerBypassInTestSource(body)) offenders.push(rel);
+    }
+    expect(offenders, offenders.join(', ')).toEqual([]);
+  });
+
+  it('T-F0-05 export * desde owner-system en helper da ROJO (respaldo)', () => {
+    const offenders: string[] = [];
+    for (const { rel, body } of collectHelperAndFixtureSources()) {
+      if (HELPER_FIXTURE_ALLOWLIST.has(rel)) continue;
+      if (EXPORT_STAR_OWNER.test(body)) offenders.push(rel);
     }
     expect(offenders, offenders.join(', ')).toEqual([]);
   });
@@ -95,15 +102,14 @@ describe('F0 — arquitectura tests (sin bypass owner)', () => {
           if (relPath === 'eslint-fixtures') continue;
           walk(full, relPath);
           continue;
-        }
-        else if (
+        } else if (
           name.endsWith('.ts') &&
           !name.endsWith('.test.ts') &&
           relPath !== 'security/f0-architecture.test.ts' &&
           relPath !== 'helpers/owner-bypass-detector.ts' &&
           OWNER_SYSTEM_MODULE.test(readFileSync(full, 'utf8'))
         ) {
-          if (!OWNER_SYSTEM_ALLOWLIST.has(relPath)) offenders.push(relPath);
+          if (!HELPER_FIXTURE_ALLOWLIST.has(relPath)) offenders.push(relPath);
         }
       }
     }

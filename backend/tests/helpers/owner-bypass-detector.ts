@@ -4,6 +4,8 @@
 const OWNER_SYSTEM_PATH = /owner-system(?:\.js|\.ts)?/;
 const WITH_OWNER = /\bwithOwnerSystemContext\b/;
 const GET_OWNER_POOL = /\bgetOwnerPool\b/;
+const COMPUTED_OWNER_POOL =
+  /\[\s*['"]getOwner['"]\s*\+\s*['"]Pool['"]\s*\]|\[\s*['"]getOwnerPool['"]\s*\]/;
 
 function referencesOwnerSystemModule(body: string): boolean {
   if (OWNER_SYSTEM_PATH.test(body)) return true;
@@ -32,6 +34,7 @@ export function hasNonLiteralDynamicImport(body: string): boolean {
 
 export function detectsOwnerBypassInTestSource(body: string): boolean {
   if (GET_OWNER_POOL.test(body)) return true;
+  if (COMPUTED_OWNER_POOL.test(body)) return true;
   if (referencesOwnerSystemModule(body)) return true;
   if (WITH_OWNER.test(body)) return true;
   if (hasNonLiteralDynamicImport(body)) return true;

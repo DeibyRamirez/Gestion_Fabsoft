@@ -53,7 +53,7 @@ export async function fetchAppSchemaPolicies(client: SqlClient): Promise<AppPoli
             pg_get_expr(p.polqual, p.polrelid) as qual,
             pg_get_expr(p.polwithcheck, p.polrelid) as with_check,
             coalesce(
-              (select array_agg(r.rolname order by r.rolname)
+              (select array_agg(r.rolname::text order by r.rolname::text)::text[]
                from unnest(p.polroles) u(oid)
                join pg_roles r on r.oid = u.oid),
               '{}'::text[]
