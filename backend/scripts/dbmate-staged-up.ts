@@ -226,8 +226,6 @@ try {
     runDbmate(migratorUrl, dir1);
   }
   if (provisioner.length > 0) {
-    const dirP = join(tmpBase, 'provisioner');
-    await copyFiles(provisioner, dirP);
     const pendingHistorical = await pendingMigrationVersions(migratorUrl, provisioner);
     if (pendingHistorical.length > 0) {
       const dbName = parseDatabaseTarget(migratorUrl).database;
@@ -239,9 +237,16 @@ try {
         await assertEphemeralDatabase(q);
         await precreateStubRoles(q);
         await elevateMigratorForHistoricalMigrations(q, dbName);
-        await repairMigratorSchemaPrivileges(q);
         try {
-          runDbmate(migratorUrl, dirP);
+          for (const f of provisioner) {
+            const still = await pendingMigrationVersions(migratorUrl, [f]);
+            if (still.length === 0) continue;
+            await repairMigratorSchemaPrivileges(q);
+            const dirOne = join(tmpBase, `provisioner-${f.replace(/\.sql$/, '')}`);
+            await mkdir(dirOne, { recursive: true });
+            await copyFiles([f], dirOne);
+            runDbmate(migratorUrl, dirOne);
+          }
         } finally {
           await revokeMigratorHistoricalElevation(q, dbName);
           await repairMigratorSchemaPrivileges(q);
