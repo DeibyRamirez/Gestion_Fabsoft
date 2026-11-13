@@ -76,3 +76,4 @@ No es la fuente de avance. Workspace objetivo `1600300000002171`, lista `1600300
 - 2026-11-04 — HU-05 backend productos. API `GET/POST/PATCH /api/v1/products`, dominio/aplicación/infra PG, Zod en `@fabsoft/shared`, tests unitarios + `products.db.test.ts` + `T-RN02-01`; e2e products sigue en fixme.
 - 2026-11-04 — HU-05 seguimiento QA. Contratos AJV (`product-schema`, `additionalProperties`), mapa `STATUS_BY_CODE`, `T-HU05-04` desactivar, `T-RN14-01` DELETE en `app.products`; sin cambios en migraciones.
 - 2026-11-08 — Sprint1 Foundation F0. Rol `fabsoft_migrator` (LOGIN, no superusuario) vía harness de aprovisionamiento; URLs provision/migrate/runtime; seed fail-closed; pruebas fresh+upgrade y runtime en CI.
+- 2026-11-13 — PR #15 ronda 3 QA/Seguridad. Seed con `fabsoft_seed_writer` + RLS (sin `SEED_ALLOW_HARNESS_SUPERUSER`); denylist/URL fail-closed; reconcile migrator siempre; harness `finally`; mapa `docs/qa-f0-test-map.md`.
