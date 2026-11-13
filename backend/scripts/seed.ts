@@ -7,7 +7,11 @@
  */
 import pg from 'pg';
 import { Argon2PasswordHasher } from '../src/infrastructure/security/argon2-password-hasher.js';
-import { assertSeedConfiguration, assertSeedSession, resolveGuardedDatabaseUrl } from './guard.js';
+import {
+  assertSeedConfiguration,
+  assertSeedResetProvisionerTarget,
+  assertSeedSession,
+} from './guard.js';
 import { normalizeDatabaseUrl, redactDatabaseUrl } from './database-url.js';
 
 const seedConfig = assertSeedConfiguration();
@@ -267,21 +271,17 @@ try {
     [U.admin],
   );
   if (reset) {
-    const { url: provisionUrl } = resolveGuardedDatabaseUrl(['DATABASE_PROVISION_URL'], {
-      allowUsers: ['fabsoft_owner', 'postgres', 'fabsoft_provisioner'],
-    });
+    const provisionUrl = await assertSeedResetProvisionerTarget(seedConfig);
     const boot = new pg.Client({ connectionString: normalizeDatabaseUrl(provisionUrl) });
     await boot.connect();
     try {
       await boot.query('begin');
-      await boot.query(`set local session_replication_role = replica`);
       await boot.query(`truncate app.tasks, app.renewal_requests, app.subscription_periods, app.subscriptions, app.client_notes,
         app.client_contacts, app.refresh_tokens, app.idempotency_keys, app.notifications, app.audit_logs restart identity cascade`);
       await boot.query(
         `update app.clients set owner_user_id = null, created_by = null, updated_by = null`,
       );
       await boot.query(`truncate app.users, app.clients, app.products cascade`);
-      await boot.query(`set local session_replication_role = origin`);
       await boot.query('commit');
     } finally {
       await boot.end();

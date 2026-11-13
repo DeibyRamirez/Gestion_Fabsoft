@@ -37,7 +37,26 @@ El provisioner crea `fabsoft_migrator` restringido (`NOCREATEROLE`) y, **sólo e
 
 `dbmate-staged-up.ts` rechaza `DATABASE_MIGRATION_URL` distinto de `fabsoft_migrator` o con `SUPERUSER`/`BYPASSRLS`.
 
-Paridad fresh/upgrade en `db:provision:foundation`: owners de tablas + líneas `aclexplode` (nsp/rel/pro/typ/default, sin grantor ni filas del owner). **Única asimetría permitida:** event trigger `fabsoft_enforce_rls` presente sólo en upgrade histórico con superusuario.
+Paridad fresh/upgrade en `db:provision:foundation`: owners de tablas + líneas `aclexplode` (nsp, rel, **att**, pro con **firma**, typ, `pg_default_acl` con **defaclrole** y entradas **globales** `defaclnamespace=0`), sin grantor ni filas concedidas a `fabsoft_owner` en rutas upgrade. **Única asimetría permitida:** event trigger `fabsoft_enforce_rls` en upgrade histórico con superusuario. Mutaciones M2–M4 en `acl-parity-mutation.test.ts` deben romper la paridad.
+
+`dbmate-staged-up.ts` **no** reasigna objetos `fabsoft_owner`→migrator; sólo elevación efímera 0002–0005, `repairHistoricalMigrationGrants`, `assertNoFabsoftOwnerInApp`, gate SECURITY DEFINER sin EXECUTE a PUBLIC, y `assert_rls_everywhere()`. La reconciliación de ownership es **explícita** (abajo).
+
+### Reconcile owner → migrator (upgrade real)
+
+Cuando una BD instalada con `fabsoft_owner` aplicó `0001`–`0005` completa (ruta develop histórica):
+
+```bash
+export DATABASE_PROVISION_URL='postgres://fabsoft_owner@.../MI_BD?sslmode=disable'
+export DATABASE_MIGRATION_URL='postgres://fabsoft_migrator@.../MI_BD?sslmode=disable'
+pnpm --filter @fabsoft/backend db:reconcile:owner-to-migrator
+pnpm db:migrate   # valida que no queden objetos app de fabsoft_owner
+```
+
+`reconcileFabsoftOwnerAppObjectsToMigrator` reasigna schema/tablas/vistas/secuencias/funciones/tipos, reaplica grants idempotentes, revoca `CREATE ON DATABASE` al migrator y falla cerrado si la BD no es la del harness seed cuando aplica. CI: `db:provision:develop-upgrade` ejecuta la misma ruta en BD efímera antes de migrar como migrator.
+
+### Migraciones `0006+` (regla PO)
+
+En SQL nuevo: **REVOKE/GRANT antes de ALTER OWNER**; si el dueño cambia, el provisioner debe poder repetir grants en teardown (patrón `repairHistoricalMigrationGrants`). Al final de `db:migrate`: cero funciones `SECURITY DEFINER` en `app` con `EXECUTE` para `PUBLIC`.
 
 **SQL histórico congelado (quién ejecuta cada tramo):**
 
@@ -47,11 +66,13 @@ Paridad fresh/upgrade en `db:provision:foundation`: owners de tablas + líneas `
 | `0002`–`0005` | `fabsoft_migrator` (elevación efímera: owner eleva → dbmate → owner cierra) | `dbmate-staged-up.ts` + `migrator-historical-elevation.ts` |
 | `0006+` (futuro) | `fabsoft_migrator` | `dbmate-staged-up.ts` (etapa future) |
 
-**Upgrade develop:** `fabsoft_owner` aplica la cadena `0001`–`0005` completa (como en `develop`); después `fabsoft_migrator` corre `dbmate-staged-up` (reconcilia ownership/grants de `app` siempre, no sólo con migraciones pendientes) y ejecuta `app.assert_rls_everywhere()` conectado como migrator.
+**Upgrade develop:** `fabsoft_owner` aplica `0001`–`0005`; **`db:reconcile:owner-to-migrator`** (o perfil `develop-historical-upgrade`); después `fabsoft_migrator` en `dbmate-staged-up` (inventario + gates, no ownership reconcile).
 
 ## Seed endurecido
 
 Requiere `APP_ENV` (`dev`|`test` únicamente), listas `SEED_ALLOWED_*`, `SEED_FORBIDDEN_HOSTS` no vacía (sin `-`), `SEED_EPHEMERAL_MARKER`, `SEED_HARNESS_RUN_ID`, rol `fabsoft_seed_writer` (`SEED_SESSION_ROLE`) y coincidencia de `fabsoft.seed_ephemeral` + `fabsoft_harness.ephemeral_provenance`. Falla **antes** de conectar si la URL o el denylist son inválidos; tras conectar rechaza superusuario/BYPASSRLS y verifica identidad de sesión.
+
+**`--reset`:** única operación de seed con privilegio elevado (provisioner). Exige `SEED_ALLOW_RESET=1`, misma host/puerto/BD que `SEED_DATABASE_URL` en `DATABASE_PROVISION_URL`, y marcador harness **antes** de cualquier `TRUNCATE` (sin `session_replication_role=replica`).
 
 ## Limitaciones documentadas
 

@@ -244,6 +244,19 @@ export async function assertMigratorElevationClosed(owner: QueryFn): Promise<voi
       `Privilegios de rol aún otorgados por migrator tras cierre: ${JSON.stringify(grantedByMigrator)}`,
     );
   }
+  const { rows: asMember } = (await owner(
+    `select granted.rolname::text as granted_role
+     from pg_catalog.pg_auth_members am
+     join pg_catalog.pg_roles member on member.oid = am.member
+     join pg_catalog.pg_roles granted on granted.oid = am.roleid
+     where member.rolname = $1`,
+    [MIGRATOR],
+  )) as { rows: { granted_role: string }[] };
+  if (asMember.length > 0) {
+    throw new Error(
+      `Migrator sigue siendo miembro de otros roles tras cierre: ${JSON.stringify(asMember)}`,
+    );
+  }
   const { rows: privs } = (await owner(
     `select rolname, rolcreatedb, rolcreaterole from pg_roles where rolname = $1`,
     [MIGRATOR],

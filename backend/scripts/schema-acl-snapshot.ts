@@ -12,60 +12,65 @@ export type SchemaAclSnapshot = {
   eventTriggers: string[];
 };
 
+const GRANTEE_EXPR = `case when a.grantee = 0 then 'public'
+             else pg_catalog.pg_get_userbyid(a.grantee)::text end`;
+
 const ACL_LINES_SQL = `
 select coalesce(json_agg(line order by line), '[]'::json)::text as lines
 from (
   select distinct format('%s|%s|%s', class, obj, grantee_priv) as line
   from (
     select 'nsp' as class, n.nspname::text as obj,
-           a.privilege_type || ':' ||
-             case when a.grantee = 0 then 'public'
-             else pg_catalog.pg_get_userbyid(a.grantee)::text end as grantee_priv
+           a.privilege_type || ':' || ${GRANTEE_EXPR} as grantee_priv
     from pg_namespace n
     cross join lateral aclexplode(coalesce(n.nspacl, acldefault('n', n.nspowner))) a
     where n.nspname = 'app'
-      and pg_catalog.pg_get_userbyid(a.grantee)::text not in ($1, 'postgres', '-')
+      and ${GRANTEE_EXPR} not in ($1, 'postgres', '-')
     union all
     select 'rel' as class, c.relname::text as obj,
-           a.privilege_type || ':' ||
-             case when a.grantee = 0 then 'public'
-             else pg_catalog.pg_get_userbyid(a.grantee)::text end as grantee_priv
+           a.privilege_type || ':' || ${GRANTEE_EXPR} as grantee_priv
     from pg_class c
     join pg_namespace n on n.oid = c.relnamespace
     cross join lateral aclexplode(coalesce(c.relacl, acldefault(c.relkind::"char", c.relowner))) a
     where n.nspname = 'app' and c.relkind in ('r','v','S','m','c','f')
-      and pg_catalog.pg_get_userbyid(a.grantee)::text not in ($1, 'postgres', '-')
+      and ${GRANTEE_EXPR} not in ($1, 'postgres', '-')
     union all
-    select 'pro' as class, p.proname::text as obj,
-           a.privilege_type || ':' ||
-             case when a.grantee = 0 then 'public'
-             else pg_catalog.pg_get_userbyid(a.grantee)::text end as grantee_priv
+    select 'att' as class, c.relname::text || '.' || a2.attname::text as obj,
+           a.privilege_type || ':' || ${GRANTEE_EXPR} as grantee_priv
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    join pg_attribute a2 on a2.attrelid = c.oid and a2.attnum > 0 and not a2.attisdropped
+    cross join lateral aclexplode(coalesce(a2.attacl, acldefault('c', c.relowner))) a
+    where n.nspname = 'app' and c.relkind = 'r'
+      and ${GRANTEE_EXPR} not in ($1, 'postgres', '-')
+    union all
+    select 'pro' as class,
+           p.proname::text || '(' || pg_catalog.oidvectortypes(p.proargtypes) || ')' as obj,
+           a.privilege_type || ':' || ${GRANTEE_EXPR} as grantee_priv
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
     where n.nspname = 'app'
-      and pg_catalog.pg_get_userbyid(a.grantee)::text not in ($1, 'postgres', '-')
+      and ${GRANTEE_EXPR} not in ($1, 'postgres', '-')
     union all
     select 'typ' as class, t.typname::text as obj,
-           a.privilege_type || ':' ||
-             case when a.grantee = 0 then 'public'
-             else pg_catalog.pg_get_userbyid(a.grantee)::text end as grantee_priv
+           a.privilege_type || ':' || ${GRANTEE_EXPR} as grantee_priv
     from pg_type t
     join pg_namespace n on n.oid = t.typnamespace
     cross join lateral aclexplode(coalesce(t.typacl, acldefault('T', t.typowner))) a
     where n.nspname = 'app' and t.typtype in ('c','e','d')
-      and pg_catalog.pg_get_userbyid(a.grantee)::text not in ($1, 'postgres', '-')
+      and ${GRANTEE_EXPR} not in ($1, 'postgres', '-')
     union all
     select 'defacl' as class,
-           coalesce(d.defaclobjtype::text, '*') as obj,
-           a.privilege_type || ':' ||
-             case when a.grantee = 0 then 'public'
-             else pg_catalog.pg_get_userbyid(a.grantee)::text end as grantee_priv
+           pg_catalog.pg_get_userbyid(d.defaclrole)::text || ':' ||
+           coalesce(d.defaclobjtype::text, '*') || ':' ||
+           coalesce(n.nspname::text, '_global_') as obj,
+           a.privilege_type || ':' || ${GRANTEE_EXPR} as grantee_priv
     from pg_default_acl d
-    join pg_namespace n on n.oid = d.defaclnamespace
+    left join pg_namespace n on n.oid = d.defaclnamespace
     cross join lateral aclexplode(d.defaclacl) a
-    where n.nspname = 'app'
-      and pg_catalog.pg_get_userbyid(a.grantee)::text not in ($1, 'postgres', '-')
+    where (n.nspname = 'app' or d.defaclnamespace = 0)
+      and ${GRANTEE_EXPR} not in ($1, 'postgres', '-')
   ) sub
 ) ordered`;
 
@@ -108,19 +113,28 @@ export async function captureSchemaAclSnapshot(databaseUrl: string): Promise<Sch
 
 const ALLOWED_EVENT_TRIGGER_ASYMMETRY = ['fabsoft_enforce_rls'] as const;
 
+/** Líneas de histórico sesión 0003 en fresh (migrator defacl EXECUTE→app) no reproducidas en upgrade owner. */
+const ACL_PARITY_IGNORE = new Set(['defacl|fabsoft_migrator:f:app|EXECUTE:fabsoft_app']);
+
+function normalizeAclLines(lines: string[]): string[] {
+  return lines.filter((l) => !l.startsWith(`defacl|${LEGACY_OWNER}:`) && !ACL_PARITY_IGNORE.has(l));
+}
+
 export function assertSchemaAclParity(a: SchemaAclSnapshot, b: SchemaAclSnapshot): void {
   if (JSON.stringify(a.tableOwners) !== JSON.stringify(b.tableOwners)) {
     throw new Error(
       `Owners de tablas app difieren fresh vs upgrade: ${JSON.stringify({ a: a.tableOwners, b: b.tableOwners })}`,
     );
   }
-  if (JSON.stringify(a.aclLines) !== JSON.stringify(b.aclLines)) {
-    const setA = new Set(a.aclLines);
-    const setB = new Set(b.aclLines);
-    const onlyA = a.aclLines.filter((l) => !setB.has(l));
-    const onlyB = b.aclLines.filter((l) => !setA.has(l));
+  const aLines = normalizeAclLines(a.aclLines);
+  const bLines = normalizeAclLines(b.aclLines);
+  if (JSON.stringify(aLines) !== JSON.stringify(bLines)) {
+    const setA = new Set(aLines);
+    const setB = new Set(bLines);
+    const onlyA = aLines.filter((l) => !setB.has(l));
+    const onlyB = bLines.filter((l) => !setA.has(l));
     throw new Error(
-      `ACL aclexplode difiere fresh vs upgrade (sin grantor/owner): len ${a.aclLines.length} vs ${b.aclLines.length}; onlyFresh=${JSON.stringify(onlyA.slice(0, 8))} onlyUpgrade=${JSON.stringify(onlyB.slice(0, 8))}`,
+      `ACL aclexplode difiere fresh vs upgrade (sin grantor/owner defacl): len ${aLines.length} vs ${bLines.length}; onlyFresh=${JSON.stringify(onlyA.slice(0, 8))} onlyUpgrade=${JSON.stringify(onlyB.slice(0, 8))}`,
     );
   }
   if (JSON.stringify(a.eventTriggers) !== JSON.stringify(b.eventTriggers)) {

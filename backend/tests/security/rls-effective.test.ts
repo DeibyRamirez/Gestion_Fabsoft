@@ -146,16 +146,19 @@ describe.skipIf(!migratorUrl)('F0 — inventario RLS (T-F0-08)', () => {
     }
   });
 
-  it('T-F0-08b CI fresh: sin event trigger fabsoft_enforce_rls (migrator no super)', async () => {
+  it('T-F0-08b event trigger según ruta (fresh vs upgrade)', async () => {
     const client = new pg.Client({ connectionString: migratorUrl! });
     await client.connect();
     try {
       const { rows } = await client.query<{ evtname: string }>(
         `select evtname from pg_event_trigger where evtname = 'fabsoft_enforce_rls'`,
       );
-      expect(rows, 'única asimetría permitida es upgrade superusuario (harness foundation)').toEqual(
-        [],
-      );
+      const upgradeRoute = process.env.FABSOFT_EXPECT_EVENT_TRIGGER === '1';
+      if (upgradeRoute) {
+        expect(rows.map((r) => r.evtname)).toContain('fabsoft_enforce_rls');
+      } else {
+        expect(rows).toEqual([]);
+      }
     } finally {
       await client.end();
     }
@@ -176,6 +179,32 @@ describe.skipIf(!appUrl)('F0 — aislamiento (T-F0-09)', () => {
       expect(rows[0]!.bad).toBe(0);
     } finally {
       await client.end();
+    }
+  });
+
+  it('T-F0-09c RLS efectivo fabsoft_app: SELECT en cada tabla del inventario (admin)', async () => {
+    await ensureAppPoolRoleVerified();
+    const pool = getAppPool();
+    const client = await pool.connect();
+    try {
+      await client.query('begin');
+      await client.query(`set local role fabsoft_app`);
+      await client.query(
+        `select set_config('app.actor_type','user',true), set_config('app.actor_role','admin',true),
+                set_config('app.current_user_id',$1,true)`,
+        [ids.admin],
+      );
+      const { rows } = await client.query<{ table_name: string }>(
+        `select table_name from app.rls_inventory() order by 1`,
+      );
+      expect(rows.length).toBe(18);
+      for (const { table_name } of rows) {
+        const safe = table_name.replace(/"/g, '');
+        await client.query(`select 1 from app."${safe}" limit 0`);
+      }
+      await client.query('rollback');
+    } finally {
+      client.release();
     }
   });
 

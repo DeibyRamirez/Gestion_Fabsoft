@@ -453,6 +453,7 @@ async function profileCiMain(): Promise<void> {
   await ensureMigratorRole();
   await assertNotForeignDeliveredDatabase(target.database);
   await grantMigratorOnDatabase(target.database);
+  await installHarnessProvenance(target.database);
   const migUrl = migratorUrl(target.database);
   const identity = await (async () => {
     const c = new pg.Client({ connectionString: migUrl });

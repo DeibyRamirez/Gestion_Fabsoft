@@ -7,7 +7,7 @@
 ```bash
 pnpm db:migrate            # dbmate up (incluye alert_rules y app_settings de referencia)
 pnpm db:seed               # = pnpm --filter @fabsoft/backend exec tsx scripts/seed.ts
-pnpm db:seed --reset       # TRUNCATE vía `DATABASE_PROVISION_URL` (provisioner, `session_replication_role=replica`); no usa DML masivo en `fabsoft_bootstrap`
+pnpm db:seed --reset       # **Única operación elevada:** TRUNCATE vía `DATABASE_PROVISION_URL` si coincide host/puerto/BD con seed y marcador harness (fail-closed; ver `deployment-f0.md`)
 ```
 
 - `backend/scripts/seed.ts` se conecta con `SEED_DATABASE_URL` (`fabsoft_seed_writer`), usa `SET LOCAL ROLE fabsoft_app` con contexto admin para cumplir RLS, y reutiliza los adaptadores reales `Argon2PasswordHasher` y `HmacApiKeyHasher` (los hashes son idénticos a los que generaría la app).

@@ -30,6 +30,7 @@ import {
 } from './migrator-historical-elevation.js';
 import { repairHistoricalMigrationGrants } from './historical-migration-grant-repair.js';
 import { assertNoFabsoftOwnerInApp } from './reconcile-owner-to-migrator.js';
+import { assertNoSecurityDefinerPublicExecute } from './migration-security-gates.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATOR = 'fabsoft_migrator';
@@ -295,6 +296,7 @@ await assertInventory(migratorUrl, provisionUrlForMigratorDb(), migrationFiles);
 }
 
 await assertNoFabsoftOwnerInApp(migratorUrl, 'db:migrate fresh');
+await assertNoSecurityDefinerPublicExecute(migratorUrl);
 
 const rlsClient = new pg.Client({ connectionString: migratorUrl });
 await rlsClient.connect();

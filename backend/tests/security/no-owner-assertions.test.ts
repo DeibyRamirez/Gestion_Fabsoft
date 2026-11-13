@@ -50,6 +50,9 @@ describe.skipIf(!migratorUrl)('F0 — inventario sin fabsoft_owner (T-F0-10)', (
   });
 
   it('T-F0-10c worker sin DDL: CREATE TABLE y CREATE FUNCTION (42501)', async () => {
+    if (!workerUrl && process.env.REQUIRE_DB_TESTS === '1') {
+      throw new Error('WORKER_DATABASE_URL requerido para T-F0-10c');
+    }
     if (!workerUrl) return;
     const client = new pg.Client({ connectionString: workerUrl });
     await client.connect();

@@ -57,6 +57,9 @@ try {
     `grant usage, select on all sequences in schema app to ${quoteIdent(SEED_WRITER)}`,
   );
   await client.query(`grant execute on all functions in schema app to ${quoteIdent(SEED_WRITER)}`);
+  await client.query(
+    `revoke execute on function app.bootstrap_first_admin(text, text, text) from ${quoteIdent(SEED_WRITER)}`,
+  );
   // fabsoft_bootstrap: sin DML masivo; EXECUTE sólo vía 0005 (bootstrap_first_admin).
   await client.query(`grant ${quoteIdent('fabsoft_app')} to ${quoteIdent(SEED_WRITER)}`);
   await client.query(`grant usage on schema fabsoft_harness to ${quoteIdent(SEED_WRITER)}`);

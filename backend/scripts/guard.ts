@@ -2,6 +2,7 @@
  * Barreras para scripts de datos y aprovisionamiento (docs/seed-data.md, docs/deployment.md §7).
  * Falla cerrado antes de construir clientes pg cuando la configuración es ambigua o el destino no está permitido.
  */
+import pg from 'pg';
 import {
   assertSameDatabaseInstallation,
   normalizeDatabaseUrl,
@@ -193,7 +194,9 @@ export function assertSeedConfiguration(): SeedGuardExpectation {
     );
   }
   if (process.argv.includes('--reset') && process.env.SEED_ALLOW_RESET !== '1') {
-    throw new Error('seed --reset requiere SEED_ALLOW_RESET=1 y destino efímero verificado');
+    throw new Error(
+      'seed --reset requiere SEED_ALLOW_RESET=1, destino efímero verificado y DATABASE_PROVISION_URL coincidente',
+    );
   }
   return {
     url: resolved.url,
@@ -301,6 +304,44 @@ export async function assertHarnessProvenance(
   if (marker !== expected.marker) {
     throw new Error('Marcador en fabsoft_harness.ephemeral_provenance no coincide');
   }
+}
+
+/**
+ * seed --reset: única operación con privilegio elevado (provisioner).
+ * Fail-closed antes de TRUNCATE: misma host/puerto/BD que seed y marcador harness.
+ */
+export async function assertSeedResetProvisionerTarget(
+  seedConfig: SeedGuardExpectation,
+): Promise<string> {
+  const { url: provisionUrl, target: provTarget } = resolveGuardedDatabaseUrl(
+    ['DATABASE_PROVISION_URL'],
+    { allowUsers: ['fabsoft_owner', 'postgres', 'fabsoft_provisioner'] },
+  );
+  const seedTarget = parseDatabaseTarget(normalizeDatabaseUrl(seedConfig.url));
+  if (
+    seedTarget.host !== provTarget.host ||
+    seedTarget.port !== provTarget.port ||
+    seedTarget.database !== provTarget.database
+  ) {
+    throw new Error(
+      `seed --reset rechazado: provision (${provTarget.host}:${provTarget.port}/${provTarget.database}) distinto del seed (${seedTarget.host}:${seedTarget.port}/${seedTarget.database})`,
+    );
+  }
+  assertSameDatabaseInstallation(seedConfig.url, provisionUrl);
+  const client = new pg.Client({ connectionString: normalizeDatabaseUrl(provisionUrl) });
+  await client.connect();
+  try {
+    const q = (sql: string, params?: unknown[]) => client.query(sql, params);
+    await assertEphemeralMarker(q, seedConfig.ephemeralMarker);
+    await assertHarnessProvenance(q, {
+      marker: seedConfig.ephemeralMarker,
+      runId: seedConfig.harnessRunId,
+      database: seedConfig.expectedDatabase,
+    });
+  } finally {
+    await client.end();
+  }
+  return provisionUrl;
 }
 
 /** Verificación post-conexión para seed (identidad + procedencia). */
