@@ -32,10 +32,10 @@ describe.skipIf(
       encoding: 'utf8',
     });
     expect(run.status, `${run.stderr}${run.stdout}`).toBe(0);
-    const client = new pg.Client({ connectionString: seedUrl });
+    const verifyUrl = provUrl ?? seedUrl!;
+    const client = new pg.Client({ connectionString: verifyUrl });
     await client.connect();
     try {
-      await client.query('set role fabsoft_app');
       const rules = await client.query<{ n: number }>(
         `select count(*)::int as n from app.alert_rules`,
       );

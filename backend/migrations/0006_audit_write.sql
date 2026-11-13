@@ -42,6 +42,7 @@ grant select (id, client_id) on app.users to fabsoft_audit_definer;
 grant select (key) on app.app_settings to fabsoft_audit_definer;
 
 create policy audit_logs_select_audit_definer on app.audit_logs for select to fabsoft_audit_definer using (true);
+create policy audit_logs_insert_audit_definer on app.audit_logs for insert to fabsoft_audit_definer with check (true);
 create policy clients_select_audit_definer on app.clients for select to fabsoft_audit_definer using (true);
 create policy client_contacts_select_audit_definer on app.client_contacts for select to fabsoft_audit_definer using (true);
 create policy client_notes_select_audit_definer on app.client_notes for select to fabsoft_audit_definer using (true);
@@ -329,6 +330,7 @@ drop policy if exists products_select_audit_definer on app.products;
 drop policy if exists client_notes_select_audit_definer on app.client_notes;
 drop policy if exists client_contacts_select_audit_definer on app.client_contacts;
 drop policy if exists clients_select_audit_definer on app.clients;
+drop policy if exists audit_logs_insert_audit_definer on app.audit_logs;
 drop policy if exists audit_logs_select_audit_definer on app.audit_logs;
 
 grant insert on app.audit_logs to fabsoft_app;
