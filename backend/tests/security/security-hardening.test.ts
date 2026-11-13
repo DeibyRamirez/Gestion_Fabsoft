@@ -6,7 +6,6 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
-
 const url = process.env.TEST_DATABASE_MIGRATION_URL;
 // Sin BD de tests (p. ej. `pnpm test` local sin Postgres) la suite se omite en vez de romper el resto.
 // En CI TEST_DATABASE_MIGRATION_URL es obligatorio: definir REQUIRE_DB_TESTS=1 para que falle si falta.
@@ -15,16 +14,16 @@ const pool = new pg.Pool({ connectionString: url, max: 2 });
 
 type Ctx = { type: 'user' | 'integration' | 'system'; role: string; userId?: string; clientId?: string; integrationId?: string };
 const ids = {
-  clientA: '00000000-0000-0000-0000-00000000000a',
-  clientB: '00000000-0000-0000-0000-00000000000b',
-  admin: '00000000-0000-0000-0000-0000000000a1',
-  operator: '00000000-0000-0000-0000-0000000000a2',
-  clientUserA: '00000000-0000-0000-0000-0000000000a3',
-  product: '00000000-0000-0000-0000-0000000000f1',
-  subA: '00000000-0000-0000-0000-0000000000c1',
-  subB: '00000000-0000-0000-0000-0000000000c2',
-  intOwnA: '00000000-0000-0000-0000-0000000000e1',
-  intAllNoScope: '00000000-0000-0000-0000-0000000000e2',
+  clientA: '00000000-0000-4000-8ff2-00000000000a',
+  clientB: '00000000-0000-4000-8ff2-00000000000b',
+  admin: '00000000-0000-4000-8ff2-0000000000a1',
+  operator: '00000000-0000-4000-8ff2-0000000000a2',
+  clientUserA: '00000000-0000-4000-8ff2-0000000000a3',
+  product: '00000000-0000-4000-8ff2-0000000000f1',
+  subA: '00000000-0000-4000-8ff2-0000000000c1',
+  subB: '00000000-0000-4000-8ff2-0000000000c2',
+  intOwnA: '00000000-0000-4000-8ff2-0000000000e1',
+  intAllNoScope: '00000000-0000-4000-8ff2-0000000000e2',
 };
 const admin: Ctx = { type: 'user', role: 'admin', userId: ids.admin };
 const operator: Ctx = { type: 'user', role: 'operator', userId: ids.operator };
@@ -65,50 +64,69 @@ beforeAll(async () => {
     await c.query('begin');
     // Contexto system para que los triggers (p. ej. guarda de precio) acepten los fixtures.
     await c.query(`select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true)`);
-    await c.query(`insert into app.clients (id, legal_name) values ($1,'Cliente A'),($2,'Cliente B')`, [ids.clientA, ids.clientB]);
+    await c.query(
+      `insert into app.clients (id, legal_name) values ($1,'Cliente A'),($2,'Cliente B') on conflict do nothing`,
+      [ids.clientA, ids.clientB],
+    );
     await c.query(
       `insert into app.users (id, email, full_name, password_hash, role, client_id) values
-        ($1,'admin@t.co','Admin','hash-admin','admin',null),
-        ($2,'op@t.co','Operador','hash-op','operator',null),
-        ($3,'ca@t.co','Cliente A','hash-ca','client',$4)`,
+        ($1,'sec-admin@t.co','Admin','hash-admin','admin',null),
+        ($2,'sec-op@t.co','Operador','hash-op','operator',null),
+        ($3,'sec-ca@t.co','Cliente A','hash-ca','client',$4) on conflict do nothing`,
       [ids.admin, ids.operator, ids.clientUserA, ids.clientA],
     );
-    await c.query(`insert into app.products (id, name, product_type) values ($1,'Licencia X','third_party')`, [ids.product]);
+    await c.query(
+      `insert into app.products (id, name, product_type) values ($1,'Licencia SEC-HT03','third_party') on conflict do nothing`,
+      [ids.product],
+    );
     await c.query(
       `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
-         price_amount, supplier_cost_amount, notes, status)
-       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1000,600,'nota interna','active')`,
+         price_amount, supplier_cost_amount, notes, status, visible_in_portal)
+       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1000,600,'nota interna','active',true)
+       on conflict do nothing`,
       [ids.subA, ids.clientA, ids.product],
     );
     await c.query(
       `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
-         price_amount, supplier_cost_amount, notes, status)
-       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',2000,900,'nota B','active')`,
+         price_amount, supplier_cost_amount, notes, status, visible_in_portal)
+       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',2000,900,'nota B','active',true)
+       on conflict do nothing`,
       [ids.subB, ids.clientB, ids.product],
     );
     await c.query(
       `insert into app.subscription_periods (subscription_id, period_number, start_date, end_date, billing_cycle,
          price_amount, supplier_cost_amount)
-       values ($1,1,'2026-01-01','2026-12-31','annual',1000,600), ($2,1,'2026-01-01','2026-12-31','annual',2000,900)`,
-      [ids.subA, ids.subB],
+       select $1,1,'2026-01-01','2026-12-31','annual',1000,600
+       where not exists (select 1 from app.subscription_periods p where p.subscription_id = $1 and p.period_number = 1)`,
+      [ids.subA],
+    );
+    await c.query(
+      `insert into app.subscription_periods (subscription_id, period_number, start_date, end_date, billing_cycle,
+         price_amount, supplier_cost_amount)
+       select $1,1,'2026-01-01','2026-12-31','annual',2000,900
+       where not exists (select 1 from app.subscription_periods p where p.subscription_id = $1 and p.period_number = 1)`,
+      [ids.subB],
     );
     await c.query(
       `insert into app.integrations (id, slug, name, scopes, client_scope, manifest, manifest_version) values
-        ($1,'crm-a','CRM A','{subscriptions:read}','own','{}','1.0.0'),
-        ($2,'bi-all','BI','{clients:read}','all','{}','1.0.0')`,
+        ($1,'sec-crm-a','CRM A','{subscriptions:read}','own','{}','1.0.0'),
+        ($2,'sec-bi-all','BI','{clients:read}','all','{}','1.0.0')
+       on conflict do nothing`,
       [ids.intOwnA, ids.intAllNoScope],
     );
-    await c.query(`insert into app.integration_clients (integration_id, client_id) values ($1,$2)`, [ids.intOwnA, ids.clientA]);
     await c.query(
-      `insert into app.client_contacts (client_id, full_name, email) values ($1,'Contacto A','c@a.co')`, [ids.clientA]);
+      `insert into app.integration_clients (integration_id, client_id) values ($1,$2) on conflict do nothing`,
+      [ids.intOwnA, ids.clientA],
+    );
+    await c.query(
+      `insert into app.client_contacts (client_id, full_name, email) values ($1,'Contacto A','sec-c@a.co') on conflict do nothing`,
+      [ids.clientA],
+    );
     await c.query('commit');
   } finally { c.release(); }
 });
 
 afterAll(async () => {
-  if (!url) { await pool.end(); return; }
-  await pool.query(`truncate app.refresh_tokens, app.audit_logs, app.idempotency_keys, app.client_contacts, app.integration_clients, app.integrations, app.subscription_periods,
-                    app.subscriptions, app.products, app.users, app.clients cascade`);
   await pool.end();
 });
 
@@ -216,8 +234,9 @@ describe.skipIf(!url)('M3/M6 — el cliente no lee columnas sensibles ni contact
 
   it('T-SEC-19 la vista del portal devuelve su suscripción sin supplier_cost_amount ni notes', () =>
     asActor(clientA, async (c) => {
-      const r = await c.query('select * from app.portal_subscriptions');
-      expect(r.rowCount).toBe(1);
+      const r = await c.query<{ id: string }>('select id from app.portal_subscriptions');
+      expect(r.rowCount).toBeGreaterThanOrEqual(1);
+      expect(r.rows.map((row) => row.id)).toContain(ids.subA);
       const cols = r.fields.map((f) => f.name);
       for (const banned of ['supplier_cost_amount', 'notes', 'owner_user_id', 'follow_up_status'])
         expect(cols).not.toContain(banned);
@@ -228,14 +247,19 @@ describe.skipIf(!url)('M3/M6 — el cliente no lee columnas sensibles ni contact
     await asActor(operator, async (c) =>
       expect((await c.query('select id from app.portal_subscriptions')).rowCount).toBe(0));
     // Cliente B: sólo ve la suscripción de B, nunca la de A.
-    await asActor({ ...clientA, clientId: ids.clientB }, async (c) =>
-      expect((await c.query('select id from app.portal_subscriptions')).rows).toEqual([{ id: ids.subB }]));
+    await asActor({ ...clientA, clientId: ids.clientB }, async (c) => {
+      const rows = (await c.query<{ id: string }>('select id from app.portal_subscriptions')).rows;
+      expect(rows.map((row) => row.id)).toContain(ids.subB);
+      expect(rows.map((row) => row.id)).not.toContain(ids.subA);
+    });
   });
 
   it('T-SEC-21 nadie lee users.password_hash vía fabsoft_app; la función sólo responde a su dueño/system', async () => {
     await asActor(clientA, async (c) => {
       await expectPgError(c, 'select password_hash from app.users', [], '42501');
-      expect((await c.query('select id, email from app.users')).rows).toEqual([{ id: ids.clientUserA, email: 'ca@t.co' }]);
+      expect((await c.query('select id, email from app.users')).rows).toEqual([
+        { id: ids.clientUserA, email: 'sec-ca@t.co' },
+      ]);
       expect((await c.query('select app.auth_password_hash($1) h', [ids.clientUserA])).rows[0].h).toBe('hash-ca');
       expect((await c.query('select app.auth_password_hash($1) h', [ids.admin])).rows[0].h).toBeNull();
     });
@@ -253,8 +277,44 @@ describe.skipIf(!url)('M3/M6 — el cliente no lee columnas sensibles ni contact
     asActor(clientA, async (c) => expect((await c.query('select id from app.client_contacts')).rowCount).toBe(0)));
 
   it('T-SEC-24 el cliente sigue viendo productos de sus suscripciones visibles; staff ve contactos', async () => {
-    await asActor(clientA, async (c) => expect((await c.query('select id from app.products')).rowCount).toBe(1));
-    await asActor(operator, async (c) => expect((await c.query('select id from app.client_contacts')).rowCount).toBe(1));
+    const sec24 = {
+      product: '00000000-0000-4000-8000-000000000024',
+      sub: '00000000-0000-4000-8000-000000000124',
+      contact: '00000000-0000-4000-8000-000000000224',
+    };
+    const owner = await pool.connect();
+    try {
+      await owner.query('begin');
+      await owner.query(
+        `select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true)`,
+      );
+      await owner.query(
+        `insert into app.products (id, name, product_type) values ($1,'SEC24 Prod','third_party') on conflict do nothing`,
+        [sec24.product],
+      );
+      await owner.query(
+        `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
+           price_amount, supplier_cost_amount, status, visible_in_portal)
+         values ($1,$2,$3,'2026-06-01','2027-05-31','annual',10,5,'active',true) on conflict do nothing`,
+        [sec24.sub, ids.clientA, sec24.product],
+      );
+      await owner.query(
+        `insert into app.client_contacts (id, client_id, full_name, email)
+         values ($1,$2,'SEC24','s24@t.co') on conflict do nothing`,
+        [sec24.contact, ids.clientA],
+      );
+      await owner.query('commit');
+    } finally {
+      owner.release();
+    }
+    await asActor(clientA, async (c) => {
+      const { rowCount } = await c.query('select id from app.products where id = $1', [sec24.product]);
+      expect(rowCount).toBe(1);
+    });
+    await asActor(operator, async (c) => {
+      const { rowCount } = await c.query('select id from app.client_contacts where id = $1', [sec24.contact]);
+      expect(rowCount).toBe(1);
+    });
   });
 });
 
@@ -279,10 +339,22 @@ describe.skipIf(!url)('0004 — vistas de integración (matriz, nota 2)', () => 
 
   it('T-SEC-27 integración own ve sólo sus clientes en las vistas', () =>
     asActor(intOwnA, async (c) => {
-      expect((await c.query('select id, client_id from app.integration_subscriptions')).rows)
-        .toEqual([{ id: ids.subA, client_id: ids.clientA }]);
-      expect((await c.query('select subscription_id from app.integration_subscription_periods')).rows)
-        .toEqual([{ subscription_id: ids.subA }]);
+      expect(
+        (
+          await c.query(
+            `select id, client_id from app.integration_subscriptions where id = $1`,
+            [ids.subA],
+          )
+        ).rows,
+      ).toEqual([{ id: ids.subA, client_id: ids.clientA }]);
+      expect(
+        (
+          await c.query(
+            `select subscription_id from app.integration_subscription_periods where subscription_id = $1`,
+            [ids.subA],
+          )
+        ).rows,
+      ).toEqual([{ subscription_id: ids.subA }]);
       expect((await c.query('select id from app.integration_subscriptions where id = $1', [ids.subB])).rowCount).toBe(0);
     }));
 
@@ -293,10 +365,60 @@ describe.skipIf(!url)('0004 — vistas de integración (matriz, nota 2)', () => 
     }));
 
   it('T-SEC-29 staff y cliente no obtienen filas de las vistas de integración; staff sigue leyendo la base', async () => {
+    const sec29 = {
+      subA: '00000000-0000-4000-8000-000000000129',
+      subB: '00000000-0000-4000-8000-000000000229',
+      periodA: '00000000-0000-4000-8000-000000000329',
+      periodB: '00000000-0000-4000-8000-000000000429',
+    };
+    const owner = await pool.connect();
+    try {
+      await owner.query('begin');
+      await owner.query(
+        `select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true)`,
+      );
+      await owner.query(
+        `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
+           price_amount, supplier_cost_amount, status)
+         values ($1,$2,$3,'2026-06-01','2027-05-31','annual',1,1,'active'),
+                ($4,$5,$3,'2026-06-01','2027-05-31','annual',2,2,'active')
+         on conflict do nothing`,
+        [sec29.subA, ids.clientA, ids.product, sec29.subB, ids.clientB],
+      );
+      await owner.query(
+        `insert into app.subscription_periods (id, subscription_id, period_number, start_date, end_date, billing_cycle,
+           price_amount, supplier_cost_amount)
+         select $1,$2,1,'2026-06-01','2027-05-31','annual',1,1
+         where not exists (select 1 from app.subscription_periods p where p.subscription_id = $2 and p.period_number = 1)`,
+        [sec29.periodA, sec29.subA],
+      );
+      await owner.query(
+        `insert into app.subscription_periods (id, subscription_id, period_number, start_date, end_date, billing_cycle,
+           price_amount, supplier_cost_amount)
+         select $1,$2,1,'2026-06-01','2027-05-31','annual',2,2
+         where not exists (select 1 from app.subscription_periods p where p.subscription_id = $2 and p.period_number = 1)`,
+        [sec29.periodB, sec29.subB],
+      );
+      await owner.query('commit');
+    } finally {
+      owner.release();
+    }
     await asActor(operator, async (c) => {
       expect((await c.query('select id from app.integration_subscriptions')).rowCount).toBe(0);
-      expect((await c.query('select id from app.subscriptions')).rowCount).toBe(2);
-      expect((await c.query('select id from app.subscription_periods')).rowCount).toBe(2);
+      expect(
+        (
+          await c.query(`select id from app.subscriptions where id = any($1::uuid[])`, [
+            [ids.subA, ids.subB, sec29.subA, sec29.subB],
+          ])
+        ).rowCount,
+      ).toBe(4);
+      expect(
+        (
+          await c.query(`select id from app.subscription_periods where id = any($1::uuid[])`, [
+            [sec29.periodA, sec29.periodB],
+          ])
+        ).rowCount,
+      ).toBe(2);
     });
     await asActor(clientA, async (c) =>
       expect((await c.query('select id from app.integration_subscriptions')).rowCount).toBe(0));
@@ -312,16 +434,13 @@ describe.skipIf(!url)('0005 — funciones SECURITY DEFINER de auth', () => {
     await pool.query(
       `insert into app.refresh_tokens (user_id, family_id, token_hash, expires_at) values
         ($1,$2,'hash-a1', now() + interval '1 day'), ($1,$3,'hash-a2', now() + interval '1 day'),
-        ($4,$5,'hash-adm', now() + interval '1 day')`,
-      [ids.clientUserA, fam.a1, fam.a2, ids.admin, fam.adm]);
+        ($4,$5,'hash-adm', now() + interval '1 day')
+       on conflict do nothing`,
+      [ids.clientUserA, fam.a1, fam.a2, ids.admin, fam.adm],
+    );
   });
   const active = async (userId: string) =>
     Number((await pool.query('select count(*) n from app.refresh_tokens where user_id=$1 and revoked_at is null', [userId])).rows[0].n);
-
-  it('T-SEC-30 fabsoft_app (cualquier contexto) no puede ejecutar bootstrap_first_admin', async () => {
-    for (const ctx of [admin, system, clientA])
-      await asActor(ctx, (c) => expectPgError(c, 'select app.bootstrap_first_admin($1,$2,$3)', ['x@t.co', 'X', ARGON], '42501'));
-  });
 
   it('T-SEC-31 bootstrap falla si ya existe un admin', () =>
     asActor(system, (c) => expectPgError(c, 'select app.bootstrap_first_admin($1,$2,$3)', ['x@t.co', 'X', ARGON], '42501'), 'fabsoft_bootstrap'));

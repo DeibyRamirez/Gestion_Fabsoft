@@ -5,7 +5,7 @@ import {
   closeTestPools,
   dbTestsConfigured,
   resetDatabase,
-  withOwnerSystemContext,
+  withAppContext,
 } from '../../helpers/db.js';
 
 assertDbTestsRequired();
@@ -32,13 +32,17 @@ describe.skipIf(!dbTestsConfigured())('T-RN02-01 producto con múltiples suscrip
     const subB = await factories.subscription(clientB, product);
     const subSameClient = await factories.subscription(clientA, product);
 
-    const rows = await withOwnerSystemContext(async (c) => {
-      const { rows: r } = await c.query<{ id: string; product_id: string }>(
-        `select id, product_id from app.subscriptions where product_id = $1 order by id`,
-        [product.id],
-      );
-      return r;
-    });
+    const admin = await factories.adminUser();
+    const rows = await withAppContext(
+      { role: 'admin', userId: admin.id, clientId: null, requestId: 't-rn02-01' },
+      async (c) => {
+        const { rows: r } = await c.query<{ id: string; product_id: string }>(
+          `select id, product_id from app.subscriptions where product_id = $1 order by id`,
+          [product.id],
+        );
+        return r;
+      },
+    );
 
     expect(rows).toHaveLength(3);
     expect(new Set(rows.map((r) => r.id))).toEqual(new Set([subA.id, subB.id, subSameClient.id]));

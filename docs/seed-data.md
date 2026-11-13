@@ -1,16 +1,16 @@
 # Datos de prueba (seed) — FabSoft
 
-> **Sólo dev y staging.** El script aborta si `APP_ENV=prod` o si `DATABASE_MIGRATION_URL` apunta a un host listado en `SEED_FORBIDDEN_HOSTS`. Ningún dato real de clientes se usa fuera de producción.
+> **Sólo dev y test.** Falla cerrado si `APP_ENV` falta o es `prod`, si el destino no está en `SEED_ALLOWED_*` / `SEED_FORBIDDEN_HOSTS`, si `SEED_HARNESS_RUN_ID` falta, si la sesión no es `fabsoft_seed_writer` sin superusuario, si `fabsoft.seed_ephemeral` o `fabsoft_harness.ephemeral_provenance` no coinciden con el harness, o si la identidad de sesión no es la esperada. `--reset` requiere `SEED_ALLOW_RESET=1`. Ver `docs/deployment-f0.md`.
 
 ## 1. Ejecución
 
 ```bash
 pnpm db:migrate            # dbmate up (incluye alert_rules y app_settings de referencia)
 pnpm db:seed               # = pnpm --filter @fabsoft/backend exec tsx scripts/seed.ts
-pnpm db:seed --reset       # TRUNCATE ... CASCADE de las tablas de app (excepto alert_rules y app_settings) y vuelve a sembrar
+pnpm db:seed --reset       # **Única operación elevada:** TRUNCATE vía `DATABASE_PROVISION_URL` si coincide host/puerto/BD con seed y marcador harness (fail-closed; ver `deployment-f0.md`)
 ```
 
-- `backend/scripts/seed.ts` se conecta con `DATABASE_MIGRATION_URL` (rol propietario) para insertar sin pasar por RLS y reutiliza los adaptadores reales `Argon2PasswordHasher` y `HmacApiKeyHasher` (los hashes son idénticos a los que generaría la app).
+- `backend/scripts/seed.ts` se conecta con `SEED_DATABASE_URL` (`fabsoft_seed_writer`), usa `SET LOCAL ROLE fabsoft_app` con contexto admin para cumplir RLS, y reutiliza los adaptadores reales `Argon2PasswordHasher` y `HmacApiKeyHasher` (los hashes son idénticos a los que generaría la app).
 - Es **idempotente**: usa UUID fijos (`00000000-0000-4000-8000-0000000000xx`) y `on conflict do nothing`.
 - Las fechas se calculan **relativas a hoy en America/Bogota** (`hoy`), de modo que las alertas D30…POST1 siempre tengan casos.
 - Después de sembrar ejecuta `alerts.reconcile` en línea (mismo caso de uso que el worker) para generar las `notifications` futuras.
