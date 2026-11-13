@@ -33,7 +33,11 @@ pnpm test:security
 
 ## Bootstrap administrativo mínimo (honesto)
 
-El provisioner crea `fabsoft_migrator` restringido (`NOCREATEROLE`) y, **sólo en BD efímera**, pre-crea roles stub, concede `CREATE` en `app` a roles destino de `ALTER OWNER` (`fabsoft_secure_view`, `fabsoft_auth_definer`, `fabsoft_worker`) y eleva/retira membresías temporales (`migrator-historical-elevation.ts`). El cierre usa `REVOKE ALL ON DATABASE … FROM fabsoft_migrator CASCADE` para retirar sólo privilegios de base otorgados por el migrator durante `0002` (p. ej. `CREATE` transitivo a `fabsoft_app`); después se re-emite `GRANT fabsoft_app TO fabsoft_worker` y `CONNECT` al migrator. `fabsoft_bootstrap` no ejecuta `0002`–`0005`.
+El provisioner crea `fabsoft_migrator` restringido (`NOCREATEROLE`) y, **sólo en BD efímera**, pre-crea roles stub, concede `CREATE` **efímero** en `app` a roles destino de `ALTER OWNER` (`fabsoft_secure_view`, `fabsoft_auth_definer`, `fabsoft_worker`) y eleva/retira membresías temporales (`migrator-historical-elevation.ts`). En el `finally` del cierre se ejecuta `revokeHistoricalRoleSchemaCreate` (**revoca CREATE**, conserva USAGE como develop) y `REVOKE ALL ON DATABASE … FROM fabsoft_migrator CASCADE` para privilegios de base otorgados durante `0002`; después se re-emite `GRANT fabsoft_app TO fabsoft_worker` y `CONNECT` al migrator. Tras **upgrade** histórico se revoca además `CREATE ON DATABASE` al migrator (fresh sí lo conserva hasta cerrar `0001`). `fabsoft_bootstrap` no ejecuta `0002`–`0005`.
+
+`dbmate-staged-up.ts` rechaza `DATABASE_MIGRATION_URL` distinto de `fabsoft_migrator` o con `SUPERUSER`/`BYPASSRLS`.
+
+Paridad fresh/upgrade en `db:provision:foundation`: owners/tablas, `relacl`/`nspacl`/`proacl`, `pg_default_acl` (event trigger documentado aparte).
 
 **SQL histórico congelado (quién ejecuta cada tramo):**
 

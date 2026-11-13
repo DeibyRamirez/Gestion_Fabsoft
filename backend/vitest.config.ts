@@ -62,6 +62,7 @@ export default defineConfig({
         test: {
           name: 'security',
           include: ['tests/security/**/*.test.ts'],
+          hookTimeout: 120_000,
         },
       },
     ],

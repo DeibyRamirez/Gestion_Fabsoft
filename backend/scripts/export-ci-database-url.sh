@@ -15,6 +15,8 @@ pg_uri() {
 
 owner_url="$(pg_uri "$POSTGRES_USER")"
 app_url="$(pg_uri "$FABSOFT_APP_USER")"
+worker_url="$(pg_uri fabsoft_worker)"
+bootstrap_url="$(pg_uri fabsoft_bootstrap)"
 
 case "${1:-all}" in
   owner)
@@ -32,6 +34,8 @@ case "${1:-all}" in
       echo "DATABASE_MIGRATION_URL=${owner_url}"
       echo "TEST_DATABASE_MIGRATION_URL=${owner_url}"
       echo "TEST_DATABASE_URL=${app_url}"
+      echo "WORKER_DATABASE_URL=${worker_url}"
+      echo "BOOTSTRAP_DATABASE_URL=${bootstrap_url}"
     } >>"$GITHUB_ENV"
     ;;
   *)

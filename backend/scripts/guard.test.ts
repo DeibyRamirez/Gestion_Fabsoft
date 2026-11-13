@@ -69,6 +69,30 @@ describe('guard fail-closed', () => {
     );
   });
 
+  it('rechaza SEED_FORBIDDEN_HOSTS solo comas', () => {
+    withEnv(
+      {
+        SEED_DATABASE_URL: 'postgres://fabsoft_seed_writer@localhost/fabsoft_test',
+        SEED_FORBIDDEN_HOSTS: ',',
+      },
+      () => {
+        expect(() => resolveGuardedDatabaseUrl(['SEED_DATABASE_URL'])).toThrow(/solo comas/);
+      },
+    );
+  });
+
+  it('rechaza SEED_SESSION_ROLE fabsoft_provisioner', () => {
+    withEnv(
+      {
+        SEED_DATABASE_URL: 'postgres://fabsoft_provisioner@localhost/fabsoft_test',
+        SEED_SESSION_ROLE: 'fabsoft_provisioner',
+      },
+      () => {
+        expect(() => assertSeedConfiguration()).toThrow(/no permitido/);
+      },
+    );
+  });
+
   it('rechaza SEED_FORBIDDEN_HOSTS vacío o guion', () => {
     withEnv(
       {

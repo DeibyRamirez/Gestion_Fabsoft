@@ -15,16 +15,16 @@ const pool = new pg.Pool({ connectionString: url, max: 2 });
 
 type Ctx = { type: 'user' | 'integration' | 'system'; role: string; userId?: string; clientId?: string; integrationId?: string };
 const ids = {
-  clientA: '00000000-0000-0000-0000-00000000000a',
-  clientB: '00000000-0000-0000-0000-00000000000b',
-  admin: '00000000-0000-0000-0000-0000000000a1',
-  operator: '00000000-0000-0000-0000-0000000000a2',
-  clientUserA: '00000000-0000-0000-0000-0000000000a3',
-  product: '00000000-0000-0000-0000-0000000000f1',
-  subA: '00000000-0000-0000-0000-0000000000c1',
-  subB: '00000000-0000-0000-0000-0000000000c2',
-  intOwnA: '00000000-0000-0000-0000-0000000000e1',
-  intAllNoScope: '00000000-0000-0000-0000-0000000000e2',
+  clientA: '00000000-0000-4000-8ff2-00000000000a',
+  clientB: '00000000-0000-4000-8ff2-00000000000b',
+  admin: '00000000-0000-4000-8ff2-0000000000a1',
+  operator: '00000000-0000-4000-8ff2-0000000000a2',
+  clientUserA: '00000000-0000-4000-8ff2-0000000000a3',
+  product: '00000000-0000-4000-8ff2-0000000000f1',
+  subA: '00000000-0000-4000-8ff2-0000000000c1',
+  subB: '00000000-0000-4000-8ff2-0000000000c2',
+  intOwnA: '00000000-0000-4000-8ff2-0000000000e1',
+  intAllNoScope: '00000000-0000-4000-8ff2-0000000000e2',
 };
 const admin: Ctx = { type: 'user', role: 'admin', userId: ids.admin };
 const operator: Ctx = { type: 'user', role: 'operator', userId: ids.operator };
@@ -65,50 +65,69 @@ beforeAll(async () => {
     await c.query('begin');
     // Contexto system para que los triggers (p. ej. guarda de precio) acepten los fixtures.
     await c.query(`select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true)`);
-    await c.query(`insert into app.clients (id, legal_name) values ($1,'Cliente A'),($2,'Cliente B')`, [ids.clientA, ids.clientB]);
+    await c.query(
+      `insert into app.clients (id, legal_name) values ($1,'Cliente A'),($2,'Cliente B') on conflict do nothing`,
+      [ids.clientA, ids.clientB],
+    );
     await c.query(
       `insert into app.users (id, email, full_name, password_hash, role, client_id) values
-        ($1,'admin@t.co','Admin','hash-admin','admin',null),
-        ($2,'op@t.co','Operador','hash-op','operator',null),
-        ($3,'ca@t.co','Cliente A','hash-ca','client',$4)`,
+        ($1,'sec-admin@t.co','Admin','hash-admin','admin',null),
+        ($2,'sec-op@t.co','Operador','hash-op','operator',null),
+        ($3,'sec-ca@t.co','Cliente A','hash-ca','client',$4) on conflict do nothing`,
       [ids.admin, ids.operator, ids.clientUserA, ids.clientA],
     );
-    await c.query(`insert into app.products (id, name, product_type) values ($1,'Licencia X','third_party')`, [ids.product]);
+    await c.query(
+      `insert into app.products (id, name, product_type) values ($1,'Licencia SEC-HT03','third_party') on conflict do nothing`,
+      [ids.product],
+    );
     await c.query(
       `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
-         price_amount, supplier_cost_amount, notes, status)
-       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1000,600,'nota interna','active')`,
+         price_amount, supplier_cost_amount, notes, status, visible_in_portal)
+       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1000,600,'nota interna','active',true)
+       on conflict do nothing`,
       [ids.subA, ids.clientA, ids.product],
     );
     await c.query(
       `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
-         price_amount, supplier_cost_amount, notes, status)
-       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',2000,900,'nota B','active')`,
+         price_amount, supplier_cost_amount, notes, status, visible_in_portal)
+       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',2000,900,'nota B','active',true)
+       on conflict do nothing`,
       [ids.subB, ids.clientB, ids.product],
     );
     await c.query(
       `insert into app.subscription_periods (subscription_id, period_number, start_date, end_date, billing_cycle,
          price_amount, supplier_cost_amount)
-       values ($1,1,'2026-01-01','2026-12-31','annual',1000,600), ($2,1,'2026-01-01','2026-12-31','annual',2000,900)`,
-      [ids.subA, ids.subB],
+       select $1,1,'2026-01-01','2026-12-31','annual',1000,600
+       where not exists (select 1 from app.subscription_periods p where p.subscription_id = $1 and p.period_number = 1)`,
+      [ids.subA],
+    );
+    await c.query(
+      `insert into app.subscription_periods (subscription_id, period_number, start_date, end_date, billing_cycle,
+         price_amount, supplier_cost_amount)
+       select $1,1,'2026-01-01','2026-12-31','annual',2000,900
+       where not exists (select 1 from app.subscription_periods p where p.subscription_id = $1 and p.period_number = 1)`,
+      [ids.subB],
     );
     await c.query(
       `insert into app.integrations (id, slug, name, scopes, client_scope, manifest, manifest_version) values
-        ($1,'crm-a','CRM A','{subscriptions:read}','own','{}','1.0.0'),
-        ($2,'bi-all','BI','{clients:read}','all','{}','1.0.0')`,
+        ($1,'sec-crm-a','CRM A','{subscriptions:read}','own','{}','1.0.0'),
+        ($2,'sec-bi-all','BI','{clients:read}','all','{}','1.0.0')
+       on conflict do nothing`,
       [ids.intOwnA, ids.intAllNoScope],
     );
-    await c.query(`insert into app.integration_clients (integration_id, client_id) values ($1,$2)`, [ids.intOwnA, ids.clientA]);
     await c.query(
-      `insert into app.client_contacts (client_id, full_name, email) values ($1,'Contacto A','c@a.co')`, [ids.clientA]);
+      `insert into app.integration_clients (integration_id, client_id) values ($1,$2) on conflict do nothing`,
+      [ids.intOwnA, ids.clientA],
+    );
+    await c.query(
+      `insert into app.client_contacts (client_id, full_name, email) values ($1,'Contacto A','sec-c@a.co') on conflict do nothing`,
+      [ids.clientA],
+    );
     await c.query('commit');
   } finally { c.release(); }
 });
 
 afterAll(async () => {
-  if (!url) { await pool.end(); return; }
-  await pool.query(`truncate app.refresh_tokens, app.audit_logs, app.idempotency_keys, app.client_contacts, app.integration_clients, app.integrations, app.subscription_periods,
-                    app.subscriptions, app.products, app.users, app.clients cascade`);
   await pool.end();
 });
 
@@ -235,7 +254,9 @@ describe.skipIf(!url)('M3/M6 — el cliente no lee columnas sensibles ni contact
   it('T-SEC-21 nadie lee users.password_hash vía fabsoft_app; la función sólo responde a su dueño/system', async () => {
     await asActor(clientA, async (c) => {
       await expectPgError(c, 'select password_hash from app.users', [], '42501');
-      expect((await c.query('select id, email from app.users')).rows).toEqual([{ id: ids.clientUserA, email: 'ca@t.co' }]);
+      expect((await c.query('select id, email from app.users')).rows).toEqual([
+        { id: ids.clientUserA, email: 'sec-ca@t.co' },
+      ]);
       expect((await c.query('select app.auth_password_hash($1) h', [ids.clientUserA])).rows[0].h).toBe('hash-ca');
       expect((await c.query('select app.auth_password_hash($1) h', [ids.admin])).rows[0].h).toBeNull();
     });

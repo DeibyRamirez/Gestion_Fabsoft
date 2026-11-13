@@ -31,6 +31,11 @@ describe('database-url', () => {
     );
   });
 
+  it('decodifica %2F en nombre de base (un solo segmento lógico)', () => {
+    const t = parseDatabaseTarget('postgres://u@localhost:5432/my%2Fdb');
+    expect(t.database).toBe('my/db');
+  });
+
   it('assertSameDatabaseInstallation exige host, puerto y base', () => {
     const a = 'postgres://migrator@localhost:5432/fabsoft_test';
     const b = 'postgres://owner@localhost:5432/fabsoft_test';

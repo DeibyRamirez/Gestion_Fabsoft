@@ -18,6 +18,7 @@ import {
   quoteIdent,
   redactDatabaseUrl,
 } from './database-url.js';
+import { assertMigratorMigrationSession, assertMigratorMigrationUser } from './guard.js';
 import {
   assertEphemeralDatabase,
   assertMigratorElevationClosed,
@@ -40,6 +41,17 @@ if (!provisionUrlRaw) throw new Error('DATABASE_PROVISION_URL no definido');
 const migratorUrl = normalizeDatabaseUrl(migratorUrlRaw);
 const provisionUrl = normalizeDatabaseUrl(provisionUrlRaw);
 assertSameDatabaseInstallation(migratorUrl, provisionUrl);
+assertMigratorMigrationUser(migratorUrl);
+
+{
+  const probe = new pg.Client({ connectionString: migratorUrl });
+  await probe.connect();
+  try {
+    await assertMigratorMigrationSession(migratorUrl, (sql, params) => probe.query(sql, params));
+  } finally {
+    await probe.end();
+  }
+}
 
 async function listMigrationSqlFiles(): Promise<string[]> {
   const dir = join(ROOT, 'migrations');

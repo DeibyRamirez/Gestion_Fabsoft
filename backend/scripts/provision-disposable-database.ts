@@ -15,6 +15,10 @@ import {
   loadSessionIdentity,
 } from './guard.js';
 import {
+  assertSchemaAclParity,
+  captureSchemaAclSnapshot,
+} from './schema-acl-snapshot.js';
+import {
   assertSameDatabaseInstallation,
   normalizeDatabaseUrl,
   parseDatabaseTarget,
@@ -338,6 +342,85 @@ async function expectedMigrationCount(): Promise<number> {
   return names.filter((n) => /^\d+_.+\.sql$/.test(n)).length;
 }
 
+async function reassignAppSchemaFromOwnerToMigrator(provisionDbUrl: string): Promise<number> {
+  const c = new pg.Client({ connectionString: normalizeDatabaseUrl(provisionDbUrl) });
+  await c.connect();
+  let count = 0;
+  try {
+    const { rows: ns } = await c.query<{ owner: string | null }>(
+      `select pg_catalog.pg_get_userbyid(nspowner)::text as owner
+       from pg_namespace where nspname = 'app'`,
+    );
+    if (ns[0]?.owner === 'fabsoft_owner') {
+      await c.query(`alter schema app owner to ${quoteIdent(MIGRATOR_ROLE)}`);
+      count += 1;
+    }
+    const { rows: rels } = await c.query<{ nspname: string; relname: string; kind: string }>(
+      `select n.nspname, c.relname, c.relkind::text as kind
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'app'
+         and pg_catalog.pg_get_userbyid(c.relowner) = 'fabsoft_owner'
+         and c.relkind in ('r','v','m')`,
+    );
+    for (const r of rels) {
+      const kind =
+        r.kind === 'r'
+          ? 'TABLE'
+          : r.kind === 'S'
+            ? 'SEQUENCE'
+            : r.kind === 'v'
+              ? 'VIEW'
+              : r.kind === 'm'
+                ? 'MATERIALIZED VIEW'
+                : 'TABLE';
+      await c.query(
+        `alter ${kind} ${quoteIdent(r.nspname)}.${quoteIdent(r.relname)} owner to ${quoteIdent(MIGRATOR_ROLE)}`,
+      );
+      count += 1;
+    }
+    return count;
+  } finally {
+    await c.end();
+  }
+}
+
+async function revokeMigratorDatabaseCreate(dbName: string): Promise<void> {
+  await provision.query(
+    `revoke create on database ${quoteIdent(dbName)} from ${quoteIdent(MIGRATOR_ROLE)}`,
+  );
+}
+
+async function assertMigratorAppDdlSmoke(migratorDatabaseUrl: string): Promise<void> {
+  const c = new pg.Client({ connectionString: normalizeDatabaseUrl(migratorDatabaseUrl) });
+  await c.connect();
+  try {
+    await c.query(`create table app.zz_f0_migrator_ddl_probe (id int primary key)`);
+    await c.query(`alter table app.zz_f0_migrator_ddl_probe add column note text`);
+    await c.query(`drop table app.zz_f0_migrator_ddl_probe`);
+  } finally {
+    await c.end();
+  }
+}
+
+async function assertAppTablesNotOwnedByBootstrap(migratorDatabaseUrl: string): Promise<void> {
+  const c = new pg.Client({ connectionString: normalizeDatabaseUrl(migratorDatabaseUrl) });
+  await c.connect();
+  try {
+    const { rows } = await c.query<{ tablename: string }>(
+      `select c.relname as tablename
+       from pg_class c join pg_namespace n on n.oid = c.relnamespace
+       where n.nspname = 'app' and c.relkind = 'r'
+         and pg_catalog.pg_get_userbyid(c.relowner) = 'fabsoft_owner'`,
+    );
+    if (rows.length > 0) {
+      throw new Error(`T-F0-10 upgrade: tablas app aún owner fabsoft_owner: ${rows.map((r) => r.tablename).join(',')}`);
+    }
+  } finally {
+    await c.end();
+  }
+}
+
 async function applyDevelopMinimalData(databaseUrl: string): Promise<void> {
   const c = new pg.Client({ connectionString: normalizeDatabaseUrl(databaseUrl) });
   await c.connect();
@@ -375,11 +458,15 @@ async function profileDevelopHistoricalUpgrade(): Promise<void> {
         `develop upgrade: owner no aplicó ${migCount} migraciones (tiene ${preMigrator.length})`,
       );
     }
+    const reassigned = await reassignAppSchemaFromOwnerToMigrator(ownerUrl);
     await runStagedMigrate(migUrl, upgradeDb);
     const postMigrator = await migrationInventory(migUrl);
     if (postMigrator.length !== migCount) {
       throw new Error(`develop upgrade: inventario migrator inesperado ${postMigrator.length}`);
     }
+    await assertAppTablesNotOwnedByBootstrap(migUrl);
+    await assertMigratorAppDdlSmoke(migUrl);
+    await revokeMigratorDatabaseCreate(upgradeDb);
     await rlsSnapshot(migUrl);
     console.log(
       JSON.stringify({
@@ -387,8 +474,10 @@ async function profileDevelopHistoricalUpgrade(): Promise<void> {
         harnessRunId,
         upgradeDb,
         migrations: postMigrator,
-        path: 'owner-full-chain-then-migrator-dbmate',
+        reassignedObjects: reassigned,
+        path: 'owner-full-chain-reassign-migrator-dbmate',
         assertRlsEverywhere: 'migrator',
+        migratorDatabaseCreateRevoked: true,
       }),
     );
   } finally {
@@ -465,6 +554,7 @@ async function profileFoundationHarness(): Promise<void> {
     const freshVersions = await migrationInventory(freshUrl);
     const freshRls = await rlsSnapshot(freshUrl);
     const freshPolicies = await policySnapshot(freshUrl);
+    const freshAcl = await captureSchemaAclSnapshot(freshUrl);
 
     const ownerUpgradeUrl = urlForDatabase(provisionConnectionUrl, upgradeDb);
     await runDbmate(ownerUpgradeUrl, join(ROOT, 'migrations'));
@@ -474,10 +564,12 @@ async function profileFoundationHarness(): Promise<void> {
     if (ownerVersions.length !== migCount) {
       throw new Error(`upgrade histórico: owner aplicó ${ownerVersions.length}/${migCount}`);
     }
+  const reassigned = await reassignAppSchemaFromOwnerToMigrator(ownerUpgradeUrl);
     await runStagedMigrate(upgradeUrl, upgradeDb);
     const upgradeVersions = await migrationInventory(upgradeUrl);
     const upgradeRls = await rlsSnapshot(upgradeUrl);
     const upgradePolicies = await policySnapshot(upgradeUrl);
+    const upgradeAcl = await captureSchemaAclSnapshot(upgradeUrl);
 
     if (freshVersions.length !== migCount || upgradeVersions.length !== migCount) {
       throw new Error(
@@ -490,6 +582,29 @@ async function profileFoundationHarness(): Promise<void> {
     if (freshPolicies !== upgradePolicies) {
       throw new Error('Políticas RLS fresh vs upgrade no coinciden');
     }
+    const aclDiff = assertSchemaAclParity(freshAcl, upgradeAcl);
+    if (aclDiff.relaclDiff || aclDiff.proaclDiff || aclDiff.nspaclDiff || aclDiff.defaultAclDiff) {
+      console.log(
+        JSON.stringify({
+          aclGranularAsymmetry: true,
+          ...aclDiff,
+          note: 'Owners de tablas coinciden; relacl/nspacl/proacl/default pueden variar en upgrade owner→migrator (ver deployment-f0.md)',
+        }),
+      );
+    }
+    const eventTriggerAsymmetry =
+      JSON.stringify(freshAcl.eventTriggers) !== JSON.stringify(upgradeAcl.eventTriggers);
+    if (eventTriggerAsymmetry) {
+      console.log(
+        JSON.stringify({
+          eventTriggerAsymmetry: true,
+          fresh: freshAcl.eventTriggers,
+          upgrade: upgradeAcl.eventTriggers,
+          note: 'fabsoft_enforce_rls: owner superusuario en upgrade crea el trigger; fresh vía migrator sin rolsuper no (0003 §event trigger)',
+        }),
+      );
+    }
+    await revokeMigratorDatabaseCreate(upgradeDb);
     console.log(
       JSON.stringify({
         profile: 'foundation-harness',
@@ -497,7 +612,9 @@ async function profileFoundationHarness(): Promise<void> {
         freshDb,
         upgradeDb,
         migrations: freshVersions,
+        reassignedUpgradeObjects: reassigned,
         createdDatabases,
+        migratorDatabaseCreateRevokedOnUpgrade: true,
       }),
     );
   } finally {

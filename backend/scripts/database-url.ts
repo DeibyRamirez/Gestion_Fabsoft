@@ -20,7 +20,7 @@ export function parseDatabaseTarget(url: string): DatabaseTarget {
   if (pathSegs.length !== 1) {
     throw new Error('URL de base de datos debe tener exactamente un segmento de nombre de base');
   }
-  const database = pathSegs[0]!;
+  const database = decodeURIComponent(pathSegs[0]!);
   const user = decodeURIComponent(parsed.username || '');
   if (!user) throw new Error('URL de base de datos sin usuario LOGIN');
   return {

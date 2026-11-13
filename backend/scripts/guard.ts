@@ -26,10 +26,17 @@ function parseForbiddenHosts(): string[] {
   if (trimmed === '' || trimmed === '-') {
     throw new Error('SEED_FORBIDDEN_HOSTS no puede ser vacío ni "-" (fail closed)');
   }
-  return trimmed
+  if (/^[\s,]+$/.test(trimmed)) {
+    throw new Error('SEED_FORBIDDEN_HOSTS no puede ser solo comas (fail closed)');
+  }
+  const hosts = trimmed
     .split(',')
     .map((h) => h.trim())
     .filter(Boolean);
+  if (hosts.length === 0) {
+    throw new Error('SEED_FORBIDDEN_HOSTS debe listar al menos un patrón denegado');
+  }
+  return hosts;
 }
 
 function parseList(name: string): string[] {
@@ -158,7 +165,7 @@ export type SeedGuardExpectation = {
   expectedDatabase: string;
 };
 
-const SEED_WRITER_ROLES = ['fabsoft_seed_writer', 'fabsoft_provisioner'] as const;
+const SEED_WRITER_ROLES = ['fabsoft_seed_writer'] as const;
 
 /** Validación estática para seed: no abre conexión. */
 export function assertSeedConfiguration(): SeedGuardExpectation {
@@ -322,6 +329,34 @@ export async function assertSeedSession(
     runId: expected.harnessRunId,
     database: expected.expectedDatabase,
   });
+}
+
+export function assertMigratorMigrationUser(databaseUrl: string): void {
+  const user = parseDatabaseTarget(normalizeDatabaseUrl(databaseUrl)).user;
+  if (user !== 'fabsoft_migrator') {
+    throw new Error(
+      `DATABASE_MIGRATION_URL debe usar fabsoft_migrator, no ${user} (fail closed antes de dbmate)`,
+    );
+  }
+}
+
+/** Tras conectar con DATABASE_MIGRATION_URL (dbmate / staged-up). */
+export async function assertMigratorMigrationSession(
+  databaseUrl: string,
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>,
+): Promise<SessionIdentity> {
+  assertMigratorMigrationUser(databaseUrl);
+  const identity = await loadSessionIdentity(query);
+  if (identity.sessionUser !== 'fabsoft_migrator') {
+    throw new Error(
+      `Sesión migrator inválida: ${identity.sessionUser} (use LOGIN fabsoft_migrator en DATABASE_MIGRATION_URL)`,
+    );
+  }
+  if (identity.rolsuper || identity.rolbypassrls) {
+    throw new Error('DATABASE_MIGRATION_URL: superusuario/BYPASSRLS prohibido para migrador');
+  }
+  assertMigratorBootstrapExpectation(identity);
+  return identity;
 }
 
 export function assertMigratorBootstrapExpectation(identity: SessionIdentity): void {
