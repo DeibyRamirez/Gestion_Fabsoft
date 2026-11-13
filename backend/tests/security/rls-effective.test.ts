@@ -215,19 +215,15 @@ describe.skipIf(!migratorUrl)('F0 — inventario RLS (T-F0-08)', () => {
     }
   });
 
-  it('T-F0-08b event trigger según ruta (fresh vs upgrade)', async () => {
+  it('T-F0-08b fresh: sin event trigger fabsoft_enforce_rls', async () => {
+    if (process.env.FABSOFT_EXPECT_EVENT_TRIGGER === '1') return;
     const client = new pg.Client({ connectionString: migratorUrl! });
     await client.connect();
     try {
       const { rows } = await client.query<{ evtname: string }>(
         `select evtname from pg_event_trigger where evtname = 'fabsoft_enforce_rls'`,
       );
-      const upgradeRoute = process.env.FABSOFT_EXPECT_EVENT_TRIGGER === '1';
-      if (upgradeRoute) {
-        expect(rows.map((r) => r.evtname)).toContain('fabsoft_enforce_rls');
-      } else {
-        expect(rows).toEqual([]);
-      }
+      expect(rows).toEqual([]);
     } finally {
       await client.end();
     }

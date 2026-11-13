@@ -67,14 +67,16 @@ export async function assertDefinerExecuteAllowlist(databaseUrl: string): Promis
         const want = expectedExecute(fn, role);
         const directExec = directGrants.has(role);
         const effective = await c
-          .query<{ ok: boolean }>(`select has_function_privilege($1, $2::regprocedure, 'EXECUTE') as ok`, [
-            role,
-            fn,
-          ])
+          .query<{ ok: boolean }>(
+            `select has_function_privilege($1, $2::regprocedure, 'EXECUTE') as ok`,
+            [role, fn],
+          )
           .then((r) => r.rows[0]?.ok ?? false);
 
         const actual =
-          role === 'fabsoft_worker' || role === 'fabsoft_bootstrap' || role === 'fabsoft_secure_view'
+          role === 'fabsoft_worker' ||
+          role === 'fabsoft_bootstrap' ||
+          role === 'fabsoft_secure_view'
             ? directExec
             : effective;
 

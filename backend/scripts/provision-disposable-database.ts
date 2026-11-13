@@ -450,9 +450,7 @@ async function profileDevelopHistoricalUpgrade(): Promise<void> {
           'run',
           '--project',
           'security',
-          'tests/security/rls-effective.test.ts',
-          '-t',
-          'T-F0-08b',
+          'tests/security/t-f0-08b-event-trigger.test.ts',
         ],
         {
           cwd: ROOT,
@@ -466,9 +464,7 @@ async function profileDevelopHistoricalUpgrade(): Promise<void> {
         },
       );
       if (vitestRun.status !== 0) {
-        throw new Error(
-          `develop-upgrade T-F0-08b vitest: ${vitestRun.stderr || vitestRun.stdout}`,
-        );
+        throw new Error(`develop-upgrade T-F0-08b vitest: ${vitestRun.stderr || vitestRun.stdout}`);
       }
     }
     console.log(
