@@ -519,7 +519,7 @@ async function profileCiMain(): Promise<void> {
   await writeGithubEnv({
     DATABASE_PROVISION_URL: provisionConnectionUrl,
     DATABASE_MIGRATION_URL: migUrl,
-    TEST_DATABASE_MIGRATION_URL: provisionConnectionUrl,
+    TEST_DATABASE_MIGRATION_URL: migUrl,
     SEED_EPHEMERAL_MARKER: marker,
     SEED_HARNESS_RUN_ID: harnessRunId,
     SEED_ALLOWED_HOSTS: target.host,

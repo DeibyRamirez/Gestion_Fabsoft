@@ -13,12 +13,43 @@ function isNonSystemSchema(nsp: string): boolean {
   return true;
 }
 
+/** Dueños permitidos de funciones SECURITY DEFINER en schema app (fail-closed). */
+export const APP_SECURITY_DEFINER_OWNERS = new Set([
+  'fabsoft_auth_definer',
+  'fabsoft_audit_definer',
+  'fabsoft_secure_view',
+]);
+
 function expectedExecute(fn: string, role: string): boolean {
   const n = normSig(fn);
   const spec = DEFINER_FUNCTION_PRIVILEGE_CHECKS.find((s) => normSig(s.fn) === n);
   if (!spec) return false;
   const row = spec.roles.find((r) => r.role === role);
   return row?.execute ?? false;
+}
+
+export async function assertSecurityDefinerOwnersAllowlist(databaseUrl: string): Promise<void> {
+  const c = new pg.Client({ connectionString: normalizeDatabaseUrl(databaseUrl) });
+  await c.connect();
+  try {
+    const { rows } = await c.query<{ fn: string; owner: string }>(
+      `select n.nspname::text || '.' || p.proname::text || '(' ||
+              pg_catalog.oidvectortypes(p.proargtypes) || ')' as fn,
+              pg_get_userbyid(p.proowner)::text as owner
+       from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'app' and p.prosecdef
+       order by 1`,
+    );
+    const bad = rows.filter((r) => !APP_SECURITY_DEFINER_OWNERS.has(r.owner));
+    if (bad.length > 0) {
+      throw new Error(
+        `Gate prosecdef: dueños no allowlisted: ${bad.map((r) => `${r.fn}@${r.owner}`).join(', ')}`,
+      );
+    }
+  } finally {
+    await c.end();
+  }
 }
 
 export async function assertDefinerExecuteAllowlist(databaseUrl: string): Promise<void> {

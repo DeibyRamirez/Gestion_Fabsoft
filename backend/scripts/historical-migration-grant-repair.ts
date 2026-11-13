@@ -44,7 +44,8 @@ export async function assertNoUnexpectedPublicExecuteBeforeRepair(owner: QueryFn
          'auth_password_hash',
          'integration_reads_subscriptions',
          'bootstrap_first_admin',
-         'revoke_user_sessions'
+         'revoke_user_sessions',
+         'audit_write'
        )`,
   )) as pg.QueryResult<{ sig: string }>;
   if (rows.length > 0) {
@@ -69,6 +70,8 @@ export async function repairHistoricalMigrationGrants(owner: QueryFn): Promise<v
     `grant execute on function app.bootstrap_first_admin(text, text, text) to fabsoft_bootstrap`,
     `revoke execute on function app.revoke_user_sessions(uuid, text, text) from public`,
     `grant execute on function app.revoke_user_sessions(uuid, text, text) to fabsoft_app`,
+    `revoke execute on function app.audit_write(text, text, text, jsonb, text, inet) from public`,
+    `grant execute on function app.audit_write(text, text, text, jsonb, text, inet) to fabsoft_app`,
     `revoke execute on function app.tg_enforce_rls_on_create() from fabsoft_app`,
     // PO: default global + schema app — sin EXECUTE a PUBLIC en funciones nuevas del migrator
     `alter default privileges for role ${quoteIdent(MIGRATOR)} revoke execute on functions from public`,
@@ -132,6 +135,17 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
       { role: 'fabsoft_app', execute: true },
       { role: 'fabsoft_secure_view', execute: true },
       workerInheritsAppExecute,
+      ...denyNonApp,
+    ],
+  },
+  {
+    fn: 'app.audit_write(text,text,text,jsonb,text,inet)',
+    roles: [
+      { role: 'public', execute: false },
+      { role: 'fabsoft_app', execute: true },
+      workerInheritsAppExecute,
+      { role: 'fabsoft_auth_definer', execute: false },
+      { role: 'fabsoft_bootstrap', execute: false },
       ...denyNonApp,
     ],
   },

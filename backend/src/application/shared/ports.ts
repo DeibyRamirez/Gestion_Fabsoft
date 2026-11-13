@@ -24,6 +24,7 @@ export interface IdGenerator {
 export type AuditAction =
   | 'auth.login_failed'
   | 'auth.refresh_reuse_detected'
+  | 'auth.sessions_revoked'
   | 'user.created'
   | 'user.updated'
   | 'user.role_changed'
@@ -34,6 +35,7 @@ export type AuditAction =
   | 'product.deactivated';
 
 export interface AuditEntry {
+  /** El actor real lo fija el contexto RLS en Postgres; este campo documenta la intención en capa app. */
   actor: { type: 'user'; userId: string } | { type: 'system' };
   action: AuditAction;
   resourceType: 'user' | 'product';

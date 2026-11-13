@@ -7,7 +7,7 @@ import { DEFINER_FUNCTION_PRIVILEGE_CHECKS } from '../../scripts/historical-migr
 import { ensureAppPoolRoleVerified, getAppPool } from '../helpers/db.js';
 
 const migratorUrl = process.env.DATABASE_MIGRATION_URL;
-const ownerUrl = process.env.TEST_DATABASE_MIGRATION_URL;
+const ownerUrl = process.env.DATABASE_PROVISION_URL ?? process.env.TEST_DATABASE_MIGRATION_URL;
 const appUrl = process.env.TEST_DATABASE_URL;
 const ARGON = '$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA';
 

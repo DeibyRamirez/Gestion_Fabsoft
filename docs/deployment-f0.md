@@ -1,6 +1,6 @@
 # Sprint1 · Foundation F0 — Aprovisionamiento y migraciones
 
-> Corte acordado Dev/Seguridad: migrator LOGIN **sin** superusuario ejecuta `0001`–`0005` en BD **desechable** (`0002`–`0005` con elevación efímera administrada por el provisioner); runtime (`fabsoft_app`) sin DDL ni escalación. No incluye `audit_write` ni cierre de HU-08.
+> Corte acordado Dev/Seguridad: migrator LOGIN **sin** superusuario ejecuta `0001`–`0005` en BD **desechable** (`0002`–`0005` con elevación efímera administrada por el provisioner); runtime (`fabsoft_app`) sin DDL ni escalación. `0006_audit_write.sql` introduce `app.audit_write` (dueño `fabsoft_audit_definer`); no cierra HU-08 (lectura/UI).
 
 ## URLs por capa
 
