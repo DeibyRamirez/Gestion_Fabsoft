@@ -27,6 +27,8 @@ import {
   grantHistoricalRoleSchemaCreate,
   repairMigratorSchemaPrivileges,
   revokeMigratorHistoricalElevation,
+  elevateMigratorForFutureMigrations,
+  revokeMigratorFutureElevation,
 } from './migrator-historical-elevation.js';
 import {
   assertStrictNoPublicExecuteOnAppDefiners,
@@ -285,9 +287,27 @@ try {
     }
   }
   if (future.length > 0) {
-    const dirF = join(tmpBase, 'future');
-    await copyFiles(future, dirF);
-    runDbmate(migratorUrl, dirF);
+    const pendingFuture = await pendingMigrationVersions(migratorUrl, future);
+    if (pendingFuture.length > 0) {
+      const ownerConn = provisionUrlForMigratorDb();
+      const owner = new pg.Client({ connectionString: ownerConn });
+      await owner.connect();
+      try {
+        const q = (sql: string, params?: unknown[]) => owner.query(sql, params);
+        await assertEphemeralDatabase(q);
+        await precreateStubRoles(q);
+        await elevateMigratorForFutureMigrations(q);
+        try {
+          const dirF = join(tmpBase, 'future');
+          await copyFiles(future, dirF);
+          runDbmate(migratorUrl, dirF);
+        } finally {
+          await revokeMigratorFutureElevation(q);
+        }
+      } finally {
+        await owner.end();
+      }
+    }
   }
 } finally {
   await rm(tmpBase, { recursive: true, force: true });

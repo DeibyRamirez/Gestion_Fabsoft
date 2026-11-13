@@ -1,5 +1,6 @@
 /**
  * Elevación efímera para aplicar 0002–0005 como fabsoft_migrator (sin SUPERUSER/CREATEROLE)
+ * y stubs/grants temporales para 0006+ (CREATE ROLE / ALTER OWNER sin CREATEROLE).
  * en bases desechables marcadas por el harness. Los SQL 0001–0005 no se modifican.
  */
 import type pg from 'pg';
@@ -30,6 +31,10 @@ const STUB_ROLE_DDL: readonly { name: string; sql: string }[] = [
   {
     name: 'fabsoft_bootstrap',
     sql: `create role fabsoft_bootstrap nologin nosuperuser nocreatedb nocreaterole inherit nobypassrls`,
+  },
+  {
+    name: 'fabsoft_audit_definer',
+    sql: `create role fabsoft_audit_definer nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls`,
   },
 ];
 
@@ -220,6 +225,18 @@ export async function revokeMigratorHistoricalElevation(
   await exec(owner, `grant ${quoteIdent('fabsoft_app')} to ${quoteIdent('fabsoft_worker')}`);
   await revokeHistoricalRoleSchemaCreate(owner);
   await repairHistoricalMigrationGrants(owner);
+}
+
+/** SET temporal hacia fabsoft_audit_definer para ALTER OWNER en 0006 (revocar antes de gates). */
+export async function elevateMigratorForFutureMigrations(owner: QueryFn): Promise<void> {
+  await exec(
+    owner,
+    `grant ${quoteIdent('fabsoft_audit_definer')} to ${quoteIdent(MIGRATOR)} with inherit false, set true`,
+  );
+}
+
+export async function revokeMigratorFutureElevation(owner: QueryFn): Promise<void> {
+  await exec(owner, `revoke ${quoteIdent('fabsoft_audit_definer')} from ${quoteIdent(MIGRATOR)}`);
 }
 
 export async function assertMigratorElevationClosed(owner: QueryFn): Promise<void> {
