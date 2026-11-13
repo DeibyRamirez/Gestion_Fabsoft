@@ -102,14 +102,14 @@ begin
   for k, v in select key, value from jsonb_each(p_val) loop
     if app.audit_is_secret_key(k) then
       out := out || jsonb_build_object(k, '[REDACTED]');
-    elsif k = 'supplier_cost_amount' and not p_admin then
-      continue;
-    elsif p_allow is not null and cardinality(p_allow) > 0 and not (k = any (p_allow)) then
-      continue;
     elsif jsonb_typeof(v) = 'object' then
       out := out || jsonb_build_object(k, app.audit_redact_jsonb(v, null, p_admin));
     elsif jsonb_typeof(v) = 'array' then
       out := out || jsonb_build_object(k, app.audit_redact_jsonb_array(v, p_allow, p_admin));
+    elsif k = 'supplier_cost_amount' and not p_admin then
+      continue;
+    elsif p_allow is not null and cardinality(p_allow) > 0 and not (k = any (p_allow)) then
+      continue;
     else
       out := out || jsonb_build_object(k, v);
     end if;
