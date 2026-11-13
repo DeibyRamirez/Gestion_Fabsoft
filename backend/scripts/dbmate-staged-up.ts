@@ -23,6 +23,7 @@ import {
   assertMigratorElevationClosed,
   elevateMigratorForHistoricalMigrations,
   precreateStubRoles,
+  grantHistoricalRoleSchemaCreate,
   repairMigratorSchemaPrivileges,
   revokeMigratorHistoricalElevation,
 } from './migrator-historical-elevation.js';
@@ -236,6 +237,7 @@ try {
         const q = (sql: string, params?: unknown[]) => owner.query(sql, params);
         await assertEphemeralDatabase(q);
         await precreateStubRoles(q);
+        await grantHistoricalRoleSchemaCreate(q);
         await elevateMigratorForHistoricalMigrations(q, dbName);
         try {
           for (const f of provisioner) {

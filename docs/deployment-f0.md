@@ -33,7 +33,7 @@ pnpm test:security
 
 ## Bootstrap administrativo mínimo (honesto)
 
-El provisioner crea `fabsoft_migrator` restringido (`NOCREATEROLE`) y, **sólo en BD efímera**, pre-crea roles stub + eleva/retira membresías temporales (`migrator-historical-elevation.ts`). El cierre usa `REVOKE ALL ON DATABASE … FROM fabsoft_migrator CASCADE` para retirar sólo privilegios de base otorgados por el migrator durante `0002` (p. ej. `CREATE` transitivo a `fabsoft_app`); después se re-emite `GRANT fabsoft_app TO fabsoft_worker` y `CONNECT` al migrator. `fabsoft_bootstrap` no ejecuta `0002`–`0005`.
+El provisioner crea `fabsoft_migrator` restringido (`NOCREATEROLE`) y, **sólo en BD efímera**, pre-crea roles stub, concede `CREATE` en `app` a roles destino de `ALTER OWNER` (`fabsoft_secure_view`, `fabsoft_auth_definer`, `fabsoft_worker`) y eleva/retira membresías temporales (`migrator-historical-elevation.ts`). El cierre usa `REVOKE ALL ON DATABASE … FROM fabsoft_migrator CASCADE` para retirar sólo privilegios de base otorgados por el migrator durante `0002` (p. ej. `CREATE` transitivo a `fabsoft_app`); después se re-emite `GRANT fabsoft_app TO fabsoft_worker` y `CONNECT` al migrator. `fabsoft_bootstrap` no ejecuta `0002`–`0005`.
 
 **SQL histórico congelado (quién ejecuta cada tramo):**
 

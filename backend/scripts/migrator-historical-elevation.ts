@@ -113,6 +113,13 @@ export async function repairMigratorSchemaPrivileges(owner: QueryFn): Promise<vo
   await exec(owner, `grant execute on all functions in schema app to ${quoteIdent(MIGRATOR)}`);
 }
 
+/** CREATE en `app` para roles destino de ALTER OWNER en 0003/0005 (migrator no superusuario). */
+export async function grantHistoricalRoleSchemaCreate(owner: QueryFn): Promise<void> {
+  for (const role of ['fabsoft_secure_view', 'fabsoft_auth_definer', 'fabsoft_worker'] as const) {
+    await exec(owner, `grant usage, create on schema app to ${quoteIdent(role)}`);
+  }
+}
+
 export async function elevateMigratorForHistoricalMigrations(
   owner: QueryFn,
   databaseName: string,
@@ -151,7 +158,7 @@ export async function revokeMigratorHistoricalElevation(
   await exec(owner, `revoke create on database ${db} from ${quoteIdent('fabsoft_worker')}`);
   await exec(
     owner,
-    `revoke admin option for ${quoteIdent('fabsoft_app')} from ${quoteIdent(MIGRATOR)}`,
+    `revoke admin option for ${quoteIdent('fabsoft_app')} from ${quoteIdent(MIGRATOR)} cascade`,
   );
   await exec(owner, `revoke ${quoteIdent('fabsoft_worker')} from ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `revoke ${quoteIdent('fabsoft_secure_view')} from ${quoteIdent(MIGRATOR)}`);
