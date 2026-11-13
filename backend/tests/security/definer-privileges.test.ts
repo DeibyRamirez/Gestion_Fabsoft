@@ -44,55 +44,53 @@ describe.skipIf(!migratorUrl)('F0 — privilegios definer (P0)', () => {
       await owner.query(`delete from app.users where role = 'admin'`);
       await owner.query(`set local session_replication_role = origin`);
       await owner.query('commit');
-    } catch (err) {
-      await owner.query('rollback');
-      throw err;
-    } finally {
-      await owner.end();
-    }
-    await ensureAppPoolRoleVerified();
-    const pool = getAppPool();
-    const client = await pool.connect();
-    try {
-      await client.query('begin');
-      await client.query(`set local role fabsoft_app`);
-      await client.query(
-        `select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true)`,
-      );
-      await client.query('savepoint t_sec_30');
+
+      await ensureAppPoolRoleVerified();
+      const pool = getAppPool();
+      const client = await pool.connect();
       try {
-        await client.query('select app.bootstrap_first_admin($1,$2,$3)', ['x@t.co', 'X', ARGON]);
-        throw new Error('bootstrap_first_admin no debió ejecutarse como fabsoft_app');
-      } catch (err: unknown) {
-        const e = err as { code?: string; message?: string };
-        expect(e.code).toBe('42501');
-        expect(String(e.message)).toMatch(/permission denied for function bootstrap_first_admin/i);
+        await client.query('begin');
+        await client.query(`set local role fabsoft_app`);
+        await client.query(
+          `select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true)`,
+        );
+        await client.query('savepoint t_sec_30');
+        try {
+          await client.query('select app.bootstrap_first_admin($1,$2,$3)', ['x@t.co', 'X', ARGON]);
+          throw new Error('bootstrap_first_admin no debió ejecutarse como fabsoft_app');
+        } catch (err: unknown) {
+          const e = err as { code?: string; message?: string };
+          expect(e.code).toBe('42501');
+          expect(String(e.message)).toMatch(/permission denied for function bootstrap_first_admin/i);
+        }
+        await client.query('rollback to savepoint t_sec_30');
+        const { rows: after } = await client.query<{ n: number }>(
+          `select count(*)::int as n from app.users where role = 'admin'`,
+        );
+        expect(after[0]!.n).toBe(0);
+        await client.query('rollback');
+      } finally {
+        client.release();
       }
-      await client.query('rollback to savepoint t_sec_30');
-      const { rows: after } = await client.query<{ n: number }>(
-        `select count(*)::int as n from app.users where role = 'admin'`,
-      );
-      expect(after[0]!.n).toBe(0);
-      await client.query('rollback');
     } finally {
-      client.release();
-    }
-    const restore = new pg.Client({ connectionString: ownerUrl });
-    await restore.connect();
-    try {
-      await restore.query('begin');
-      await restore.query(`set local session_replication_role = replica`);
-      await restore.query(
-        `insert into app.users (id, email, full_name, password_hash, role, client_id, status)
+      try {
+        await owner.query('begin');
+        await owner.query(`set local session_replication_role = replica`);
+        await owner.query(
+          `insert into app.users (id, email, full_name, password_hash, role, client_id, status)
          values ('00000000-0000-4000-8ff0-0000000000a1','rls-admin@t.co','Admin','h','admin',null,'active'),
                 ('00000000-0000-4000-8ff2-0000000000a1','sec-admin@t.co','Admin','hash-admin','admin',null,'active'),
                 ('00000000-0000-4000-8ff2-0000000000a2','sec-op@t.co','Operador','hash-op','operator',null,'active')
-         on conflict (id) do nothing`,
-      );
-      await restore.query(`set local session_replication_role = origin`);
-      await restore.query('commit');
-    } finally {
-      await restore.end();
+         on conflict (id) do update set role = excluded.role, status = excluded.status`,
+        );
+        await owner.query(`set local session_replication_role = origin`);
+        await owner.query('commit');
+      } catch (err) {
+        await owner.query('rollback').catch(() => undefined);
+        throw err;
+      } finally {
+        await owner.end();
+      }
     }
   });
 

@@ -13,8 +13,33 @@ async function run(owner: QueryFn, sql: string): Promise<void> {
   await owner(sql);
 }
 
+/** Fail-closed si hay EXECUTE a PUBLIC fuera del set que el repair va a revocar. */
+export async function assertNoUnexpectedPublicExecuteBeforeRepair(owner: QueryFn): Promise<void> {
+  const { rows } = await owner<{ sig: string }>(
+    `select p.proname::text || '(' || pg_catalog.oidvectortypes(p.proargtypes) || ')' as sig
+     from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'app'
+       and p.prosecdef
+       and has_function_privilege('public', p.oid, 'EXECUTE')
+       and p.proname not in (
+         'client_has_visible_product',
+         'auth_password_hash',
+         'integration_reads_subscriptions',
+         'bootstrap_first_admin',
+         'revoke_user_sessions'
+       )`,
+  );
+  if (rows.length > 0) {
+    throw new Error(
+      `GRANT EXECUTE inesperado a PUBLIC (SECURITY DEFINER) antes de repair: ${rows.map((r) => r.sig).join(', ')}`,
+    );
+  }
+}
+
 /** Privilegios idempotentes al cerrar elevación / tras db:migrate histórico. */
 export async function repairHistoricalMigrationGrants(owner: QueryFn): Promise<void> {
+  await assertNoUnexpectedPublicExecuteBeforeRepair(owner);
   const stmts = [
     `grant usage on schema app to fabsoft_worker`,
     `revoke execute on function app.client_has_visible_product(uuid) from public`,

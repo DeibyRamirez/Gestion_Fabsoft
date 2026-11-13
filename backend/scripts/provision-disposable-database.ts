@@ -429,6 +429,20 @@ async function profileDevelopHistoricalUpgrade(): Promise<void> {
     await assertMigratorAppDdlSmoke(migUrl);
     await revokeMigratorDatabaseCreate(upgradeDb);
     await rlsSnapshot(migUrl);
+    if (process.env.FABSOFT_EXPECT_EVENT_TRIGGER === '1') {
+      const etClient = new pg.Client({ connectionString: migUrl });
+      await etClient.connect();
+      try {
+        const { rows: et } = await etClient.query<{ n: number }>(
+          `select count(*)::int as n from pg_event_trigger where evtname = 'fabsoft_enforce_rls'`,
+        );
+        if (et[0]!.n !== 1) {
+          throw new Error('develop-upgrade: falta event trigger fabsoft_enforce_rls');
+        }
+      } finally {
+        await etClient.end();
+      }
+    }
     console.log(
       JSON.stringify({
         profile: 'develop-historical-upgrade',

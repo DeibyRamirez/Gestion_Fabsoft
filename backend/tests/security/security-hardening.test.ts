@@ -431,11 +431,6 @@ describe.skipIf(!url)('0005 — funciones SECURITY DEFINER de auth', () => {
   const active = async (userId: string) =>
     Number((await pool.query('select count(*) n from app.refresh_tokens where user_id=$1 and revoked_at is null', [userId])).rows[0].n);
 
-  it('T-SEC-30 fabsoft_app (cualquier contexto) no puede ejecutar bootstrap_first_admin', async () => {
-    for (const ctx of [admin, system, clientA])
-      await asActor(ctx, (c) => expectPgError(c, 'select app.bootstrap_first_admin($1,$2,$3)', ['x@t.co', 'X', ARGON], '42501'));
-  });
-
   it('T-SEC-31 bootstrap falla si ya existe un admin', () =>
     asActor(system, (c) => expectPgError(c, 'select app.bootstrap_first_admin($1,$2,$3)', ['x@t.co', 'X', ARGON], '42501'), 'fabsoft_bootstrap'));
 

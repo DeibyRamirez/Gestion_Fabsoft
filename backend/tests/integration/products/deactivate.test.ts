@@ -6,7 +6,7 @@ import {
   closeTestPools,
   dbTestsConfigured,
   resetDatabase,
-  withOwnerSystemContext,
+  withAppContext,
 } from '../../helpers/db.js';
 import { buildTestApp, closeTestApp, getTestAccessTokens } from '../../helpers/app.js';
 
@@ -39,7 +39,7 @@ describe.skipIf(!dbTestsConfigured())('T-HU05-04 desactivar producto', () => {
     const subscription = await factories.subscription(client, product, { status: 'active' });
     const extraPeriod = await factories.period(subscription);
 
-    const before = await withOwnerSystemContext(async (c) => {
+    const readState = async (c: import('pg').PoolClient) => {
       const subs = await c.query(
         `select status, price_amount::text from app.subscriptions where id = $1`,
         [subscription.id],
@@ -50,7 +50,11 @@ describe.skipIf(!dbTestsConfigured())('T-HU05-04 desactivar producto', () => {
         [subscription.id],
       );
       return { sub: subs.rows[0], periods: periods.rows };
-    });
+    };
+    const before = await withAppContext(
+      { role: 'admin', userId: admin.id, requestId: 't-hu05-04' },
+      readState,
+    );
 
     const patch = await request(app)
       .patch(`/api/v1/products/${product.id}`)
@@ -59,18 +63,10 @@ describe.skipIf(!dbTestsConfigured())('T-HU05-04 desactivar producto', () => {
     expect(patch.status).toBe(200);
     expect(patch.body.status).toBe('inactive');
 
-    const after = await withOwnerSystemContext(async (c) => {
-      const subs = await c.query(
-        `select status, price_amount::text from app.subscriptions where id = $1`,
-        [subscription.id],
-      );
-      const periods = await c.query(
-        `select period_number, start_date::text, end_date::text, price_amount::text
-         from app.subscription_periods where subscription_id = $1 order by period_number`,
-        [subscription.id],
-      );
-      return { sub: subs.rows[0], periods: periods.rows };
-    });
+    const after = await withAppContext(
+      { role: 'admin', userId: admin.id, requestId: 't-hu05-04' },
+      readState,
+    );
 
     expect(after.sub).toEqual(before.sub);
     expect(after.periods).toEqual(before.periods);

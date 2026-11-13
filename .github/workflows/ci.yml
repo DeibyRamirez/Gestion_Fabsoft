@@ -108,6 +108,8 @@ jobs:
       - name: Fresh + upgrade (historical owner → migrator)
         run: pnpm --filter @fabsoft/backend db:provision:foundation
       - name: Upgrade develop (esquema+dato histórico owner → migrator)
+        env:
+          FABSOFT_EXPECT_EVENT_TRIGGER: "1"
         run: pnpm --filter @fabsoft/backend db:provision:develop-upgrade
       - name: Migraciones (dbmate, LOGIN fabsoft_migrator directo)
         run: pnpm db:migrate

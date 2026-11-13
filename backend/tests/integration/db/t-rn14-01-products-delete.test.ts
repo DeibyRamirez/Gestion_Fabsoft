@@ -7,7 +7,7 @@ import {
   dbTestsConfigured,
   migrationUrl,
   resetDatabase,
-  withOwnerSystemContext,
+  withAppContext,
 } from '../../helpers/db.js';
 
 assertDbTestsRequired();
@@ -40,9 +40,9 @@ describe.skipIf(!dbTestsConfigured())('T-RN14-01 DELETE en app.products', () => 
 
   it('falla como fabsoft_app (REVOKE DELETE)', async () => {
     const product = await factories.product();
+    const admin = await factories.adminUser();
 
-    await withOwnerSystemContext(async (c) => {
-      await c.query('set local role fabsoft_app');
+    await withAppContext({ role: 'admin', userId: admin.id, requestId: 't-rn14-01' }, async (c) => {
       await expectPgError(c, 'delete from app.products where id = $1', [product.id], '42501');
     });
   });

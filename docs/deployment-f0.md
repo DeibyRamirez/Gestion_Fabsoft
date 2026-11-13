@@ -56,7 +56,7 @@ pnpm db:migrate   # valida que no queden objetos app de fabsoft_owner
 
 ### Migraciones `0006+` (regla PO)
 
-En SQL nuevo: **REVOKE/GRANT antes de ALTER OWNER**; si el dueño cambia, el provisioner debe poder repetir grants en teardown (patrón `repairHistoricalMigrationGrants`). Al final de `db:migrate`: cero funciones `SECURITY DEFINER` en `app` con `EXECUTE` para `PUBLIC`.
+En SQL nuevo: **REVOKE/GRANT antes de ALTER OWNER**; si el dueño cambia, el provisioner debe poder repetir grants en teardown (patrón `repairHistoricalMigrationGrants`). Funciones nuevas del migrator **no** reciben `EXECUTE` para `fabsoft_app` por defecto (`alter default privileges … revoke execute on functions from fabsoft_app`); hay que conceder `GRANT EXECUTE` explícito por función. Al final de `db:migrate`: gate prosecdef (todos los schemas no-sistema) sin `EXECUTE` a `PUBLIC` ni `fabsoft_worker` en `bootstrap_first_admin`; `repairHistoricalMigrationGrants` falla si detecta `GRANT` inesperado a `PUBLIC` antes de reparar.
 
 **SQL histórico congelado (quién ejecuta cada tramo):**
 
@@ -72,7 +72,7 @@ En SQL nuevo: **REVOKE/GRANT antes de ALTER OWNER**; si el dueño cambia, el pro
 
 Requiere `APP_ENV` (`dev`|`test` únicamente), listas `SEED_ALLOWED_*`, `SEED_FORBIDDEN_HOSTS` no vacía (sin `-`), `SEED_EPHEMERAL_MARKER`, `SEED_HARNESS_RUN_ID`, rol `fabsoft_seed_writer` (`SEED_SESSION_ROLE`) y coincidencia de `fabsoft.seed_ephemeral` + `fabsoft_harness.ephemeral_provenance`. Falla **antes** de conectar si la URL o el denylist son inválidos; tras conectar rechaza superusuario/BYPASSRLS y verifica identidad de sesión.
 
-**`--reset`:** única operación de seed con privilegio elevado (provisioner). Exige `SEED_ALLOW_RESET=1`, misma host/puerto/BD que `SEED_DATABASE_URL` en `DATABASE_PROVISION_URL`, y marcador harness **antes** de cualquier `TRUNCATE` (sin `session_replication_role=replica`).
+**`--reset`:** única operación de seed con privilegio elevado (provisioner). Exige `SEED_ALLOW_RESET=1`, misma host/puerto/BD que `SEED_DATABASE_URL` en `DATABASE_PROVISION_URL`, y marcador harness **antes** de cualquier `TRUNCATE` (sin `session_replication_role=replica`). **Deuda PO:** sustituir TRUNCATE vía owner por rol dedicado `fabsoft_seed_reset` con privilegios mínimos (sólo tablas seed); se acepta temporalmente en BD efímera con el guard actual.
 
 ## Limitaciones documentadas
 

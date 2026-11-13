@@ -113,11 +113,8 @@ export async function captureSchemaAclSnapshot(databaseUrl: string): Promise<Sch
 
 const ALLOWED_EVENT_TRIGGER_ASYMMETRY = ['fabsoft_enforce_rls'] as const;
 
-/** Líneas de histórico sesión 0003 en fresh (migrator defacl EXECUTE→app) no reproducidas en upgrade owner. */
-const ACL_PARITY_IGNORE = new Set(['defacl|fabsoft_migrator:f:app|EXECUTE:fabsoft_app']);
-
 function normalizeAclLines(lines: string[]): string[] {
-  return lines.filter((l) => !l.startsWith(`defacl|${LEGACY_OWNER}:`) && !ACL_PARITY_IGNORE.has(l));
+  return lines.filter((l) => !l.startsWith(`defacl|${LEGACY_OWNER}:`));
 }
 
 export function assertSchemaAclParity(a: SchemaAclSnapshot, b: SchemaAclSnapshot): void {

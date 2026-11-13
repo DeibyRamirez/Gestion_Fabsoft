@@ -48,6 +48,24 @@ describe.skipIf(!migUrl || !provUrl)('ACL parity mutations', () => {
     }
   });
 
+  it('N4 (upgrade): default migrator GRANT EXECUTE funciones a app → paridad falla', async () => {
+    const base = await captureSchemaAclSnapshot(migUrl!);
+    const c = new pg.Client({ connectionString: provUrl! });
+    await c.connect();
+    try {
+      await c.query(
+        `alter default privileges for role fabsoft_migrator in schema app grant execute on functions to fabsoft_app`,
+      );
+      const corrupt = await captureSchemaAclSnapshot(migUrl!);
+      expect(() => assertSchemaAclParity(base, corrupt)).toThrow(/ACL aclexplode/);
+    } finally {
+      await c.query(
+        `alter default privileges for role fabsoft_migrator in schema app revoke execute on functions from fabsoft_app`,
+      );
+      await c.end();
+    }
+  });
+
   it('M4: default global EXECUTE a worker → paridad falla', async () => {
     const base = await captureSchemaAclSnapshot(migUrl!);
     const c = new pg.Client({ connectionString: provUrl! });

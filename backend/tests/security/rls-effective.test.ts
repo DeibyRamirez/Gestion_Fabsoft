@@ -21,9 +21,23 @@ const ids = {
   clientB: '00000000-0000-4000-8ff0-000000000002',
   admin: '00000000-0000-4000-8ff0-0000000000a1',
   clientUserA: '00000000-0000-4000-8ff0-0000000000a3',
+  clientUserB: '00000000-0000-4000-8ff0-0000000000b3',
   product: '00000000-0000-4000-8ff0-0000000000f1',
   subA: '00000000-0000-4000-8ff0-000000000f01',
   subB: '00000000-0000-4000-8ff0-000000000f02',
+  periodA: '00000000-0000-4000-8ff0-00000000a101',
+  periodB: '00000000-0000-4000-8ff0-00000000a102',
+  contactA: '00000000-0000-4000-8ff0-00000000c001',
+  contactB: '00000000-0000-4000-8ff0-00000000c002',
+  noteA: '00000000-0000-4000-8ff0-00000000b301',
+  noteB: '00000000-0000-4000-8ff0-00000000b302',
+  taskA: '00000000-0000-4000-8ff0-00000000b401',
+  taskB: '00000000-0000-4000-8ff0-00000000b402',
+  notifA: '00000000-0000-4000-8ff0-00000000b501',
+  notifB: '00000000-0000-4000-8ff0-00000000b502',
+  renewalA: '00000000-0000-4000-8ff0-00000000b601',
+  renewalB: '00000000-0000-4000-8ff0-00000000b602',
+  alertRule: '00000000-0000-4000-8ff0-00000000b701',
 };
 
 const ownerPool =
@@ -46,8 +60,9 @@ beforeAll(async () => {
     await c.query(
       `insert into app.users (id, email, full_name, password_hash, role, client_id) values
         ($1,'rls-admin@t.co','Admin','h','admin',null),
-        ($2,'rls-ca@t.co','Cli','h','client',$3) on conflict do nothing`,
-      [ids.admin, ids.clientUserA, ids.clientA],
+        ($2,'rls-ca@t.co','Cli A','h','client',$3),
+        ($4,'rls-cb@t.co','Cli B','h','client',$5) on conflict do nothing`,
+      [ids.admin, ids.clientUserA, ids.clientA, ids.clientUserB, ids.clientB],
     );
     await c.query(
       `insert into app.products (id, name, product_type) values ($1,'RLS Lic','third_party') on conflict do nothing`,
@@ -59,6 +74,44 @@ beforeAll(async () => {
        values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1,1,'active',true),
               ($4,$5,$3,'2026-01-01','2026-12-31','annual',2,2,'active',true) on conflict do nothing`,
       [ids.subA, ids.clientA, ids.product, ids.subB, ids.clientB],
+    );
+    await c.query(
+      `insert into app.subscription_periods (id, subscription_id, period_number, start_date, end_date, billing_cycle, price_amount)
+       values ($1,$2,1,'2026-01-01','2026-06-30','annual',1),
+              ($3,$4,1,'2026-01-01','2026-06-30','annual',2) on conflict do nothing`,
+      [ids.periodA, ids.subA, ids.periodB, ids.subB],
+    );
+    await c.query(
+      `insert into app.client_contacts (id, client_id, full_name, email) values
+        ($1,$2,'Contact A','a@c.co'),($3,$4,'Contact B','b@c.co') on conflict do nothing`,
+      [ids.contactA, ids.clientA, ids.contactB, ids.clientB],
+    );
+    await c.query(
+      `insert into app.client_notes (id, client_id, author_user_id, body) values
+        ($1,$2,$3,'Note A'),($4,$5,$3,'Note B') on conflict do nothing`,
+      [ids.noteA, ids.clientA, ids.admin, ids.noteB, ids.clientB],
+    );
+    await c.query(
+      `insert into app.tasks (id, task_type, client_id, title, due_date, status, assignee_user_id) values
+        ($1,'contact_client',$2,'Task A','2026-12-31','pending',$3),
+        ($4,'contact_client',$5,'Task B','2026-12-31','pending',$3) on conflict do nothing`,
+      [ids.taskA, ids.clientA, ids.admin, ids.taskB, ids.clientB],
+    );
+    await c.query(
+      `insert into app.alert_rules (id, code, description, offset_days, channels) values
+        ($1,'TST','RLS test',30,'{in_app}') on conflict (code) do nothing`,
+      [ids.alertRule],
+    );
+    await c.query(
+      `insert into app.notifications (id, notification_type, channel, recipient_user_id, scheduled_for, subscription_id, period_end, alert_rule_id, dedupe_key) values
+        ($1,'expiration_alert','in_app',$2,now(),$3,'2026-12-31',$7,'exp:$3:TST:2026-12-31:in_app:$2'),
+        ($4,'expiration_alert','in_app',$5,now(),$6,'2026-12-31',$7,'exp:$6:TST:2026-12-31:in_app:$5') on conflict do nothing`,
+      [ids.notifA, ids.admin, ids.subA, ids.notifB, ids.clientUserB, ids.subB, ids.alertRule],
+    );
+    await c.query(
+      `insert into app.renewal_requests (id, subscription_id, client_id, requested_by_user_id, status)
+       values ($1,$2,$3,$4,'pending_review'),($5,$6,$7,$8,'pending_review') on conflict do nothing`,
+      [ids.renewalA, ids.subA, ids.clientA, ids.clientUserA, ids.renewalB, ids.subB, ids.clientB, ids.clientUserB],
     );
     await c.query('commit');
   } finally {
@@ -182,7 +235,7 @@ describe.skipIf(!appUrl)('F0 — aislamiento (T-F0-09)', () => {
     }
   });
 
-  it('T-F0-09c RLS efectivo fabsoft_app: SELECT en cada tabla del inventario (admin)', async () => {
+  async function asClientUser<T>(fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
     await ensureAppPoolRoleVerified();
     const pool = getAppPool();
     const client = await pool.connect();
@@ -190,22 +243,54 @@ describe.skipIf(!appUrl)('F0 — aislamiento (T-F0-09)', () => {
       await client.query('begin');
       await client.query(`set local role fabsoft_app`);
       await client.query(
-        `select set_config('app.actor_type','user',true), set_config('app.actor_role','admin',true),
-                set_config('app.current_user_id',$1,true)`,
-        [ids.admin],
+        `select set_config('app.actor_type','user',true), set_config('app.actor_role','client',true),
+                set_config('app.current_user_id',$1,true), set_config('app.client_id',$2,true)`,
+        [ids.clientUserA, ids.clientA],
       );
-      const { rows } = await client.query<{ table_name: string }>(
-        `select table_name from app.rls_inventory() order by 1`,
-      );
-      expect(rows.length).toBe(18);
-      for (const { table_name } of rows) {
-        const safe = table_name.replace(/"/g, '');
-        await client.query(`select 1 from app."${safe}" limit 0`);
-      }
+      const out = await fn(client);
       await client.query('rollback');
+      return out;
     } finally {
       client.release();
     }
+  }
+
+  it('T-F0-09c RLS efectivo fabsoft_app: aislamiento por tabla (dos alcances)', async () => {
+    await asClientUser(async (c) => {
+      const clientRows = await c.query<{ id: string }>(
+        `select id from app.clients where id in ($1,$2) order by id`,
+        [ids.clientA, ids.clientB],
+      );
+      expect(clientRows.rows.map((r) => r.id)).toEqual([ids.clientA]);
+
+      const subs = await c.query<{ id: string }>(
+        `select id from app.subscriptions where id in ($1,$2)`,
+        [ids.subA, ids.subB],
+      );
+      expect(subs.rows.map((r) => r.id).sort()).toEqual([ids.subA]);
+
+      const periods = await c.query<{ id: string }>(
+        `select id from app.subscription_periods where id in ($1,$2)`,
+        [ids.periodA, ids.periodB],
+      );
+      expect(periods.rows.map((r) => r.id)).toEqual([ids.periodA]);
+
+      for (const table of ['client_contacts', 'client_notes', 'tasks', 'notifications'] as const) {
+        const { rowCount } = await c.query(`select id from app.${table}`);
+        expect(rowCount, `${table}: cliente no debe ver filas staff`).toBe(0);
+      }
+
+      const blocked = await c.query(`update app.subscriptions set price_amount = 999 where id = $1`, [
+        ids.subB,
+      ]);
+      expect(blocked.rowCount).toBe(0);
+
+      const renewal = await c.query<{ id: string }>(
+        `select id from app.renewal_requests where id in ($1,$2)`,
+        [ids.renewalA, ids.renewalB],
+      );
+      expect(renewal.rows.map((r) => r.id)).toEqual([ids.renewalA]);
+    });
   });
 
   it('T-F0-09 aislamiento A/B: cliente A no lee ni escribe filas del cliente B', async () => {
