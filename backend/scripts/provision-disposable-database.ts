@@ -17,6 +17,7 @@ import {
 import { assertSchemaAclParity, captureSchemaAclSnapshot } from './schema-acl-snapshot.js';
 import { reconcileFabsoftOwnerAppObjectsToMigrator } from './reconcile-owner-to-migrator.js';
 import { assignAuditWriteDefinerOwner } from './migrator-historical-elevation.js';
+import { repairHistoricalMigrationGrants } from './historical-migration-grant-repair.js';
 import {
   assertSameDatabaseInstallation,
   normalizeDatabaseUrl,
@@ -414,6 +415,7 @@ async function profileDevelopHistoricalUpgrade(): Promise<void> {
       await owner.connect();
       try {
         await assignAuditWriteDefinerOwner((sql, params) => owner.query(sql, params));
+        await repairHistoricalMigrationGrants((sql, params) => owner.query(sql, params));
       } finally {
         await owner.end();
       }
@@ -565,6 +567,7 @@ async function profileFoundationHarness(): Promise<void> {
       await owner.connect();
       try {
         await assignAuditWriteDefinerOwner((sql, params) => owner.query(sql, params));
+        await repairHistoricalMigrationGrants((sql, params) => owner.query(sql, params));
       } finally {
         await owner.end();
       }
