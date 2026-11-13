@@ -85,7 +85,6 @@ const workerInheritsAppExecute = { role: 'fabsoft_worker', execute: true } as co
 const denyNonApp = [
   { role: 'fabsoft_seed_writer', execute: false },
   { role: 'fabsoft_migrator', execute: false },
-  { role: 'fabsoft_auth_definer', execute: false },
 ] as const;
 
 export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
