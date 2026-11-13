@@ -62,6 +62,7 @@ try {
     `grant usage, select on all sequences in schema app to ${quoteIdent('fabsoft_bootstrap')}`,
   );
   await client.query(`grant ${quoteIdent('fabsoft_bootstrap')} to ${quoteIdent(SEED_WRITER)}`);
+  await client.query(`grant ${quoteIdent('fabsoft_app')} to ${quoteIdent(SEED_WRITER)}`);
   await client.query(`grant usage on schema fabsoft_harness to ${quoteIdent(SEED_WRITER)}`);
   await client.query(
     `grant select on table fabsoft_harness.ephemeral_provenance to ${quoteIdent(SEED_WRITER)}`,

@@ -1,7 +1,7 @@
 /**
  * Datos de desarrollo (docs/seed-data.md). Idempotente (UUID fijos + on conflict do nothing).
- * Conecta con DATABASE_MIGRATION_URL y fija contexto `system` en la transacción para que los
- * triggers (p. ej. guard de costo de proveedor) se comporten como en un job del sistema.
+ * Conecta con SEED_DATABASE_URL (fabsoft_seed_writer) y usa `SET LOCAL ROLE fabsoft_app` con
+ * contexto admin para cumplir RLS (sin superusuario ni BYPASSRLS).
  * Uso: pnpm db:seed [-- --reset]
  * Fuera de alcance aquí: integración de prueba y API key (HU-15, Sprint 3) y alerts.reconcile (worker).
  */
@@ -260,16 +260,29 @@ const q = (sql: string, params?: unknown[]) => db.query(sql, params);
 try {
   await assertSeedSession(q, seedConfig);
   await db.query('begin');
+  await db.query('set local role fabsoft_app');
   await db.query(
-    `select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true), set_config('app.request_id','seed',true)`,
+    `select set_config('app.actor_type','user',true), set_config('app.actor_role','admin',true),
+            set_config('app.current_user_id',$1,true), set_config('app.request_id','seed',true)`,
+    [U.admin],
   );
   if (reset) {
+    await db.query('set local role fabsoft_bootstrap');
+    await db.query(
+      `select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true)`,
+    );
     await db.query(`truncate app.tasks, app.renewal_requests, app.subscription_periods, app.subscriptions, app.client_notes,
       app.client_contacts, app.refresh_tokens, app.idempotency_keys, app.notifications, app.audit_logs restart identity cascade`);
     await db.query(
       `update app.clients set owner_user_id = null, created_by = null, updated_by = null`,
     );
     await db.query(`truncate app.users, app.clients, app.products cascade`);
+    await db.query('set local role fabsoft_app');
+    await db.query(
+      `select set_config('app.actor_type','user',true), set_config('app.actor_role','admin',true),
+              set_config('app.current_user_id',$1,true), set_config('app.request_id','seed',true)`,
+      [U.admin],
+    );
   }
   const { rows } = await db.query<{ today: string }>(
     `select (now() at time zone 'America/Bogota')::date::text as today`,

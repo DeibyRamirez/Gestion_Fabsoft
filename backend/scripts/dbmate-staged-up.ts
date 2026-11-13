@@ -66,21 +66,33 @@ async function pendingMigrationVersions(
   }
 }
 
-async function reconcileOwnerSchemaForPending(pending: string[]): Promise<void> {
-  if (pending.length === 0) return;
+async function reconcileMigratorOwnershipAndGrants(): Promise<void> {
   const provConn = provisionUrlForMigratorDb();
   const prov = new pg.Client({ connectionString: provConn });
   await prov.connect();
   try {
-    const { rows } = await prov.query<{ owner: string | null }>(
+    const { rows: appNs } = await prov.query<{ owner: string | null }>(
       `select pg_catalog.pg_get_userbyid(nspowner)::text as owner
        from pg_catalog.pg_namespace where nspname = 'app'`,
     );
-    const owner = rows[0]?.owner;
-    if (!owner || owner === MIGRATOR) return;
-    await prov.query(`alter schema app owner to ${quoteIdent(MIGRATOR)}`);
+    const owner = appNs[0]?.owner;
+    if (!owner) return;
+    if (owner !== MIGRATOR) {
+      await prov.query(`alter schema app owner to ${quoteIdent(MIGRATOR)}`);
+      console.log(JSON.stringify({ reconcileAppSchemaForUpgrade: true, previousOwner: owner }));
+    }
     await prov.query(`grant all on schema app to ${quoteIdent(MIGRATOR)} with grant option`);
-    console.log(JSON.stringify({ reconcileAppSchemaForUpgrade: true, previousOwner: owner }));
+    await prov.query(
+      `grant select, insert, update, delete on all tables in schema app to ${quoteIdent(MIGRATOR)}`,
+    );
+    await prov.query(`grant usage, select on all sequences in schema app to ${quoteIdent(MIGRATOR)}`);
+    await prov.query(
+      `grant execute on all functions in schema app to ${quoteIdent(MIGRATOR)}`,
+    );
+    await prov.query(`grant usage on schema public to ${quoteIdent(MIGRATOR)}`);
+    await prov.query(
+      `grant select on table public.schema_migrations to ${quoteIdent(MIGRATOR)}`,
+    );
   } finally {
     await prov.end();
   }
@@ -196,7 +208,8 @@ console.log(
 );
 
 const pending = await pendingMigrationVersions(migratorUrl, migrationFiles);
-await reconcileOwnerSchemaForPending(pending);
+console.log(JSON.stringify({ pendingMigrations: pending.length, versions: pending }));
+await reconcileMigratorOwnershipAndGrants();
 
 const tmpBase = await mkdtemp(join(tmpdir(), 'fabsoft-mig-stage-'));
 try {

@@ -1,10 +1,13 @@
 /**
  * Sprint1 F0 — migrator LOGIN directo, runtime sin escalación, paridad RLS.
+ * Mapa IDs: docs/qa-f0-test-map.md
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import {
+  RUNTIME_LOGIN_ROLES,
   assertMigratorBootstrapExpectation,
+  assertRuntimeRolesNotPrivileged,
   loadSessionIdentity,
 } from '../../scripts/guard.js';
 import { assertSameDatabaseInstallation, redactDatabaseUrl } from '../../scripts/database-url.js';
@@ -143,20 +146,24 @@ describe('F0 — harness y roles efectivos', () => {
     }
   });
 
-  it('T-F0-05 roles runtime sin BYPASSRLS ni superusuario', async () => {
+  it('T-F0-02 roles runtime/seed/migrator sin SUPERUSER ni BYPASSRLS', async () => {
     const client = new pg.Client({ connectionString: provisionUrl! });
     await client.connect();
     try {
-      const { rows } = await client.query(
-        `select rolname, rolsuper, rolbypassrls, rolcreaterole
-         from pg_roles where rolname in ('fabsoft_app','fabsoft_worker','fabsoft_secure_view')
-         order by 1`,
+      const { rows } = await client.query<{
+        rolname: string;
+        rolsuper: boolean;
+        rolbypassrls: boolean;
+      }>(
+        `select rolname, rolsuper, rolbypassrls
+         from pg_roles where rolname = any($1::text[]) order by 1`,
+        [[...RUNTIME_LOGIN_ROLES, 'fabsoft_worker', 'fabsoft_secure_view']],
       );
-      for (const r of rows) {
-        expect(r.rolsuper).toBe(false);
-        expect(r.rolbypassrls).toBe(false);
-        expect(r.rolcreaterole).toBe(false);
-      }
+      expect(rows.length).toBeGreaterThanOrEqual(RUNTIME_LOGIN_ROLES.length);
+      expect(() => assertRuntimeRolesNotPrivileged(rows)).not.toThrow();
+      const migratorRow = rows.find((r) => r.rolname === 'fabsoft_migrator');
+      expect(migratorRow?.rolsuper).toBe(false);
+      expect(migratorRow?.rolbypassrls).toBe(false);
     } finally {
       await client.end();
     }
@@ -200,8 +207,18 @@ describe('F0 — runtime fabsoft_app', () => {
       expect(
         (await c2.query(`select current_setting('app.actor_role', true) as r`)).rows[0]!.r,
       ).toBeFalsy();
-    } finally {
       c1.release();
+      const c3 = await pool.connect();
+      try {
+        await c3.query('begin');
+        expect(
+          (await c3.query(`select current_setting('app.actor_role', true) as r`)).rows[0]!.r,
+        ).toBeFalsy();
+        await c3.query('rollback');
+      } finally {
+        c3.release();
+      }
+    } finally {
       c2.release();
     }
   });
@@ -221,7 +238,7 @@ describe('F0 — runtime fabsoft_app', () => {
     }
   });
 
-  it('T-F0-09 aislamiento A/B: cliente A no lee filas del cliente B', async () => {
+  it('T-F0-09 aislamiento A/B: cliente A no lee ni escribe filas del cliente B', async () => {
     await ensureAppPoolRoleVerified();
     const pool = getAppPool();
     const client = await pool.connect();
@@ -238,9 +255,40 @@ describe('F0 — runtime fabsoft_app', () => {
         [ids.clientA, ids.clientB],
       );
       expect(rows.map((r) => r.id)).toEqual([ids.clientA]);
+      await expectPgError(
+        client,
+        `insert into app.clients (id, legal_name) values ($1,'Evil')`,
+        [ids.clientB],
+        '42501',
+      );
+      await expectPgError(
+        client,
+        `update app.clients set legal_name = 'Hack' where id = $1`,
+        [ids.clientB],
+        '42501',
+      );
       await client.query('rollback');
     } finally {
       client.release();
+    }
+  });
+
+  it('T-F0-10 tablas app sin owner fabsoft_owner', async () => {
+    const client = new pg.Client({ connectionString: migratorUrl! });
+    await client.connect();
+    try {
+      const { rows } = await client.query<{ tablename: string; owner: string }>(
+        `select c.relname as tablename, pg_catalog.pg_get_userbyid(c.relowner)::text as owner
+         from pg_catalog.pg_class c
+         join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+         where n.nspname = 'app' and c.relkind = 'r'
+         order by 1`,
+      );
+      expect(rows.length).toBeGreaterThan(0);
+      const ownedByBootstrap = rows.filter((r) => r.owner === 'fabsoft_owner');
+      expect(ownedByBootstrap, JSON.stringify(ownedByBootstrap)).toEqual([]);
+    } finally {
+      await client.end();
     }
   });
 

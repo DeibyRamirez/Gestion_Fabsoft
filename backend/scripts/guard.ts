@@ -17,29 +17,28 @@ function requireEnv(name: string): string {
   return value;
 }
 
-function parseList(name: string): string[] {
-  const raw = process.env[name];
-  if (raw === undefined) return [];
-  if (name === 'SEED_FORBIDDEN_HOSTS' && (raw.trim() === '' || raw.trim() === '-')) return [];
-  return raw
+function parseForbiddenHosts(): string[] {
+  const raw = process.env.SEED_FORBIDDEN_HOSTS;
+  if (raw === undefined) {
+    throw new Error('SEED_FORBIDDEN_HOSTS es obligatorio (lista explícita de hosts denegados)');
+  }
+  const trimmed = raw.trim();
+  if (trimmed === '' || trimmed === '-') {
+    throw new Error('SEED_FORBIDDEN_HOSTS no puede ser vacío ni "-" (fail closed)');
+  }
+  return trimmed
     .split(',')
     .map((h) => h.trim())
     .filter(Boolean);
 }
 
-function requireForbiddenHostsConfigured(): void {
-  if (process.env.SEED_FORBIDDEN_HOSTS === undefined) {
-    throw new Error(
-      'SEED_FORBIDDEN_HOSTS debe estar definido ("-" si no hay hosts extra en lista)',
-    );
-  }
-}
-
-function assertImplicitStagingBlocked(host: string): void {
-  if (process.env.SEED_ALLOW_REMOTE === '1') return;
-  if (/staging/i.test(host) || host.endsWith('.supabase.co')) {
-    throw new Error(`Host de staging/remoto rechazado (use SEED_ALLOW_REMOTE=1): ${host}`);
-  }
+function parseList(name: string): string[] {
+  const raw = process.env[name];
+  if (raw === undefined) return [];
+  return raw
+    .split(',')
+    .map((h) => h.trim())
+    .filter(Boolean);
 }
 
 function parseAllowedDatabases(): string[] {
@@ -60,12 +59,6 @@ export function assertNonProduction(): void {
     );
   }
   if (appEnv === 'prod') throw new Error('Prohibido en APP_ENV=prod');
-  if (appEnv === 'staging' && process.env.SEED_ALLOW_STAGING !== '1') {
-    throw new Error(
-      'APP_ENV=staging requiere SEED_ALLOW_STAGING=1 explícito para scripts de datos',
-    );
-  }
-  if (appEnv === 'staging' && process.env.SEED_ALLOW_STAGING === '1') return;
   if (!ALLOWED_APP_ENVS.has(appEnv)) {
     throw new Error(`APP_ENV=${appEnv} no permitido para scripts de datos`);
   }
@@ -77,12 +70,15 @@ export type ResolvedDatabaseUrl = {
   target: ReturnType<typeof parseDatabaseTarget>;
 };
 
-function assertHostAllowed(
-  target: ReturnType<typeof parseDatabaseTarget>,
-  denylist: string[],
-): void {
-  requireForbiddenHostsConfigured();
-  assertImplicitStagingBlocked(target.host);
+function assertForbiddenHostPatterns(host: string): void {
+  if (/staging/i.test(host) || host.endsWith('.supabase.co')) {
+    throw new Error(`Host de staging/remoto prohibido: ${host}`);
+  }
+}
+
+function assertHostAllowed(target: ReturnType<typeof parseDatabaseTarget>): void {
+  const denylist = parseForbiddenHosts();
+  assertForbiddenHostPatterns(target.host);
   if (denylist.includes(target.host)) {
     throw new Error(`Host prohibido (${target.host})`);
   }
@@ -124,7 +120,6 @@ export function resolveGuardedDatabaseUrl(
   opts?: { requiredUser?: string; allowUsers?: string[] },
 ): ResolvedDatabaseUrl {
   assertNonProduction();
-  const denylist = parseList('SEED_FORBIDDEN_HOSTS');
   const found = collectDefinedUrls(envVars);
   if (found.length === 0) {
     throw new Error(`Ninguna de [${envVars.join(', ')}] está definida`);
@@ -143,7 +138,7 @@ export function resolveGuardedDatabaseUrl(
   }
   const chosen = found[0]!;
   const target = parseDatabaseTarget(chosen.url);
-  assertHostAllowed(target, denylist);
+  assertHostAllowed(target);
   if (opts?.requiredUser && target.user !== opts.requiredUser) {
     throw new Error(
       `${chosen.envVar} debe usar el rol ${opts.requiredUser} (usuario=${target.user})`,
@@ -163,7 +158,7 @@ export type SeedGuardExpectation = {
   expectedDatabase: string;
 };
 
-const SEED_WRITER_ROLES = ['fabsoft_seed_writer', 'fabsoft_provisioner', 'fabsoft_owner'] as const;
+const SEED_WRITER_ROLES = ['fabsoft_seed_writer', 'fabsoft_provisioner'] as const;
 
 /** Validación estática para seed: no abre conexión. */
 export function assertSeedConfiguration(): SeedGuardExpectation {
@@ -315,17 +310,10 @@ export async function assertSeedSession(
   if (identity.currentUser !== identity.sessionUser) {
     throw new Error(`Seed: current_user (${identity.currentUser}) distinto de session_user`);
   }
-  const harnessSuperuserOk =
-    process.env.SEED_ALLOW_HARNESS_SUPERUSER === '1' &&
-    expected.expectedDatabase.endsWith('_test') &&
-    expected.expectedDatabase.includes('fabsoft');
-  if (identity.rolsuper && !harnessSuperuserOk) {
-    throw new Error('Seed: superusuario sólo permitido en harness de test explícito');
+  if (identity.rolsuper || identity.rolbypassrls) {
+    throw new Error('Seed: superusuario o BYPASSRLS no permitidos');
   }
-  if (
-    (identity.rolcreaterole || identity.rolcreatedb || identity.rolbypassrls) &&
-    !(identity.rolsuper && harnessSuperuserOk)
-  ) {
+  if (identity.rolcreaterole || identity.rolcreatedb) {
     throw new Error('Seed: rol con privilegios de escalación no permitidos');
   }
   await assertEphemeralMarker(query, expected.ephemeralMarker);
@@ -352,5 +340,23 @@ export function assertMigratorBootstrapExpectation(identity: SessionIdentity): v
   if (identity.canSetRoleOwner) throw new Error('Migrator no debe poder SET ROLE fabsoft_owner');
   if (identity.adminOf.length > 0) {
     throw new Error(`Migrator no debe tener ADMIN OPTION: ${identity.adminOf.join(',')}`);
+  }
+}
+
+/** Roles que nunca deben usarse como runtime/migrator/seed (fabsoft_owner postgres queda aislado como bootstrap). */
+export const RUNTIME_LOGIN_ROLES = [
+  'fabsoft_app',
+  'fabsoft_migrator',
+  'fabsoft_seed_writer',
+  'fabsoft_worker',
+] as const;
+
+export function assertRuntimeRolesNotPrivileged(
+  rows: { rolname: string; rolsuper: boolean; rolbypassrls: boolean }[],
+): void {
+  for (const r of rows) {
+    if (r.rolsuper || r.rolbypassrls) {
+      throw new Error(`Rol runtime ${r.rolname} con privilegio inaceptable (super=${r.rolsuper})`);
+    }
   }
 }

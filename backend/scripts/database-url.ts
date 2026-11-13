@@ -9,16 +9,9 @@ export type DatabaseTarget = {
 
 const ALLOWED_SCHEMES = new Set(['postgres:', 'postgresql:']);
 
-/** Parámetros de URI que alteran host/puerto/BD/usuario y se rechazan (fail closed). */
-const FORBIDDEN_QUERY_KEYS = new Set([
-  'host',
-  'hostname',
-  'port',
-  'dbname',
-  'database',
-  'user',
-  'username',
-]);
+/** Únicos parámetros de query permitidos en URLs de conexión del harness. */
+const ALLOWED_QUERY_KEYS = new Set(['sslmode']);
+const ALLOWED_SSLMODE = new Set(['disable', 'require', 'prefer', 'verify-full', 'verify-ca']);
 
 export function parseDatabaseTarget(url: string): DatabaseTarget {
   const canonical = normalizeDatabaseUrl(url);
@@ -39,8 +32,8 @@ export function parseDatabaseTarget(url: string): DatabaseTarget {
 }
 
 /**
- * Valida protocolo, rechaza overrides peligrosos en query string y devuelve
- * una cadena de conexión canónica para `pg` (sin reordenar credenciales).
+ * Valida protocolo, rechaza parámetros no allowlisted (incl. `options`, overrides de host, etc.)
+ * y devuelve una cadena de conexión canónica para `pg`.
  */
 export function normalizeDatabaseUrl(url: string): string {
   let parsed: URL;
@@ -54,8 +47,14 @@ export function normalizeDatabaseUrl(url: string): string {
   }
   for (const key of parsed.searchParams.keys()) {
     const lower = key.toLowerCase();
-    if (FORBIDDEN_QUERY_KEYS.has(lower)) {
+    if (!ALLOWED_QUERY_KEYS.has(lower)) {
       throw new Error(`Parámetro de conexión no permitido en URL: ${key}`);
+    }
+    if (lower === 'sslmode') {
+      const v = parsed.searchParams.get(key) ?? '';
+      if (!ALLOWED_SSLMODE.has(v)) {
+        throw new Error(`sslmode no permitido: ${v}`);
+      }
     }
   }
   return parsed.toString();

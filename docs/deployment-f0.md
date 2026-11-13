@@ -9,7 +9,7 @@
 | `DATABASE_PROVISION_URL` | `fabsoft_owner` / `postgres` | Sólo harness CI (`db:provision:*`). Crea migrator, stubs y tabla `fabsoft_harness.ephemeral_provenance`. |
 | `DATABASE_MIGRATION_URL` | `fabsoft_migrator` | dbmate **completo** (conexión directa; **no** `SET ROLE` desde admin). |
 | `DATABASE_URL` / `WORKER_DATABASE_URL` | `fabsoft_app` / `fabsoft_worker` | Runtime API/worker. |
-| `SEED_DATABASE_URL` | provisioner | Seed; validado con marcador GUC **y** fila de procedencia del harness. |
+| `SEED_DATABASE_URL` | `fabsoft_seed_writer` | Seed (NO superusuario); validado con marcador GUC **y** `fabsoft_harness.ephemeral_provenance`. |
 
 `DATABASE_MIGRATION_URL` y `DATABASE_PROVISION_URL` deben apuntar a la **misma instalación** (host, puerto, nombre de base); el usuario puede diferir.
 
@@ -35,13 +35,19 @@ pnpm test:security
 
 El provisioner **no** pre-crea roles stub. Crea `fabsoft_migrator` restringido (`NOCREATEROLE`, sin `ADMIN OPTION`).
 
-**SQL histórico congelado:** `0001` se aplica con **fabsoft_migrator** (LOGIN directo). `0002`–`0005` exigen `CREATE ROLE` / `ALTER OWNER` y se aplican con **`DATABASE_PROVISION_URL` conectado directo** (sin `SET ROLE` desde migrator). `0006+` irán sólo por migrator (lista dinámica).
+**SQL histórico congelado (quién ejecuta cada tramo):**
 
-**Upgrade develop:** el owner aplica la cadena histórica completa (como en `develop`); el migrator ejecuta `dbmate` (nuevas versiones / reconcile de `app` si hay pendientes).
+| Migraciones | Ejecutor (conexión directa) | Script |
+| --- | --- | --- |
+| `0001_schema.sql` | `fabsoft_migrator` | `dbmate-staged-up.ts` (etapa migrator) |
+| `0002`–`0005` | `fabsoft_owner` vía `DATABASE_PROVISION_URL` | `dbmate-staged-up.ts` (etapa provisioner) |
+| `0006+` (futuro) | `fabsoft_migrator` | `dbmate-staged-up.ts` (etapa future) |
+
+**Upgrade develop:** `fabsoft_owner` aplica la cadena `0001`–`0005` completa (como en `develop`); después `fabsoft_migrator` corre `dbmate-staged-up` (reconcilia ownership/grants de `app` siempre, no sólo con migraciones pendientes) y ejecuta `app.assert_rls_everywhere()` conectado como migrator.
 
 ## Seed endurecido
 
-Requiere `APP_ENV` explícito (`dev`|`test`, o `staging` con `SEED_ALLOW_STAGING=1`), listas `SEED_ALLOWED_*`, `SEED_EPHEMERAL_MARKER`, `SEED_HARNESS_RUN_ID`, y coincidencia de `fabsoft.seed_ephemeral` + `fabsoft_harness.ephemeral_provenance`. Falla **antes** de abrir `pg.Client` si el destino no está permitido; tras conectar verifica `session_user`, `current_user`, base actual y ausencia de privilegios de escalación en el rol de seed.
+Requiere `APP_ENV` (`dev`|`test` únicamente), listas `SEED_ALLOWED_*`, `SEED_FORBIDDEN_HOSTS` no vacía (sin `-`), `SEED_EPHEMERAL_MARKER`, `SEED_HARNESS_RUN_ID`, rol `fabsoft_seed_writer` (`SEED_SESSION_ROLE`) y coincidencia de `fabsoft.seed_ephemeral` + `fabsoft_harness.ephemeral_provenance`. Falla **antes** de conectar si la URL o el denylist son inválidos; tras conectar rechaza superusuario/BYPASSRLS y verifica identidad de sesión.
 
 ## Limitaciones documentadas
 

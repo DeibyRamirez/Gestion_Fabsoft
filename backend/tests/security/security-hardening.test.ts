@@ -253,8 +253,44 @@ describe.skipIf(!url)('M3/M6 — el cliente no lee columnas sensibles ni contact
     asActor(clientA, async (c) => expect((await c.query('select id from app.client_contacts')).rowCount).toBe(0)));
 
   it('T-SEC-24 el cliente sigue viendo productos de sus suscripciones visibles; staff ve contactos', async () => {
-    await asActor(clientA, async (c) => expect((await c.query('select id from app.products')).rowCount).toBe(1));
-    await asActor(operator, async (c) => expect((await c.query('select id from app.client_contacts')).rowCount).toBe(1));
+    const sec24 = {
+      product: '00000000-0000-4000-8000-000000000024',
+      sub: '00000000-0000-4000-8000-000000000124',
+      contact: '00000000-0000-4000-8000-000000000224',
+    };
+    const owner = await pool.connect();
+    try {
+      await owner.query('begin');
+      await owner.query(
+        `select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true)`,
+      );
+      await owner.query(
+        `insert into app.products (id, name, product_type) values ($1,'SEC24 Prod','third_party') on conflict do nothing`,
+        [sec24.product],
+      );
+      await owner.query(
+        `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
+           price_amount, supplier_cost_amount, status, visible_in_portal)
+         values ($1,$2,$3,'2026-06-01','2027-05-31','annual',10,5,'active',true) on conflict do nothing`,
+        [sec24.sub, ids.clientA, sec24.product],
+      );
+      await owner.query(
+        `insert into app.client_contacts (id, client_id, full_name, email)
+         values ($1,$2,'SEC24','s24@t.co') on conflict do nothing`,
+        [sec24.contact, ids.clientA],
+      );
+      await owner.query('commit');
+    } finally {
+      owner.release();
+    }
+    await asActor(clientA, async (c) => {
+      const { rowCount } = await c.query('select id from app.products where id = $1', [sec24.product]);
+      expect(rowCount).toBe(1);
+    });
+    await asActor(operator, async (c) => {
+      const { rowCount } = await c.query('select id from app.client_contacts where id = $1', [sec24.contact]);
+      expect(rowCount).toBe(1);
+    });
   });
 });
 
@@ -293,10 +329,54 @@ describe.skipIf(!url)('0004 — vistas de integración (matriz, nota 2)', () => 
     }));
 
   it('T-SEC-29 staff y cliente no obtienen filas de las vistas de integración; staff sigue leyendo la base', async () => {
+    const sec29 = {
+      subA: '00000000-0000-4000-8000-000000000129',
+      subB: '00000000-0000-4000-8000-000000000229',
+      periodA: '00000000-0000-4000-8000-000000000329',
+      periodB: '00000000-0000-4000-8000-000000000429',
+    };
+    const owner = await pool.connect();
+    try {
+      await owner.query('begin');
+      await owner.query(
+        `select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true)`,
+      );
+      await owner.query(
+        `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
+           price_amount, supplier_cost_amount, status)
+         values ($1,$2,$3,'2026-06-01','2027-05-31','annual',1,1,'active'),
+                ($4,$5,$3,'2026-06-01','2027-05-31','annual',2,2,'active')
+         on conflict do nothing`,
+        [sec29.subA, ids.clientA, ids.product, sec29.subB, ids.clientB],
+      );
+      await owner.query(
+        `insert into app.subscription_periods (id, subscription_id, period_number, start_date, end_date, billing_cycle,
+           price_amount, supplier_cost_amount)
+         values ($1,$2,1,'2026-06-01','2027-05-31','annual',1,1),
+                ($3,$4,1,'2026-06-01','2027-05-31','annual',2,2)
+         on conflict do nothing`,
+        [sec29.periodA, sec29.subA, sec29.periodB, sec29.subB],
+      );
+      await owner.query('commit');
+    } finally {
+      owner.release();
+    }
     await asActor(operator, async (c) => {
       expect((await c.query('select id from app.integration_subscriptions')).rowCount).toBe(0);
-      expect((await c.query('select id from app.subscriptions')).rowCount).toBe(2);
-      expect((await c.query('select id from app.subscription_periods')).rowCount).toBe(2);
+      expect(
+        (
+          await c.query(`select id from app.subscriptions where id = any($1::uuid[])`, [
+            [ids.subA, ids.subB, sec29.subA, sec29.subB],
+          ])
+        ).rowCount,
+      ).toBe(4);
+      expect(
+        (
+          await c.query(`select id from app.subscription_periods where id = any($1::uuid[])`, [
+            [sec29.periodA, sec29.periodB],
+          ])
+        ).rowCount,
+      ).toBe(2);
     });
     await asActor(clientA, async (c) =>
       expect((await c.query('select id from app.integration_subscriptions')).rowCount).toBe(0));

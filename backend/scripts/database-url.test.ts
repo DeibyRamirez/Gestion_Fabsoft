@@ -11,10 +11,13 @@ describe('database-url', () => {
     expect(() => normalizeDatabaseUrl('mysql://u@localhost/db')).toThrow(/Protocolo no permitido/);
   });
 
-  it('rechaza host= en query string', () => {
+  it('rechaza parámetros no allowlisted (host=, options=)', () => {
     expect(() => normalizeDatabaseUrl('postgres://u@localhost:5432/db?host=evil.example')).toThrow(
       /no permitido/,
     );
+    expect(() =>
+      normalizeDatabaseUrl('postgres://u@localhost:5432/db?options=-c%20search_path%3Dapp'),
+    ).toThrow(/no permitido/);
   });
 
   it('preserva usuario completo (sin truncar en punto)', () => {

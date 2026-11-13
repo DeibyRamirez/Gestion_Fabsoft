@@ -14,7 +14,7 @@ const baseEnv = {
   SEED_ALLOWED_DATABASES: 'fabsoft_test',
   SEED_EPHEMERAL_MARKER: 'marker-ci',
   SEED_HARNESS_RUN_ID: 'run-test-1',
-  SEED_FORBIDDEN_HOSTS: '-',
+  SEED_FORBIDDEN_HOSTS: 'staging.example.com,supabase.co',
   SEED_SESSION_ROLE: 'fabsoft_seed_writer',
 };
 
@@ -44,11 +44,10 @@ describe('guard fail-closed', () => {
     }
   });
 
-  it('rechaza host staging sin SEED_ALLOW_REMOTE=1', () => {
+  it('T-GUARD-01 rechaza host staging (sin excepciones remote/staging)', () => {
     withEnv(
       {
-        SEED_DATABASE_URL: 'postgres://fabsoft_owner@my-staging.example/fabsoft_test',
-        SEED_FORBIDDEN_HOSTS: '-',
+        SEED_DATABASE_URL: 'postgres://fabsoft_seed_writer@my-staging.example/fabsoft_test',
       },
       () => {
         expect(() => assertSeedConfiguration()).toThrow(/staging\/remoto/);
@@ -70,9 +69,34 @@ describe('guard fail-closed', () => {
     );
   });
 
-  it('rechaza staging sin SEED_ALLOW_STAGING=1', () => {
+  it('rechaza SEED_FORBIDDEN_HOSTS vacío o guion', () => {
+    withEnv(
+      {
+        SEED_DATABASE_URL: 'postgres://fabsoft_seed_writer@localhost/fabsoft_test',
+        SEED_FORBIDDEN_HOSTS: '-',
+      },
+      () => {
+        expect(() => resolveGuardedDatabaseUrl(['SEED_DATABASE_URL'])).toThrow(
+          /no puede ser vacío ni "-"/,
+        );
+      },
+    );
+    withEnv(
+      {
+        SEED_DATABASE_URL: 'postgres://fabsoft_seed_writer@localhost/fabsoft_test',
+        SEED_FORBIDDEN_HOSTS: '',
+      },
+      () => {
+        expect(() => resolveGuardedDatabaseUrl(['SEED_DATABASE_URL'])).toThrow(
+          /no puede ser vacío ni "-"/,
+        );
+      },
+    );
+  });
+
+  it('rechaza APP_ENV staging', () => {
     withEnv({ APP_ENV: 'staging' }, () => {
-      expect(() => assertNonProduction()).toThrow(/SEED_ALLOW_STAGING/);
+      expect(() => assertNonProduction()).toThrow(/no permitido/);
     });
   });
 

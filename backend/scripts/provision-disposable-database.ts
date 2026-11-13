@@ -25,6 +25,10 @@ import {
 const MIGRATOR_ROLE = 'fabsoft_migrator';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
+/** Hosts denegados explícitamente para seed (fail closed; no usar '-' ni lista vacía). */
+const HARNESS_SEED_FORBIDDEN_HOSTS =
+  'staging.example.com,staging.internal,.staging.example,supabase.co,db.supabase.co';
+
 assertNonProduction();
 
 const profile = process.argv[2] ?? 'ci-main';
@@ -292,6 +296,30 @@ async function rlsSnapshot(databaseUrl: string): Promise<string> {
   }
 }
 
+async function assertNotForeignDeliveredDatabase(dbName: string): Promise<void> {
+  const dbClient = new pg.Client({
+    connectionString: urlForDatabase(provisionConnectionUrl, dbName),
+  });
+  await dbClient.connect();
+  try {
+    const { rows: reg } = await dbClient.query<{ r: string | null }>(
+      `select to_regclass('fabsoft_harness.ephemeral_provenance')::text as r`,
+    );
+    if (!reg[0]?.r) return;
+    const { rows } = await dbClient.query<{ run_id: string }>(
+      `select run_id::text from fabsoft_harness.ephemeral_provenance`,
+    );
+    const foreign = rows.filter((r) => r.run_id !== harnessRunId);
+    if (foreign.length > 0) {
+      throw new Error(
+        `Rechazo harness: base ${dbName} entregada con provenance ajena (${foreign.map((r) => r.run_id).join(',')})`,
+      );
+    }
+  } finally {
+    await dbClient.end();
+  }
+}
+
 async function createHarnessDatabase(name: string): Promise<void> {
   const { rows } = await provision.query<{ exists: boolean }>(
     `select exists(select 1 from pg_database where datname = $1) as exists`,
@@ -335,37 +363,45 @@ async function profileDevelopHistoricalUpgrade(): Promise<void> {
   const upgradeDb = `${target.database}_f0_${suffix}_develop`;
   const migCount = await expectedMigrationCount();
   await createHarnessDatabase(upgradeDb);
-  const ownerUrl = urlForDatabase(provisionConnectionUrl, upgradeDb);
-  const migUrl = migratorUrl(upgradeDb);
-  await runDbmate(ownerUrl, join(ROOT, 'migrations'));
-  await grantMigratorMigrationCatalogAccess(upgradeDb);
-  await applyDevelopMinimalData(ownerUrl);
-  const preMigrator = await migrationInventory(migUrl);
-  if (preMigrator.length !== migCount) {
-    throw new Error(
-      `develop upgrade: owner no aplicó ${migCount} migraciones (tiene ${preMigrator.length})`,
+  try {
+    const ownerUrl = urlForDatabase(provisionConnectionUrl, upgradeDb);
+    const migUrl = migratorUrl(upgradeDb);
+    await runDbmate(ownerUrl, join(ROOT, 'migrations'));
+    await grantMigratorMigrationCatalogAccess(upgradeDb);
+    await applyDevelopMinimalData(ownerUrl);
+    const preMigrator = await migrationInventory(migUrl);
+    if (preMigrator.length !== migCount) {
+      throw new Error(
+        `develop upgrade: owner no aplicó ${migCount} migraciones (tiene ${preMigrator.length})`,
+      );
+    }
+    await runStagedMigrate(migUrl, upgradeDb);
+    const postMigrator = await migrationInventory(migUrl);
+    if (postMigrator.length !== migCount) {
+      throw new Error(`develop upgrade: inventario migrator inesperado ${postMigrator.length}`);
+    }
+    await rlsSnapshot(migUrl);
+    console.log(
+      JSON.stringify({
+        profile: 'develop-historical-upgrade',
+        harnessRunId,
+        upgradeDb,
+        migrations: postMigrator,
+        path: 'owner-full-chain-then-migrator-dbmate',
+        assertRlsEverywhere: 'migrator',
+      }),
     );
+  } finally {
+    for (const name of createdDatabases) {
+      await provision.query(`drop database if exists ${quoteIdent(name)}`);
+    }
+    createdDatabases.length = 0;
   }
-  await runStagedMigrate(migUrl, upgradeDb);
-  const postMigrator = await migrationInventory(migUrl);
-  if (postMigrator.length !== migCount) {
-    throw new Error(`develop upgrade: inventario migrator inesperado ${postMigrator.length}`);
-  }
-  await rlsSnapshot(migUrl);
-  console.log(
-    JSON.stringify({
-      profile: 'develop-historical-upgrade',
-      harnessRunId,
-      upgradeDb,
-      migrations: postMigrator,
-      path: 'owner-full-chain-then-migrator-dbmate',
-    }),
-  );
-  await provision.query(`drop database ${quoteIdent(upgradeDb)}`);
 }
 
 async function profileCiMain(): Promise<void> {
   await ensureMigratorRole();
+  await assertNotForeignDeliveredDatabase(target.database);
   await grantMigratorOnDatabase(target.database);
   const migUrl = migratorUrl(target.database);
   const identity = await (async () => {
@@ -409,9 +445,7 @@ async function profileCiMain(): Promise<void> {
     SEED_ALLOWED_DATABASES: target.database,
     SEED_ALLOWED_PORTS: target.port,
     SEED_ALLOW_RESET: '1',
-    SEED_FORBIDDEN_HOSTS: '-',
-    SEED_ALLOW_HARNESS_SUPERUSER: '1',
-    SEED_SESSION_ROLE: target.user,
+    SEED_FORBIDDEN_HOSTS: HARNESS_SEED_FORBIDDEN_HOSTS,
   });
 }
 
@@ -421,52 +455,56 @@ async function profileFoundationHarness(): Promise<void> {
   const freshDb = `${target.database}_f0_${suffix}_fresh`;
   const upgradeDb = `${target.database}_f0_${suffix}_upg`;
   const migCount = await expectedMigrationCount();
-  for (const name of [freshDb, upgradeDb]) {
-    await createHarnessDatabase(name);
-  }
-  const freshUrl = migratorUrl(freshDb);
-  const upgradeUrl = migratorUrl(upgradeDb);
-  await runStagedMigrate(freshUrl, freshDb);
-  const freshVersions = await migrationInventory(freshUrl);
-  const freshRls = await rlsSnapshot(freshUrl);
-  const freshPolicies = await policySnapshot(freshUrl);
+  try {
+    for (const name of [freshDb, upgradeDb]) {
+      await createHarnessDatabase(name);
+    }
+    const freshUrl = migratorUrl(freshDb);
+    const upgradeUrl = migratorUrl(upgradeDb);
+    await runStagedMigrate(freshUrl, freshDb);
+    const freshVersions = await migrationInventory(freshUrl);
+    const freshRls = await rlsSnapshot(freshUrl);
+    const freshPolicies = await policySnapshot(freshUrl);
 
-  const ownerUpgradeUrl = urlForDatabase(provisionConnectionUrl, upgradeDb);
-  await runDbmate(ownerUpgradeUrl, join(ROOT, 'migrations'));
-  await grantMigratorMigrationCatalogAccess(upgradeDb);
-  await applyDevelopMinimalData(ownerUpgradeUrl);
-  const ownerVersions = await migrationInventory(ownerUpgradeUrl);
-  if (ownerVersions.length !== migCount) {
-    throw new Error(`upgrade histórico: owner aplicó ${ownerVersions.length}/${migCount}`);
-  }
-  await runStagedMigrate(upgradeUrl, upgradeDb);
-  const upgradeVersions = await migrationInventory(upgradeUrl);
-  const upgradeRls = await rlsSnapshot(upgradeUrl);
-  const upgradePolicies = await policySnapshot(upgradeUrl);
+    const ownerUpgradeUrl = urlForDatabase(provisionConnectionUrl, upgradeDb);
+    await runDbmate(ownerUpgradeUrl, join(ROOT, 'migrations'));
+    await grantMigratorMigrationCatalogAccess(upgradeDb);
+    await applyDevelopMinimalData(ownerUpgradeUrl);
+    const ownerVersions = await migrationInventory(ownerUpgradeUrl);
+    if (ownerVersions.length !== migCount) {
+      throw new Error(`upgrade histórico: owner aplicó ${ownerVersions.length}/${migCount}`);
+    }
+    await runStagedMigrate(upgradeUrl, upgradeDb);
+    const upgradeVersions = await migrationInventory(upgradeUrl);
+    const upgradeRls = await rlsSnapshot(upgradeUrl);
+    const upgradePolicies = await policySnapshot(upgradeUrl);
 
-  if (freshVersions.length !== migCount || upgradeVersions.length !== migCount) {
-    throw new Error(
-      `Inventario de migraciones inesperado fresh=${freshVersions.length} upgrade=${upgradeVersions.length} esperado=${migCount}`,
+    if (freshVersions.length !== migCount || upgradeVersions.length !== migCount) {
+      throw new Error(
+        `Inventario de migraciones inesperado fresh=${freshVersions.length} upgrade=${upgradeVersions.length} esperado=${migCount}`,
+      );
+    }
+    if (freshRls !== upgradeRls) {
+      throw new Error('Inventario RLS fresh vs upgrade no coincide');
+    }
+    if (freshPolicies !== upgradePolicies) {
+      throw new Error('Políticas RLS fresh vs upgrade no coinciden');
+    }
+    console.log(
+      JSON.stringify({
+        profile: 'foundation-harness',
+        harnessRunId,
+        freshDb,
+        upgradeDb,
+        migrations: freshVersions,
+        createdDatabases,
+      }),
     );
-  }
-  if (freshRls !== upgradeRls) {
-    throw new Error('Inventario RLS fresh vs upgrade no coincide');
-  }
-  if (freshPolicies !== upgradePolicies) {
-    throw new Error('Políticas RLS fresh vs upgrade no coinciden');
-  }
-  console.log(
-    JSON.stringify({
-      profile: 'foundation-harness',
-      harnessRunId,
-      freshDb,
-      upgradeDb,
-      migrations: freshVersions,
-      createdDatabases,
-    }),
-  );
-  for (const name of createdDatabases) {
-    await provision.query(`drop database ${quoteIdent(name)}`);
+  } finally {
+    for (const name of [...createdDatabases]) {
+      await provision.query(`drop database if exists ${quoteIdent(name)}`);
+    }
+    createdDatabases.length = 0;
   }
 }
 
