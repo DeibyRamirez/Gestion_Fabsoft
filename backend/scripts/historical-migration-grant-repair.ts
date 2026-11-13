@@ -77,12 +77,6 @@ export async function repairHistoricalMigrationGrants(owner: QueryFn): Promise<v
     `alter default privileges for role ${quoteIdent(MIGRATOR)} in schema app revoke execute on functions from fabsoft_app`,
     `alter default privileges for role ${quoteIdent(MIGRATOR)} in schema app grant select, insert, update on tables to fabsoft_app`,
     `alter default privileges for role ${quoteIdent(MIGRATOR)} in schema app grant usage, select on sequences to fabsoft_app`,
-    `revoke execute on function app.audit_is_secret_key(text) from public, fabsoft_app`,
-    `revoke execute on function app.audit_allowlist_keys(text) from public, fabsoft_app`,
-    `revoke execute on function app.audit_redact_jsonb(jsonb, text[], boolean) from public, fabsoft_app`,
-    `revoke execute on function app.audit_prepare_changes(text, text, jsonb, boolean) from public, fabsoft_app`,
-    `revoke execute on function app.audit_resource_exists(text, text) from public, fabsoft_app`,
-    `revoke execute on function app.audit_resolve_client_id(text, text) from public, fabsoft_app`,
   ];
   for (const sql of stmts) await run(owner, sql);
   const auditWriteProbe = (await owner(
@@ -93,14 +87,17 @@ export async function repairHistoricalMigrationGrants(owner: QueryFn): Promise<v
      ) as ok`,
   )) as pg.QueryResult<{ ok: boolean }>;
   if (auditWriteProbe.rows[0]?.ok) {
-    await run(
-      owner,
+    const auditFnRepair = [
       `revoke execute on function app.audit_write(text, text, text, jsonb, text, inet) from public`,
-    );
-    await run(
-      owner,
       `grant execute on function app.audit_write(text, text, text, jsonb, text, inet) to fabsoft_app`,
-    );
+      `revoke execute on function app.audit_is_secret_key(text) from public, fabsoft_app`,
+      `revoke execute on function app.audit_allowlist_keys(text) from public, fabsoft_app`,
+      `revoke execute on function app.audit_redact_jsonb(jsonb, text[], boolean) from public, fabsoft_app`,
+      `revoke execute on function app.audit_prepare_changes(text, text, jsonb, boolean) from public, fabsoft_app`,
+      `revoke execute on function app.audit_resource_exists(text, text) from public, fabsoft_app`,
+      `revoke execute on function app.audit_resolve_client_id(text, text) from public, fabsoft_app`,
+    ];
+    for (const sql of auditFnRepair) await run(owner, sql);
   }
 }
 
