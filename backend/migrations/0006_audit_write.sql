@@ -293,6 +293,13 @@ end $$;
 
 -- OWNER fabsoft_audit_definer: aplicado por provisioner tras dbmate (ALTER OWNER exige superusuario
 -- o cadena que el migrator LOGIN no satisface en PG16; ver dbmate-staged-up.ts).
+revoke all on function app.audit_is_secret_key(text) from public, fabsoft_app;
+revoke all on function app.audit_allowlist_keys(text) from public, fabsoft_app;
+revoke all on function app.audit_redact_jsonb(jsonb, text[], boolean) from public, fabsoft_app;
+revoke all on function app.audit_redact_jsonb_array(jsonb, text[], boolean) from public, fabsoft_app;
+revoke all on function app.audit_prepare_changes(text, text, jsonb, boolean) from public, fabsoft_app;
+revoke all on function app.audit_resource_exists(text, text) from public, fabsoft_app;
+revoke all on function app.audit_resolve_client_id(text, text) from public, fabsoft_app;
 revoke all on function app.audit_write(text, text, text, jsonb, text, inet) from public;
 grant execute on function app.audit_write(text, text, text, jsonb, text, inet) to fabsoft_app;
 

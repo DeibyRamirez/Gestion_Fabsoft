@@ -5,7 +5,7 @@ import {
   assertDbTestsRequired,
   closeTestPools,
   dbTestsConfigured,
-  migrationUrl,
+  getOwnerPool,
   resetDatabase,
   withAppContext,
 } from '../../helpers/db.js';
@@ -26,7 +26,8 @@ async function expectPgError(
 /** T-RN14-01 — DELETE físico en app.products bloqueado (REVOKE + tg_prevent_delete). */
 describe.skipIf(!dbTestsConfigured())('T-RN14-01 DELETE en app.products', () => {
   const factories = createFactories();
-  const ownerPool = new pg.Pool({ connectionString: migrationUrl, max: 2 });
+  /** Propietario de tablas (provisioner), no fabsoft_migrator: DELETE debe ver filas y disparar el trigger. */
+  const ownerPool = getOwnerPool();
 
   beforeEach(async () => {
     factories.reseed();
