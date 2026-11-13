@@ -16,14 +16,15 @@ function runSecurity(): { status: number | null; out: string } {
   return { status: run.status, out: `${run.stdout}\n${run.stderr}` };
 }
 
-describe.skipIf(process.env.SKIP_SECURITY_IDEMPOTENCY === '1')(
-  'test:security idempotente',
-  () => {
-    it('dos corridas consecutivas en verde', () => {
-      const first = runSecurity();
-      expect(first.status, first.out).toBe(0);
-      const second = runSecurity();
-      expect(second.status, second.out).toBe(0);
-    }, 600_000);
-  },
-);
+describe('test:security idempotente', () => {
+  it('SKIP_SECURITY_IDEMPOTENCY=1 no deshabilita esta suite', () => {
+    expect(process.env.SKIP_SECURITY_IDEMPOTENCY).not.toBe('1');
+  });
+
+  it('dos corridas consecutivas en verde', () => {
+    const first = runSecurity();
+    expect(first.status, first.out).toBe(0);
+    const second = runSecurity();
+    expect(second.status, second.out).toBe(0);
+  }, 600_000);
+});

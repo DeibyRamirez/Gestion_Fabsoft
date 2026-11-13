@@ -4,6 +4,7 @@ set -euo pipefail
 : "${POSTGRES_USER:?POSTGRES_USER}"
 : "${POSTGRES_DB:?POSTGRES_DB}"
 : "${FABSOFT_APP_USER:?FABSOFT_APP_USER}"
+FABSOFT_MIGRATOR_USER="${FABSOFT_MIGRATOR_USER:-fabsoft_migrator}"
 : "${GITHUB_ENV:?GITHUB_ENV}"
 
 pg_uri() {
@@ -14,6 +15,7 @@ pg_uri() {
 }
 
 owner_url="$(pg_uri "$POSTGRES_USER")"
+migrator_url="$(pg_uri "$FABSOFT_MIGRATOR_USER")"
 app_url="$(pg_uri "$FABSOFT_APP_USER")"
 worker_url="$(pg_uri fabsoft_worker)"
 bootstrap_url="$(pg_uri fabsoft_bootstrap)"
@@ -24,7 +26,7 @@ case "${1:-all}" in
       echo "DATABASE_PROVISION_URL=${owner_url}"
       echo "DATABASE_URL=${owner_url}"
       echo "DATABASE_MIGRATION_URL=${owner_url}"
-      echo "TEST_DATABASE_MIGRATION_URL=${owner_url}"
+      echo "TEST_DATABASE_MIGRATION_URL=${migrator_url}"
     } >>"$GITHUB_ENV"
     ;;
   all)
@@ -32,7 +34,7 @@ case "${1:-all}" in
       echo "DATABASE_PROVISION_URL=${owner_url}"
       echo "DATABASE_URL=${app_url}"
       echo "DATABASE_MIGRATION_URL=${owner_url}"
-      echo "TEST_DATABASE_MIGRATION_URL=${owner_url}"
+      echo "TEST_DATABASE_MIGRATION_URL=${migrator_url}"
       echo "TEST_DATABASE_URL=${app_url}"
       echo "WORKER_DATABASE_URL=${worker_url}"
       echo "BOOTSTRAP_DATABASE_URL=${bootstrap_url}"

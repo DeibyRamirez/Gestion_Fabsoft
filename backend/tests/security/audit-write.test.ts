@@ -331,4 +331,110 @@ describe.skipIf(!ownerUrl || !appUrl)('app.audit_write', () => {
       await client.end();
     }
   });
+
+  for (const [label, url] of [
+    ['fabsoft_worker', process.env.WORKER_DATABASE_URL],
+    ['fabsoft_bootstrap', process.env.BOOTSTRAP_DATABASE_URL],
+  ] as const) {
+    it.skipIf(!url)(`${label} LOGIN: INSERT en audit_logs → 42501`, async () => {
+      const client = new pg.Client({ connectionString: url! });
+      await client.connect();
+      try {
+        await expect(
+          client.query(
+            `insert into app.audit_logs (actor_type, action, resource_type, resource_id)
+             values ('system','product.updated','product','x')`,
+          ),
+        ).rejects.toMatchObject({ code: '42501' });
+      } finally {
+        await client.end();
+      }
+    });
+  }
+
+  it('mismo request_id servidor: admin no reutiliza fila del operador', async () => {
+    const req = `req-shared-${Date.now()}`;
+    const adminRow = await withCtx(
+      { type: 'user', role: 'operator', userId: adminId, requestId: req },
+      async (c) => {
+        const { rows } = await c.query<{ id: string }>(
+          `select app.audit_write('product.updated','product',$1::text,null,null,null)::text as id`,
+          [productId],
+        );
+        return rows[0]!.id;
+      },
+      true,
+    );
+    const adminIdem = await withCtx(
+      { type: 'user', role: 'admin', userId: adminId, requestId: req },
+      async (c) => {
+        const { rows } = await c.query<{ id: string }>(
+          `select app.audit_write('product.updated','product',$1::text,null,null,null)::text as id`,
+          [productId],
+        );
+        return rows[0]!.id;
+      },
+      true,
+    );
+    expect(adminIdem).not.toBe(adminRow);
+  });
+
+  it('operador LOGIN no ve supplier_cost_amount (incl. fila escrita por admin)', async () => {
+    const subId = '00000000-0000-4000-8ff0-0000000000bf';
+    const clientId = '00000000-0000-4000-8ff0-0000000000be';
+    const opUser = '00000000-0000-4000-8ff0-0000000000c0';
+    const boot = new pg.Client({ connectionString: ownerUrl! });
+    await boot.connect();
+    try {
+      await boot.query(
+        `insert into app.users (id, email, full_name, password_hash, role, client_id, status)
+         values ($1,'op-read@t.co','Op','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','operator',null,'active')
+         on conflict do nothing`,
+        [opUser],
+      );
+      await boot.query(
+        `insert into app.clients (id, legal_name) values ($1,'Op Client') on conflict do nothing`,
+        [clientId],
+      );
+      await boot.query(
+        `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle, price_amount, status)
+         values ($1,$2,$3,'2026-01-01','2026-12-31','annual',9,'active') on conflict do nothing`,
+        [subId, clientId, productId],
+      );
+    } finally {
+      await boot.end();
+    }
+    const reqAd = `req-sup-admin-${Date.now()}`;
+    await withCtx(
+      { type: 'user', role: 'admin', userId: adminId, requestId: reqAd },
+      async (c) => {
+        await c.query(
+          `select app.audit_write('subscription.updated','subscription',$1::text,
+             jsonb_build_object('after', jsonb_build_object('supplier_cost_amount', 777)), null, null)`,
+          [subId],
+        );
+      },
+      true,
+    );
+    const client = new pg.Client({ connectionString: appUrl! });
+    await client.connect();
+    try {
+      await client.query('begin');
+      await client.query('set local role fabsoft_app');
+      await client.query(
+        `select set_config('app.actor_type','user',true), set_config('app.actor_role','operator',true),
+                set_config('app.current_user_id',$1,true), set_config('app.request_id','op-read',true)`,
+        [opUser],
+      );
+      const { rows } = await client.query<{ changes: { after?: Record<string, unknown> } }>(
+        `select changes from app.audit_logs where request_id = $1`,
+        [reqAd],
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.changes?.after?.supplier_cost_amount).toBeUndefined();
+      await client.query('rollback');
+    } finally {
+      await client.end();
+    }
+  });
 });

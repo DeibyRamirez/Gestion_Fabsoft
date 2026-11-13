@@ -38,6 +38,7 @@ import {
 } from './historical-migration-grant-repair.js';
 import { assertNoFabsoftOwnerInApp } from './reconcile-owner-to-migrator.js';
 import {
+  assertAuditDefinerRoleAttributes,
   assertDefinerExecuteAllowlist,
   assertNoNoinheritSetPathToSensitive,
   assertSecurityDefinerOwnersAllowlist,
@@ -350,6 +351,7 @@ await assertNoFabsoftOwnerInApp(migratorUrl, 'db:migrate fresh');
 await assertSecurityDefinerOwnersAllowlist(migratorUrl);
 await assertDefinerExecuteAllowlist(migratorUrl);
 await assertNoNoinheritSetPathToSensitive(migratorUrl);
+await assertAuditDefinerRoleAttributes(migratorUrl);
 
 const rlsClient = new pg.Client({ connectionString: migratorUrl });
 await rlsClient.connect();

@@ -131,7 +131,10 @@ export const f0TestOwnerBypassRules = [
     ignores: eslintIgnores,
   },
   {
-    files: ['tests/{security,api,integration}/**/*.{ts,tsx}'],
+    files: [
+      'tests/{security,api,integration}/**/*.{ts,tsx}',
+      'tests/misc/t-f0-05-glob-probe.ts',
+    ],
     rules: {
       'no-restricted-imports': [
         'error',

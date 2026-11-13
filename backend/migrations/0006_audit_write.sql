@@ -10,7 +10,8 @@
 --   * Cambios allowlisted y redactados en la función; supplier_cost_amount sólo visible en
 --     contexto admin (no en auditoría “activity” de operador/cliente).
 --   * Sin clave "before" en acciones *.created.
---   * Idempotencia: mismo request_id + action + resource ⇒ misma fila (replay).
+--   * Idempotencia: mismo actor + request_id (servidor) + action + resource ⇒ misma fila (replay).
+--   * client_request_id (cabecera X-Request-Id del cliente) sólo se almacena; no gobierna idempotencia.
 -- =============================================================================
 
 do $$
@@ -60,15 +61,29 @@ create policy app_settings_select_audit_definer on app.app_settings for select t
 revoke insert on app.audit_logs from fabsoft_app;
 drop policy if exists audit_logs_insert on app.audit_logs;
 
-create unique index if not exists audit_logs_idempotent_uq on app.audit_logs (request_id, action, resource_type, resource_id)
+alter table app.audit_logs add column if not exists client_request_id text null;
+
+drop index if exists audit_logs_idempotent_uq;
+create unique index audit_logs_idempotent_uq on app.audit_logs (
+  actor_type,
+  actor_user_id,
+  actor_integration_id,
+  request_id,
+  action,
+  resource_type,
+  resource_id
+) nulls not distinct
   where request_id is not null and btrim(request_id) <> '';
 
 -- Claves sensibles (redacción recursiva).
 create or replace function app.audit_is_secret_key(p_key text) returns boolean
 language sql immutable parallel safe security definer set search_path = pg_catalog as $$
-  select lower(p_key) ~ '^(password|password_hash|passwordhash|apikey|api_key|key_hash|keyhash|token|secret|authorization|connection_string|database_url|.*_token)$'
+  select lower(p_key) ~ '^(password|password_hash|passwordhash|apikey|api_key|key_hash|keyhash|token|secret|authorization|connection_string|database_url|jwt|private_key|.*_token)$'
      or lower(p_key) like '%password%'
-     or lower(p_key) like '%secret%';
+     or lower(p_key) like '%secret%'
+     or lower(p_key) like '%private_key%'
+     or lower(p_key) like '%jwt%'
+     or lower(p_key) ~ '^(pass|credentials\.pass)$';
 $$;
 
 create or replace function app.audit_allowlist_keys(p_resource_type text) returns text[]
@@ -96,19 +111,22 @@ create or replace function app.audit_redact_jsonb(p_val jsonb, p_allow text[], p
 language plpgsql immutable security definer set search_path = pg_catalog as $$
 declare k text; out jsonb := '{}'::jsonb; v jsonb;
 begin
-  if p_val is null or jsonb_typeof(p_val) <> 'object' then
-  return p_val;
+  if p_val is null then return null; end if;
+  if jsonb_typeof(p_val) <> 'object' then
+    raise exception 'audit_redact_jsonb esperaba objeto, obtuvo %', jsonb_typeof(p_val) using errcode = '22023';
   end if;
   for k, v in select key, value from jsonb_each(p_val) loop
     if app.audit_is_secret_key(k) then
       out := out || jsonb_build_object(k, '[REDACTED]');
     elsif jsonb_typeof(v) = 'object' then
-      out := out || jsonb_build_object(k, app.audit_redact_jsonb(v, null, p_admin));
+      out := out || jsonb_build_object(k, app.audit_redact_jsonb(v, p_allow, p_admin));
     elsif jsonb_typeof(v) = 'array' then
-      out := out || jsonb_build_object(k, app.audit_redact_jsonb_array(v, p_allow, p_admin));
+      out := out || jsonb_build_object(k, app.audit_redact_jsonb_array(v, p_allow, p_admin, k));
     elsif k = 'supplier_cost_amount' and not p_admin then
       continue;
     elsif p_allow is not null and cardinality(p_allow) > 0 and not (k = any (p_allow)) then
+      continue;
+    elsif jsonb_typeof(v) not in ('string','number','boolean','null') then
       continue;
     else
       out := out || jsonb_build_object(k, v);
@@ -117,18 +135,26 @@ begin
   return out;
 end $$;
 
-create or replace function app.audit_redact_jsonb_array(p_val jsonb, p_allow text[], p_admin boolean) returns jsonb
+create or replace function app.audit_redact_jsonb_array(p_val jsonb, p_allow text[], p_admin boolean, p_key text default null)
+returns jsonb
 language plpgsql immutable security definer set search_path = pg_catalog as $$
 declare i jsonb; out jsonb := '[]'::jsonb;
 begin
-  if p_val is null or jsonb_typeof(p_val) <> 'array' then return p_val; end if;
+  if p_val is null then return null; end if;
+  if jsonb_typeof(p_val) <> 'array' then
+    raise exception 'audit_redact_jsonb_array esperaba arreglo, obtuvo %', jsonb_typeof(p_val) using errcode = '22023';
+  end if;
   for i in select value from jsonb_array_elements(p_val) loop
-    if jsonb_typeof(i) in ('object','array') then
-      out := out || jsonb_build_array(
-        case jsonb_typeof(i)
-          when 'object' then app.audit_redact_jsonb(i, p_allow, p_admin)
-          else app.audit_redact_jsonb_array(i, p_allow, p_admin)
-        end);
+    if jsonb_typeof(i) = 'object' then
+      out := out || jsonb_build_array(app.audit_redact_jsonb(i, p_allow, p_admin));
+    elsif jsonb_typeof(i) = 'array' then
+      out := out || jsonb_build_array(app.audit_redact_jsonb_array(i, p_allow, p_admin, p_key));
+    elsif p_key is not null and app.audit_is_secret_key(p_key) then
+      out := out || jsonb_build_array('[REDACTED]');
+    elsif jsonb_typeof(i) = 'string' and (
+      lower(i #>> '{}') ~ 'eyj[a-z0-9_-]*\.[a-z0-9._-]+\.[a-z0-9._-]+'
+      or lower(i #>> '{}') like '%private_key%') then
+      out := out || jsonb_build_array('[REDACTED]');
     else
       out := out || jsonb_build_array(i);
     end if;
@@ -136,10 +162,20 @@ begin
   return out;
 end $$;
 
+drop rule if exists audit_logs_select_redact on app.audit_logs;
+create or replace rule audit_logs_select_redact as
+  on select to app.audit_logs
+  do instead
+  select id, occurred_at, actor_type, actor_user_id, actor_integration_id, action, resource_type, resource_id,
+         client_id,
+         app.audit_redact_jsonb(changes, app.audit_allowlist_keys(resource_type), app.is_admin() or app.is_system()) as changes,
+         reason, request_id, client_request_id, ip
+    from only app.audit_logs;
+
 create or replace function app.audit_prepare_changes(
   p_action text, p_resource_type text, p_changes jsonb, p_admin boolean)
 returns jsonb
-language plpgsql immutable security definer set search_path = app, pg_catalog as $$
+language plpgsql immutable security definer set search_path = pg_catalog, app as $$
 declare ch jsonb; allow text[];
 begin
   if p_changes is null then return null; end if;
@@ -166,9 +202,12 @@ end $$;
 
 create or replace function app.audit_resolve_client_id(p_resource_type text, p_resource_id text)
 returns uuid
-language plpgsql stable security definer set search_path = app, pg_catalog as $$
+language plpgsql stable security definer set search_path = pg_catalog, app as $$
 declare v uuid;
 begin
+  if p_resource_id = 'unknown' then
+    return null;
+  end if;
   case p_resource_type
     when 'client' then return p_resource_id::uuid;
     when 'client_contact' then
@@ -192,7 +231,7 @@ begin
 end $$;
 
 create or replace function app.audit_resource_exists(p_resource_type text, p_resource_id text) returns boolean
-language plpgsql stable security definer set search_path = app, pg_catalog as $$
+language plpgsql stable security definer set search_path = pg_catalog, app as $$
 begin
   if p_resource_id = 'unknown' then
     return p_resource_type = 'user';
@@ -225,10 +264,11 @@ create or replace function app.audit_write(
   p_reason text default null,
   p_ip inet default null)
 returns bigint
-language plpgsql volatile security definer set search_path = app, pg_catalog as $$
+language plpgsql volatile security definer set search_path = pg_catalog, app as $$
 declare
   v_actor app.actor_type;
   v_req text;
+  v_client_req text;
   v_uid uuid;
   v_iid uuid;
   v_role text;
@@ -242,6 +282,7 @@ begin
   v_actor := app.ctx_actor_type();
   v_role := app.ctx_role();
   v_req := nullif(btrim(current_setting('app.request_id', true)), '');
+  v_client_req := nullif(btrim(current_setting('app.client_request_id', true)), '');
   v_uid := app.ctx_user_id();
   v_iid := app.ctx_integration_id();
 
@@ -257,6 +298,9 @@ begin
   end if;
   if v_actor = 'integration' and v_iid is null then
     raise exception 'actor integration requiere app.integration_id' using errcode = '42501';
+  end if;
+  if v_actor = 'user' and v_role not in ('admin', 'operator', 'client') then
+    raise exception 'rol de usuario desconocido: %', v_role using errcode = '42501';
   end if;
 
   if v_actor = 'user' and v_role = 'client' then
@@ -286,22 +330,37 @@ begin
   if v_req is not null then
     select id into v_existing from app.audit_logs
      where request_id = v_req and action = p_action
-       and resource_type = p_resource_type and resource_id = p_resource_id;
+       and resource_type = p_resource_type and resource_id = p_resource_id
+       and actor_type = v_actor
+       and actor_user_id is not distinct from case when v_actor = 'user' then v_uid else null end
+       and actor_integration_id is not distinct from case when v_actor = 'integration' then v_iid else null end;
     if found then return v_existing; end if;
   end if;
 
   v_changes := app.audit_prepare_changes(p_action, p_resource_type, p_changes, v_admin);
 
-  insert into app.audit_logs (
-    actor_type, actor_user_id, actor_integration_id, action, resource_type, resource_id,
-    client_id, changes, reason, request_id, ip)
-  values (
-    v_actor,
-    case when v_actor = 'user' then v_uid else null end,
-    case when v_actor = 'integration' then v_iid else null end,
-    p_action, p_resource_type, p_resource_id,
-    v_res_client, v_changes, p_reason, v_req, p_ip)
-  returning id into v_id;
+  begin
+    insert into app.audit_logs (
+      actor_type, actor_user_id, actor_integration_id, action, resource_type, resource_id,
+      client_id, changes, reason, request_id, client_request_id, ip)
+    values (
+      v_actor,
+      case when v_actor = 'user' then v_uid else null end,
+      case when v_actor = 'integration' then v_iid else null end,
+      p_action, p_resource_type, p_resource_id,
+      v_res_client, v_changes, p_reason, v_req, v_client_req, p_ip)
+    returning id into v_id;
+  exception
+    when unique_violation then
+      select id into v_existing from app.audit_logs
+       where request_id = v_req and action = p_action
+         and resource_type = p_resource_type and resource_id = p_resource_id
+         and actor_type = v_actor
+         and actor_user_id is not distinct from case when v_actor = 'user' then v_uid else null end
+         and actor_integration_id is not distinct from case when v_actor = 'integration' then v_iid else null end;
+      if not found then raise; end if;
+      return v_existing;
+  end;
   return v_id;
 end $$;
 
@@ -328,7 +387,9 @@ drop function if exists app.audit_redact_jsonb_array(jsonb, text[], boolean);
 drop function if exists app.audit_redact_jsonb(jsonb, text[], boolean);
 drop function if exists app.audit_is_secret_key(text);
 drop function if exists app.audit_allowlist_keys(text);
+drop rule if exists audit_logs_select_redact on app.audit_logs;
 drop index if exists audit_logs_idempotent_uq;
+alter table app.audit_logs drop column if exists client_request_id;
 
 drop policy if exists app_settings_select_audit_definer on app.app_settings;
 drop policy if exists users_select_audit_definer on app.users;

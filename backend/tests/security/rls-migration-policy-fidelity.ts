@@ -22,7 +22,7 @@ type SnapshotFile = {
 };
 
 const snapshotPath = fileURLToPath(
-  new URL('./fixtures/app-rls-policies-develop.snapshot.json', import.meta.url),
+  new URL('./fixtures/app-rls-policies-76.snapshot.json', import.meta.url),
 );
 
 export function loadDevelopPolicySnapshot(): SnapshotFile {

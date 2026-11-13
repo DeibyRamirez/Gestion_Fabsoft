@@ -62,12 +62,7 @@ export default defineConfig({
         test: {
           name: 'security',
           include: ['tests/security/**/*.test.ts'],
-          exclude: [
-            'tests/security/t-f0-08b-event-trigger.test.ts',
-            ...(process.env.SKIP_SECURITY_IDEMPOTENCY === '1'
-              ? ['tests/security/security-suite-idempotency.test.ts']
-              : []),
-          ],
+          exclude: ['tests/security/t-f0-08b-event-trigger.test.ts'],
           hookTimeout: 120_000,
         },
       },

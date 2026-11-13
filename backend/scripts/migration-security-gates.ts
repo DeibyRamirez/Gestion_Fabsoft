@@ -25,7 +25,7 @@ export const NOINHERIT_SET_EDGE_ALLOWLIST = [
   { member: 'fabsoft_seed_writer', granted: 'fabsoft_app' },
 ] as const;
 
-const NOINHERIT_SET_EXTRA_SENSITIVE = ['fabsoft_bootstrap'] as const;
+const NOINHERIT_SET_EXTRA_SENSITIVE = ['fabsoft_bootstrap', 'fabsoft_owner'] as const;
 
 function allowlistEdgeKey(member: string, granted: string): string {
   return `${member}\0${granted}`;
@@ -68,8 +68,8 @@ export async function assertSecurityDefinerOwnersAllowlist(databaseUrl: string):
 }
 
 /**
- * Detecta cadenas pg_auth_members con set_option hacia roles NOINHERIT que alcanzan
- * dueños SECURITY DEFINER o roles con INSERT en audit_logs (sin SET ROLE al dueño en runtime).
+ * Clausura transitiva de pg_auth_members (inherit / set_option / admin_option) desde roles LOGIN
+ * hacia dueños SECURITY DEFINER, fabsoft_owner/bootstrap o roles con INSERT en audit_logs.
  */
 export async function assertNoNoinheritSetPathToSensitive(databaseUrl: string): Promise<void> {
   const c = new pg.Client({ connectionString: normalizeDatabaseUrl(databaseUrl) });
@@ -87,49 +87,112 @@ export async function assertNoNoinheritSetPathToSensitive(databaseUrl: string): 
     );
     for (const { rolname } of ins) sensitive.add(rolname);
 
-    const { rows: paths } = await c.query<{ login_member: string; reached: string; depth: number }>(
+    const { rows: paths } = await c.query<{
+      login_member: string;
+      reached: string;
+      depth: number;
+      via_set: boolean;
+      via_inherit: boolean;
+      via_admin: boolean;
+    }>(
       `with recursive walk as (
          select mr.rolname::text as login_member,
                 gr.rolname::text as current_role,
                 1 as depth,
-                array[mr.rolname::text, gr.rolname::text] as path
+                array[mr.rolname::text, gr.rolname::text] as path,
+                (m.set_option and not gr.rolinherit) as via_set,
+                (m.inherit and gr.rolinherit) as via_inherit,
+                m.admin_option as via_admin
          from pg_catalog.pg_auth_members m
          join pg_catalog.pg_roles mr on mr.oid = m.member
          join pg_catalog.pg_roles gr on gr.oid = m.roleid
-         where m.set_option
-           and not gr.rolinherit
+         join pg_catalog.pg_roles lm on lm.oid = m.member
+         where lm.rolcanlogin
          union all
          select w.login_member,
                 gr.rolname::text,
                 w.depth + 1,
-                w.path || gr.rolname::text
+                w.path || gr.rolname::text,
+                (m.set_option and not gr.rolinherit),
+                (m.inherit and gr.rolinherit),
+                m.admin_option
          from walk w
          join pg_catalog.pg_roles cr on cr.rolname = w.current_role
          join pg_catalog.pg_auth_members m on m.member = cr.oid
          join pg_catalog.pg_roles gr on gr.oid = m.roleid
-         where m.set_option
-           and not gr.rolinherit
-           and w.depth < 16
+         where w.depth < 16
            and not gr.rolname::text = any (w.path)
        )
-       select distinct w.login_member, w.current_role as reached, w.depth
+       select distinct w.login_member, w.current_role as reached, w.depth,
+              bool_or(w.via_set) as via_set, bool_or(w.via_inherit) as via_inherit, bool_or(w.via_admin) as via_admin
        from walk w
-       join pg_catalog.pg_roles lm on lm.rolname = w.login_member
        where w.current_role = any ($1::text[])
-         and lm.rolcanlogin
+       group by 1, 2, 3
        order by 1, 2`,
       [[...sensitive]],
     );
 
     const offenders: string[] = [];
-    for (const { login_member, reached, depth } of paths) {
-      if (depth === 1 && ALLOWLIST_EDGE_KEYS.has(allowlistEdgeKey(login_member, reached))) continue;
-      offenders.push(`${login_member}→${reached}(SET/NOINHERIT,d=${depth})`);
+    for (const row of paths) {
+      const { login_member, reached, depth, via_set, via_inherit, via_admin } = row;
+      if (
+        depth === 1 &&
+        via_set &&
+        !via_inherit &&
+        !via_admin &&
+        ALLOWLIST_EDGE_KEYS.has(allowlistEdgeKey(login_member, reached))
+      ) {
+        continue;
+      }
+      const tags: string[] = [];
+      if (via_set) tags.push('SET');
+      if (via_inherit) tags.push('INHERIT');
+      if (via_admin) tags.push('ADMIN');
+      offenders.push(`${login_member}→${reached}(${tags.join('+') || 'edge'},d=${depth})`);
     }
     if (offenders.length > 0) {
       throw new Error(
-        `Gate prosecdef: membresía SET hacia NOINHERIT alcanza rol sensible: ${offenders.join(', ')}`,
+        `Gate prosecdef: membresía alcanza rol sensible: ${offenders.join(', ')}`,
       );
+    }
+  } finally {
+    await c.end();
+  }
+}
+
+export async function assertAuditDefinerRoleAttributes(databaseUrl: string): Promise<void> {
+  const c = new pg.Client({ connectionString: normalizeDatabaseUrl(databaseUrl) });
+  await c.connect();
+  try {
+    const { rows } = await c.query<{
+      rolcanlogin: boolean;
+      rolinherit: boolean;
+      rolsuper: boolean;
+      rolbypassrls: boolean;
+    }>(
+      `select rolcanlogin, rolinherit, rolsuper, rolbypassrls
+       from pg_catalog.pg_roles where rolname = 'fabsoft_audit_definer'`,
+    );
+    const r = rows[0];
+    if (!r) throw new Error('Gate audit_definer: rol fabsoft_audit_definer ausente');
+    if (r.rolcanlogin || r.rolinherit || r.rolsuper || r.rolbypassrls) {
+      throw new Error(
+        `Gate audit_definer: atributos inválidos (login=${r.rolcanlogin}, inherit=${r.rolinherit}, super=${r.rolsuper}, bypassrls=${r.rolbypassrls})`,
+      );
+    }
+    const { rows: fn } = await c.query<{ cfg: string[] | null }>(
+      `select p.proconfig as cfg
+       from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'app' and p.proname = 'audit_write'`,
+    );
+    const pathCfg = fn[0]?.cfg?.find((e) => e.startsWith('search_path='));
+    if (!pathCfg || !pathCfg.includes('pg_catalog')) {
+      throw new Error('Gate audit_definer: audit_write sin search_path pg_catalog');
+    }
+    const afterEq = pathCfg.split('=')[1] ?? '';
+    if (!afterEq.trim().toLowerCase().startsWith('pg_catalog')) {
+      throw new Error(`Gate audit_definer: search_path debe iniciar en pg_catalog (${pathCfg})`);
     }
   } finally {
     await c.end();

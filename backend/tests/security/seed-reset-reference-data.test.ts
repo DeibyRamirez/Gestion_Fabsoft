@@ -1,5 +1,5 @@
 /**
- * seed --reset conserva alert_rules y app_settings (T-F0-09c contact_channel).
+ * seed --reset conserva alert_rules, app_settings e integrations (sin CASCADE).
  */
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -14,8 +14,29 @@ const provUrl = process.env.DATABASE_PROVISION_URL;
 describe.skipIf(
   !seedUrl || !provUrl || !process.env.SEED_EPHEMERAL_MARKER || !process.env.SEED_HARNESS_RUN_ID,
 )('seed --reset datos de referencia', () => {
-  it('tras --reset, app_settings y alert_rules siguen presentes (T-F0-09c)', async () => {
+  it('tras --reset, ids/valores de referencia se conservan (T-F0-09c)', async () => {
     const t = parseDatabaseTarget(seedUrl!);
+    const verifyUrl = provUrl ?? seedUrl!;
+    const client = new pg.Client({ connectionString: verifyUrl });
+    await client.connect();
+    let beforeRules: { id: string; code: string }[] = [];
+    let beforeSettings: { key: string; value: unknown }[] = [];
+  let integrationCount = 0;
+    try {
+      const rules = await client.query<{ id: string; code: string }>(
+        `select id::text, code from app.alert_rules order by code`,
+      );
+      beforeRules = rules.rows;
+      const settings = await client.query<{ key: string; value: unknown }>(
+        `select key, value from app.app_settings order by key`,
+      );
+      beforeSettings = settings.rows;
+      const ints = await client.query<{ n: number }>(`select count(*)::int as n from app.integrations`);
+      integrationCount = ints.rows[0]!.n;
+    } finally {
+      await client.end();
+    }
+
     const run = spawnSync('pnpm', ['exec', 'tsx', 'scripts/seed.ts', '--reset'], {
       cwd: backendRoot,
       env: {
@@ -32,20 +53,24 @@ describe.skipIf(
       encoding: 'utf8',
     });
     expect(run.status, `${run.stderr}${run.stdout}`).toBe(0);
-    const verifyUrl = provUrl ?? seedUrl!;
-    const client = new pg.Client({ connectionString: verifyUrl });
-    await client.connect();
+
+    const after = new pg.Client({ connectionString: verifyUrl });
+    await after.connect();
     try {
-      const rules = await client.query<{ n: number }>(
-        `select count(*)::int as n from app.alert_rules`,
+      const rules = await after.query<{ id: string; code: string }>(
+        `select id::text, code from app.alert_rules order by code`,
       );
-      expect(rules.rows[0]!.n).toBeGreaterThanOrEqual(6);
-      const settings = await client.query<{ key: string }>(
-        `select key from app.app_settings where key = 'contact_channel'`,
+      expect(rules.rows).toEqual(beforeRules);
+      expect(rules.rows.length).toBeGreaterThanOrEqual(6);
+      const settings = await after.query<{ key: string; value: unknown }>(
+        `select key, value from app.app_settings order by key`,
       );
-      expect(settings.rowCount).toBe(1);
+      expect(settings.rows).toEqual(beforeSettings);
+      expect(settings.rowCount).toBeGreaterThan(0);
+      const ints = await after.query<{ n: number }>(`select count(*)::int as n from app.integrations`);
+      expect(ints.rows[0]!.n).toBe(integrationCount);
     } finally {
-      await client.end();
+      await after.end();
     }
   });
 });

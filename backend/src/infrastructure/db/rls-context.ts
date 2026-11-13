@@ -8,10 +8,23 @@ export type RlsContext =
       role: 'admin' | 'operator';
       clientId: null;
       requestId: string;
+      clientRequestId?: string | undefined;
     }
-  | { actorType: 'user'; userId: string; role: 'client'; clientId: string; requestId: string }
-  | { actorType: 'integration'; integrationId: string; requestId: string }
-  | { actorType: 'system'; purpose: 'auth' | 'worker' | 'maintenance'; requestId: string };
+  | {
+      actorType: 'user';
+      userId: string;
+      role: 'client';
+      clientId: string;
+      requestId: string;
+      clientRequestId?: string | undefined;
+    }
+  | { actorType: 'integration'; integrationId: string; requestId: string; clientRequestId?: string | undefined }
+  | {
+      actorType: 'system';
+      purpose: 'auth' | 'worker' | 'maintenance';
+      requestId: string;
+      clientRequestId?: string | undefined;
+    };
 
 /** Única fábrica del contexto system (ADR-004 §6). Sólo infrastructure la usa. */
 export const SystemContext = {
@@ -32,6 +45,7 @@ export function toRlsContext(actor: UserActor): RlsContext {
       role: 'client',
       clientId: actor.clientId,
       requestId: actor.requestId,
+      clientRequestId: actor.clientRequestId,
     };
   }
   return {
@@ -40,5 +54,6 @@ export function toRlsContext(actor: UserActor): RlsContext {
     role: actor.role,
     clientId: null,
     requestId: actor.requestId,
+    clientRequestId: actor.clientRequestId,
   };
 }

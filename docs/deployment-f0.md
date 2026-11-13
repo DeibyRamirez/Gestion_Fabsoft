@@ -68,6 +68,8 @@ En SQL nuevo: **REVOKE/GRANT antes de ALTER OWNER**; si el dueño cambia, el pro
 
 **Upgrade develop:** `fabsoft_owner` aplica `0001`–`0005`; **`db:reconcile:owner-to-migrator`** (o perfil `develop-historical-upgrade`); después `fabsoft_migrator` en `dbmate-staged-up` (inventario + gates, no ownership reconcile).
 
+**VPS / instalación existente (`0006+`):** con `DATABASE_MIGRATION_URL` apuntando a `fabsoft_migrator` (proviso tras `db:roles:dev` o `db:provision:ci`), ejecutar `pnpm db:migrate` una vez; validar `select app.assert_rls_everywhere();` y gate prosecdef. No aplicar `0006_audit_write.sql` conectado como `fabsoft_owner` en producción (el provisioner eleva sólo en BD efímera; el post-paso `assignAuditWriteDefinerOwner` exige harness).
+
 ## Seed endurecido
 
 Requiere `APP_ENV` (`dev`|`test` únicamente), listas `SEED_ALLOWED_*`, `SEED_FORBIDDEN_HOSTS` no vacía (sin `-`), `SEED_EPHEMERAL_MARKER`, `SEED_HARNESS_RUN_ID`, rol `fabsoft_seed_writer` (`SEED_SESSION_ROLE`) y coincidencia de `fabsoft.seed_ephemeral` + `fabsoft_harness.ephemeral_provenance`. Falla **antes** de conectar si la URL o el denylist son inválidos; tras conectar rechaza superusuario/BYPASSRLS y verifica identidad de sesión.

@@ -14,7 +14,9 @@ export function authenticate(useCase: AuthenticateAccessToken): RequestHandler {
     if (auth && apiKey) return sendProblem(res, 'ambiguous_credentials', 'Use sólo una credencial');
     if (!auth?.startsWith('Bearer '))
       return sendProblem(res, 'unauthenticated', 'Falta el token de acceso');
-    const result = await useCase.execute(auth.slice(7).trim(), String(res.locals['requestId']));
+    const clientRequestId =
+      typeof res.locals['clientRequestId'] === 'string' ? res.locals['clientRequestId'] : undefined;
+    const result = await useCase.execute(auth.slice(7).trim(), String(res.locals['requestId']), clientRequestId);
     res.locals['actor'] = result.actor;
     res.locals['mustChangePassword'] = result.mustChangePassword;
     next();

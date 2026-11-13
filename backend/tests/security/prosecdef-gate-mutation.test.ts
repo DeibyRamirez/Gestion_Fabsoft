@@ -179,6 +179,59 @@ describe.skipIf(!migUrl || !provUrl)('prosecdef gate mutations', () => {
     }
   });
 
+  it('M3b: puente INHERIT + SET hacia fabsoft_audit_definer → db:migrate falla', async () => {
+    const c = await owner.connect();
+    try {
+      await c.query(`create role fabsoft_gate_m3b_bridge nologin`);
+      await c.query(`create role fabsoft_gate_m3b_login login`);
+      await c.query(
+        `grant fabsoft_gate_m3b_bridge to fabsoft_gate_m3b_login with inherit true, set false`,
+      );
+      await c.query(
+        `grant fabsoft_audit_definer to fabsoft_gate_m3b_bridge with inherit false, set true`,
+      );
+    } finally {
+      c.release();
+    }
+    try {
+      const { status, text } = runMigrate();
+      expect(status).not.toBe(0);
+      expect(text).toMatch(/audit_definer|Gate prosecdef|membresía/i);
+    } finally {
+      const fix = await owner.connect();
+      try {
+        await fix.query(`revoke fabsoft_audit_definer from fabsoft_gate_m3b_bridge`);
+        await fix.query(`revoke fabsoft_gate_m3b_bridge from fabsoft_gate_m3b_login`);
+        await fix.query(`drop role if exists fabsoft_gate_m3b_login`);
+        await fix.query(`drop role if exists fabsoft_gate_m3b_bridge`);
+      } finally {
+        fix.release();
+      }
+    }
+  });
+
+  it('M5: GRANT fabsoft_audit_definer TO fabsoft_app WITH ADMIN TRUE → db:migrate falla', async () => {
+    const c = await owner.connect();
+    try {
+      await c.query(`grant fabsoft_audit_definer to fabsoft_app with admin true`);
+    } finally {
+      c.release();
+    }
+    try {
+      const { status, text } = runMigrate();
+      expect(status).not.toBe(0);
+      expect(text).toMatch(/audit_definer|ADMIN|Gate prosecdef/i);
+    } finally {
+      const fix = await owner.connect();
+      try {
+        await fix.query(`revoke admin option for fabsoft_audit_definer from fabsoft_app`);
+        await fix.query(`revoke fabsoft_audit_definer from fabsoft_app`);
+      } finally {
+        fix.release();
+      }
+    }
+  });
+
   it('EXECUTE bootstrap vía membresía heredada (worker → rol hijo) → db:migrate falla', async () => {
     const c = await owner.connect();
     try {

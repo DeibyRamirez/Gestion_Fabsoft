@@ -18,21 +18,6 @@ const seedConfig = assertSeedConfiguration();
 const reset = process.argv.includes('--reset');
 const url = seedConfig.url;
 
-/** Mismos datos que 0001_schema.sql (idempotente tras --reset sin CASCADE en tablas de referencia). */
-const REINSERT_REFERENCE_SQL = `
-insert into app.alert_rules (code, description, offset_days, channels, creates_task, task_type, task_priority, applies_when_not_renewable) values
-  ('D30',   'Preparar la renovación (30 días antes)',            30, '{in_app,email}', true,  'send_proposal',  'medium', false),
-  ('D15',   'Contactar al cliente (15 días antes)',              15, '{in_app,email}', true,  'contact_client', 'high',   false),
-  ('D7',    'Hacer seguimiento (7 días antes)',                   7, '{in_app,email}', false, null,             null,     false),
-  ('D1',    'Vencimiento inminente (1 día antes)',                1, '{in_app,email}', false, null,             null,     false),
-  ('D0',    'Comprobar estado (día del vencimiento)',             0, '{in_app}',       false, null,             null,     false),
-  ('POST1', 'Suscripción vencida requiere revisión (día +1)',   -1, '{in_app,email}', true,  'review_expired', 'urgent', false)
-on conflict (code) do nothing;
-insert into app.app_settings (key, value) values
-  ('contact_channel', '{"email": "contacto@fabsoft.example", "phone": null, "hours": "Lunes a viernes, 8:00–17:00 (hora Colombia)"}'::jsonb)
-on conflict (key) do nothing;
-`;
-
 const id = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 const U = {
   admin: id(0x101),
@@ -296,14 +281,11 @@ try {
          update app.app_settings set updated_by = null`,
       );
       await boot.query(`truncate app.tasks, app.renewal_requests, app.subscription_periods, app.subscriptions, app.client_notes,
-        app.client_contacts, app.refresh_tokens, app.idempotency_keys, app.notifications, app.audit_logs restart identity cascade`);
+        app.client_contacts, app.refresh_tokens, app.idempotency_keys, app.notifications, app.audit_logs restart identity`);
       await boot.query(
         `update app.clients set owner_user_id = null, created_by = null, updated_by = null`,
       );
-      await boot.query(
-        `truncate app.refresh_tokens, app.users, app.clients, app.products restart identity cascade`,
-      );
-      await boot.query(REINSERT_REFERENCE_SQL);
+      await boot.query(`truncate app.users, app.clients, app.products restart identity`);
       await boot.query('commit');
     } finally {
       await boot.end();

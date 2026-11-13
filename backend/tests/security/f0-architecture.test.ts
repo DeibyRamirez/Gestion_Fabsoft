@@ -117,6 +117,12 @@ describe('F0 — arquitectura tests (sin bypass owner)', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('T-F0-05 archivo fuera del glob principal es detectable por ESLint', () => {
+    const misc = join(testsRoot, 'misc/t-f0-05-glob-probe.ts');
+    expect(existsSync(misc)).toBe(true);
+    expect(detectsOwnerBypassInTestSource(readFileSync(misc, 'utf8'))).toBe(true);
+  });
+
   it('T-F0-05 globs ESLint existen y cubren tests/security', () => {
     const backendRoot = fileURLToPath(new URL('../..', import.meta.url));
     const globDirs = ['tests/security', 'tests/api', 'tests/integration'];

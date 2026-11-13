@@ -1,10 +1,10 @@
 /**
  * seed --reset fail-closed (ronda 6): no borrar BDs sin marcador / sin coincidir con seed.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { assertSeedResetProvisionerTarget } from '../../scripts/guard.js';
-import { parseDatabaseTarget } from '../../scripts/database-url.js';
+import { parseDatabaseTarget, quoteIdent } from '../../scripts/database-url.js';
 
 const ownerUrl = process.env.DATABASE_PROVISION_URL;
 
@@ -27,6 +27,29 @@ if (process.env.REQUIRE_DB_TESTS === '1' && (!ownerUrl || !seedUrl || !marker ||
 
 afterEach(() => {
   if (ownerUrl) process.env.DATABASE_PROVISION_URL = ownerUrl;
+});
+
+afterAll(async () => {
+  if (!ownerUrl) return;
+  const target = parseDatabaseTarget(ownerUrl);
+  const decoyDb = `${target.database}_decoy_guard`;
+  const owner = new pg.Client({ connectionString: ownerUrl });
+  await owner.connect();
+  try {
+    const exists = await owner.query<{ ok: boolean }>(
+      `select exists(select 1 from pg_database where datname = $1) as ok`,
+      [decoyDb],
+    );
+    if (exists.rows[0]!.ok) {
+      await owner.query(
+        `select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()`,
+        [decoyDb],
+      );
+      await owner.query(`drop database ${quoteIdent(decoyDb)}`);
+    }
+  } finally {
+    await owner.end();
+  }
 });
 
 describe.skipIf(!ownerUrl || !seedUrl)('seed --reset guard', () => {
