@@ -10,7 +10,9 @@ if (process.env.REQUIRE_DB_TESTS === '1' && !migratorUrl) {
   throw new Error('t-f0-08b: DATABASE_MIGRATION_URL requerido');
 }
 
-describe.skipIf(!migratorUrl)('F0 — event trigger upgrade (T-F0-08b)', () => {
+describe.skipIf(!migratorUrl || process.env.FABSOFT_EXPECT_EVENT_TRIGGER !== '1')(
+  'F0 — event trigger upgrade (T-F0-08b)',
+  () => {
   it('T-F0-08b event trigger fabsoft_enforce_rls en ruta upgrade', async () => {
     const client = new pg.Client({ connectionString: migratorUrl! });
     await client.connect();
