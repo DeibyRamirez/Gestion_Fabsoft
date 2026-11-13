@@ -12,7 +12,6 @@
 --   * Sin clave "before" en acciones *.created.
 --   * Idempotencia: mismo request_id + action + resource ⇒ misma fila (replay).
 -- =============================================================================
-set local search_path = app, pg_catalog;
 
 do $$
 begin
@@ -299,7 +298,6 @@ grant execute on function app.audit_write(text, text, text, jsonb, text, inet) t
 select app.assert_rls_everywhere();
 
 -- migrate:down
-set local search_path = app, pg_catalog;
 drop function if exists app.audit_write(text, text, text, jsonb, text, inet);
 drop function if exists app.audit_resource_exists(text, text);
 drop function if exists app.audit_resolve_client_id(text, text);
