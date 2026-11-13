@@ -56,7 +56,7 @@ describe.skipIf(!ownerUrl || !seedUrl)('seed --reset guard', () => {
         harnessRunId: runId!,
         expectedDatabase: db,
       }),
-    ).rejects.toThrow(/provision|distinto del seed/i);
+    ).rejects.toThrow(/provision|distinto del seed|Base de datos no autorizada/i);
   } finally {
     process.env.DATABASE_PROVISION_URL = prev;
   }

@@ -35,6 +35,7 @@ describe.skipIf(
     const client = new pg.Client({ connectionString: seedUrl });
     await client.connect();
     try {
+      await client.query('set role fabsoft_app');
       const rules = await client.query<{ n: number }>(
         `select count(*)::int as n from app.alert_rules`,
       );
