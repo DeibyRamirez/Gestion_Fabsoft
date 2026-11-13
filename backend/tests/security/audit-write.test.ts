@@ -89,19 +89,6 @@ describe.skipIf(!ownerUrl || !appUrl)('app.audit_write', () => {
     }
   });
 
-  afterAll(async () => {
-    const c = new pg.Client({ connectionString: ownerUrl! });
-    await c.connect();
-    try {
-      await c.query(
-        `delete from app.audit_logs where resource_id in ($1, $2)`,
-        [productId, '00000000-0000-4000-8ff0-000000000099'],
-      );
-    } finally {
-      await c.end();
-    }
-  });
-
   it('positivo: mutación + evento en la misma transacción', async () => {
     const req = `req-${Date.now()}-ok`;
     await withCtx(
