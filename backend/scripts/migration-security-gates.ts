@@ -114,7 +114,7 @@ export async function assertNoNoinheritSetPathToSensitive(databaseUrl: string): 
                 w.depth + 1,
                 w.path || gr.rolname::text,
                 (m.set_option and not gr.rolinherit),
-                (m.inherit and gr.rolinherit),
+                (coalesce(m.inherit_option, true) and gr.rolinherit),
                 m.admin_option
          from walk w
          join pg_catalog.pg_roles cr on cr.rolname = w.current_role
