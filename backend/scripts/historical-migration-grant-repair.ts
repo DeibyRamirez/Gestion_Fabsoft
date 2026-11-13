@@ -79,14 +79,14 @@ export async function repairHistoricalMigrationGrants(owner: QueryFn): Promise<v
     `alter default privileges for role ${quoteIdent(MIGRATOR)} in schema app grant usage, select on sequences to fabsoft_app`,
   ];
   for (const sql of stmts) await run(owner, sql);
-  const { rows: hasAuditWrite } = (await owner(
+  const auditWriteProbe = (await owner(
     `select exists (
        select 1 from pg_proc p
        join pg_namespace n on n.oid = p.pronamespace
        where n.nspname = 'app' and p.proname = 'audit_write'
      ) as ok`,
   )) as pg.QueryResult<{ ok: boolean }>;
-  if (hasAuditWrite.rows[0]?.ok) {
+  if (auditWriteProbe.rows[0]?.ok) {
     await run(
       owner,
       `revoke execute on function app.audit_write(text, text, text, jsonb, text, inet) from public`,
