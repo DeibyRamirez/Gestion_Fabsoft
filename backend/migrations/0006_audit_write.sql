@@ -144,7 +144,20 @@ declare ch jsonb; allow text[];
 begin
   if p_changes is null then return null; end if;
   allow := app.audit_allowlist_keys(p_resource_type);
-  ch := app.audit_redact_jsonb(p_changes, allow, p_admin);
+  if jsonb_typeof(p_changes) = 'object'
+     and (p_changes ? 'before' or p_changes ? 'after') then
+    ch := '{}'::jsonb;
+    if p_changes ? 'before' then
+      ch := ch || jsonb_build_object(
+        'before', app.audit_redact_jsonb(p_changes -> 'before', allow, p_admin));
+    end if;
+    if p_changes ? 'after' then
+      ch := ch || jsonb_build_object(
+        'after', app.audit_redact_jsonb(p_changes -> 'after', allow, p_admin));
+    end if;
+  else
+    ch := app.audit_redact_jsonb(p_changes, allow, p_admin);
+  end if;
   if p_action ~ '\.created$' and ch ? 'before' then
     ch := ch - 'before';
   end if;

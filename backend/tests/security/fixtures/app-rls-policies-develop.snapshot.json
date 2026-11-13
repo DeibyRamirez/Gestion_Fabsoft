@@ -1,6 +1,6 @@
 {
   "schema": "app",
-  "policyCount": 75,
+  "policyCount": 76,
   "policies": [
     {
       "table": "alert_rules",
@@ -152,6 +152,17 @@
       "permissive": true,
       "qual": "true",
       "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
+      ]
+    },
+    {
+      "table": "audit_logs",
+      "polname": "audit_logs_insert_audit_definer",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "true",
       "roles": [
         "fabsoft_audit_definer"
       ]
