@@ -101,7 +101,7 @@ export async function assertNoNoinheritSetPathToSensitive(databaseUrl: string): 
                 1 as depth,
                 array[mr.rolname::text, gr.rolname::text] as path,
                 (m.set_option and not gr.rolinherit) as via_set,
-                (m.inherit and gr.rolinherit) as via_inherit,
+                (coalesce(m.inherit_option, true) and gr.rolinherit) as via_inherit,
                 m.admin_option as via_admin
          from pg_catalog.pg_auth_members m
          join pg_catalog.pg_roles mr on mr.oid = m.member
