@@ -198,9 +198,9 @@ function splitHistorical(files: string[]): {
     const n = Number.parseInt(f.slice(0, 4), 10);
     if (f <= HISTORICAL_MIGRATOR_MAX) {
       migrator.push(f);
-    } else if (n >= 2 && n <= 5) {
+    } else if (n >= 2 && n <= 6) {
       provisioner.push(f);
-    } else if (n > 5) {
+    } else if (n > 6) {
       future.push(f);
     } else {
       provisioner.push(f);

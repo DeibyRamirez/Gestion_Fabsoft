@@ -10,7 +10,7 @@ import { repairHistoricalMigrationGrants } from './historical-migration-grant-re
 const MIGRATOR = 'fabsoft_migrator';
 const BOOTSTRAP = 'fabsoft_bootstrap';
 
-/** Roles que 0002–0005 crean condicionalmente; deben existir antes del dbmate del migrador. */
+/** Roles que 0002–0006 crean condicionalmente; deben existir antes del dbmate del migrador. */
 const STUB_ROLE_DDL: readonly { name: string; sql: string }[] = [
   {
     name: 'fabsoft_app',
@@ -195,6 +195,10 @@ export async function elevateMigratorForHistoricalMigrations(
   );
   await exec(
     owner,
+    `grant ${quoteIdent('fabsoft_audit_definer')} to ${quoteIdent(MIGRATOR)} with inherit false, set true`,
+  );
+  await exec(
+    owner,
     `grant ${quoteIdent('fabsoft_app')} to ${quoteIdent(MIGRATOR)} with inherit false, set true, admin true`,
   );
 }
@@ -218,6 +222,7 @@ export async function revokeMigratorHistoricalElevation(
   await exec(owner, `revoke ${quoteIdent('fabsoft_worker')} from ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `revoke ${quoteIdent('fabsoft_secure_view')} from ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `revoke ${quoteIdent('fabsoft_auth_definer')} from ${quoteIdent(MIGRATOR)}`);
+  await exec(owner, `revoke ${quoteIdent('fabsoft_audit_definer')} from ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `revoke ${quoteIdent('fabsoft_app')} from ${quoteIdent(MIGRATOR)}`);
   // CASCADE sólo sobre privilegios de DATABASE otorgados por el migrador (p. ej. CREATE a app en 0002).
   await exec(owner, `revoke all privileges on database ${db} from ${quoteIdent(MIGRATOR)} cascade`);
