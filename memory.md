@@ -79,3 +79,4 @@ No es la fuente de avance. Workspace objetivo `1600300000002171`, lista `1600300
 - 2026-11-13 — PR #15 ronda 3 QA/Seguridad. Seed con `fabsoft_seed_writer` + RLS (sin `SEED_ALLOW_HARNESS_SUPERUSER`); denylist/URL fail-closed; reconcile migrator siempre; harness `finally`; mapa `docs/qa-f0-test-map.md`.
 - 2026-11-13 — Ampliación owner: `0002`–`0005` por migrator en BD efímera (`migrator-historical-elevation.ts`: stub roles, elevación/teardown, T-F0-11/12).
 - 2026-11-13 — CI 42501 en `0003`: roles destino de `ALTER OWNER` necesitan `CREATE` en schema `app` (harness `grantHistoricalRoleSchemaCreate`); dbmate por archivo + reparar grants; teardown `REVOKE ADMIN … CASCADE`.
+- 2026-11-13 — e2e seed: cumplir WITH CHECK de RLS (sin insertar `archived` en clients; suscripciones vía active + update; notas y renovaciones con `app.*` coherente al autor).

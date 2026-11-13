@@ -95,7 +95,7 @@ const clients = [
   [C.cafetal, 'Café El Cafetal Ltda.', '800.987.654-3', 'active', U.operator],
   [C.norte, 'Clínica Norte S.A.', '901.555.222-1', 'active', U.operator],
   [C.ferreteria, 'Ferretería Los Andes', null, 'inactive', null],
-  [C.textiles, 'Textiles Antiguos S.A.S.', '830.111.000-9', 'archived', null],
+  [C.textiles, 'Textiles Antiguos S.A.S.', '830.111.000-9', 'inactive', null],
 ] as const;
 
 const products = [
@@ -312,6 +312,11 @@ try {
       );
   }
   await db.query(
+    `update app.clients set status = 'archived'::app.client_status, archived_at = now()
+     where id = $1 and status <> 'archived'::app.client_status`,
+    [C.textiles],
+  );
+  await db.query(
     `insert into app.client_contacts (id, client_id, full_name, email, phone, role_title, is_primary) values
        ($1, $4, 'Laura Gómez', 'laura@andina.test', '+57 300 000 0001', 'Gerente TI', true),
        ($2, $4, 'Pedro Ruiz', 'compras@andina.test', null, 'Compras', false),
@@ -322,11 +327,26 @@ try {
   );
   await db.query(
     `insert into app.client_notes (id, client_id, author_user_id, body) values
-       ($1, $4, $5, 'Cliente estratégico: priorizar renovaciones.'),
-       ($2, $4, $6, 'Prefiere contacto por correo.'),
-       ($3, $7, $6, 'Pendiente propuesta de ampliación de licencias.')
+       ($1, $2, $3, 'Cliente estratégico: priorizar renovaciones.')
      on conflict (id) do nothing`,
-    [id(0x511), id(0x512), id(0x513), C.andina, U.admin, U.operator, C.norte],
+    [id(0x511), C.andina, U.admin],
+  );
+  await db.query(
+    `select set_config('app.actor_type','user',true), set_config('app.actor_role','operator',true),
+            set_config('app.current_user_id',$1,true), set_config('app.request_id','seed',true)`,
+    [U.operator],
+  );
+  await db.query(
+    `insert into app.client_notes (id, client_id, author_user_id, body) values
+       ($1, $2, $3, 'Prefiere contacto por correo.'),
+       ($4, $5, $3, 'Pendiente propuesta de ampliación de licencias.')
+     on conflict (id) do nothing`,
+    [id(0x512), C.andina, U.operator, id(0x513), C.norte],
+  );
+  await db.query(
+    `select set_config('app.actor_type','user',true), set_config('app.actor_role','admin',true),
+            set_config('app.current_user_id',$1,true), set_config('app.request_id','seed',true)`,
+    [U.admin],
   );
   for (const [pid, name, type, vendor, status] of products) {
     await db.query(
@@ -341,12 +361,12 @@ try {
     const end = `($1::date + ${s.endOffset})`;
     const startOf = (k: number) =>
       `(${end} - interval '${months * (nPeriods - k + 1)} months' + interval '1 day')::date`;
+    const insertStatus =
+      s.status === 'pending_activation' || s.status === 'active' ? s.status : 'active';
     const inserted = await db.query(
       `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle, custom_cycle_months,
-         price_amount, supplier_cost_amount, status, follow_up_status, visible_in_portal, owner_user_id, cancelled_at, cancellation_reason,
-         contract_reference)
-       values ($2, $3, $4, ${startOf(1)}, ${end}, $5, $6, $7, $8, $9::app.subscription_status, $10, $11, $12,
-         case when $9::text = 'cancelled' then now() end, case when $9::text = 'cancelled' then 'Cliente cerró operaciones' end, $13)
+         price_amount, supplier_cost_amount, status, follow_up_status, visible_in_portal, owner_user_id, contract_reference)
+       values ($2, $3, $4, ${startOf(1)}, ${end}, $5, $6, $7, $8, $9::app.subscription_status, $10, $11, $12, $13)
        on conflict (id) do nothing`,
       [
         today,
@@ -357,7 +377,7 @@ try {
         s.cycle === 'custom' ? 18 : null,
         s.price,
         s.cost ?? null,
-        s.status,
+        insertStatus,
         s.followUp,
         s.visible ?? true,
         U.operator,
@@ -365,6 +385,15 @@ try {
       ],
     );
     if (inserted.rowCount === 0) continue;
+    if (insertStatus !== s.status) {
+      await db.query(
+        `update app.subscriptions set status = $2::app.subscription_status,
+           cancelled_at = case when $2::text = 'cancelled' then now() end,
+           cancellation_reason = case when $2::text = 'cancelled' then 'Cliente cerró operaciones' end
+         where id = $1`,
+        [subId(s.n), s.status],
+      );
+    }
     for (let k = 1; k <= nPeriods; k++) {
       const last = k === nPeriods;
       const outcome = last ? (s.lastOutcome ?? 'pending') : 'renewed';
@@ -393,9 +422,21 @@ try {
   }
 
   await db.query(
+    `select set_config('app.actor_type','user',true), set_config('app.actor_role','client',true),
+            set_config('app.current_user_id',$1,true), set_config('app.client_id',$2,true),
+            set_config('app.request_id','seed',true)`,
+    [U.andina, C.andina],
+  );
+  await db.query(
     `insert into app.renewal_requests (id, subscription_id, client_id, requested_by_user_id, comment)
      values ($1, $2, $3, $4, 'Queremos renovar por un año más.') on conflict (id) do nothing`,
     [id(0x701), subId(2), C.andina, U.andina],
+  );
+  await db.query(
+    `select set_config('app.actor_type','user',true), set_config('app.actor_role','admin',true),
+            set_config('app.current_user_id',$1,true), set_config('app.client_id','',true),
+            set_config('app.request_id','seed',true)`,
+    [U.admin],
   );
   const task = (
     n: number,
