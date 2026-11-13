@@ -13,7 +13,7 @@ if (process.env.REQUIRE_DB_TESTS === '1' && !provisionUrl) {
   throw new Error('roles.test: DATABASE_PROVISION_URL requerido en CI');
 }
 
-describe.skipIf(!provisionUrl)('F0 — roles efectivos (T-F0-02)', () => {
+describe.skipIf(!provisionUrl)('F0 — roles efectivos', () => {
   it('T-F0-02 roles runtime/seed/migrator sin SUPERUSER ni BYPASSRLS', async () => {
     const client = new pg.Client({ connectionString: provisionUrl! });
     await client.connect();
@@ -32,6 +32,24 @@ describe.skipIf(!provisionUrl)('F0 — roles efectivos (T-F0-02)', () => {
       const migratorRow = rows.find((r) => r.rolname === 'fabsoft_migrator');
       expect(migratorRow?.rolsuper).toBe(false);
       expect(migratorRow?.rolbypassrls).toBe(false);
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('T-F0-03 runtime LOGIN directo (fabsoft_app sin SET ROLE escalación)', async () => {
+    const appUrl = process.env.TEST_DATABASE_URL;
+    if (!appUrl) return;
+    const u = decodeURIComponent(new URL(appUrl).username);
+    expect(u).toBe('fabsoft_app');
+    const client = new pg.Client({ connectionString: appUrl });
+    await client.connect();
+    try {
+      const { rows } = await client.query<{ cu: string; su: string }>(
+        `select current_user as cu, session_user as su`,
+      );
+      expect(rows[0]!.cu).toBe('fabsoft_app');
+      expect(rows[0]!.su).toBe('fabsoft_app');
     } finally {
       await client.end();
     }

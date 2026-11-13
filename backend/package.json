@@ -29,6 +29,7 @@
     "db:provision:ci": "tsx scripts/provision-disposable-database.ts ci-main",
     "db:provision:foundation": "tsx scripts/provision-disposable-database.ts foundation-harness",
     "db:provision:develop-upgrade": "tsx scripts/provision-disposable-database.ts develop-historical-upgrade",
+    "db:reconcile:owner-to-migrator": "tsx scripts/reconcile-owner-cli.ts",
     "db:provision:dev": "tsx --env-file-if-exists=.env scripts/provision-disposable-database.ts ci-main"
   },
   "dependencies": {

@@ -37,7 +37,7 @@ El provisioner crea `fabsoft_migrator` restringido (`NOCREATEROLE`) y, **sólo e
 
 `dbmate-staged-up.ts` rechaza `DATABASE_MIGRATION_URL` distinto de `fabsoft_migrator` o con `SUPERUSER`/`BYPASSRLS`.
 
-Paridad fresh/upgrade en `db:provision:foundation`: owners/tablas, `relacl`/`nspacl`/`proacl`, `pg_default_acl` (event trigger documentado aparte).
+Paridad fresh/upgrade en `db:provision:foundation`: owners de tablas + líneas `aclexplode` (nsp/rel/pro/typ/default, sin grantor ni filas del owner). **Única asimetría permitida:** event trigger `fabsoft_enforce_rls` presente sólo en upgrade histórico con superusuario.
 
 **SQL histórico congelado (quién ejecuta cada tramo):**
 

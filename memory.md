@@ -81,3 +81,4 @@ No es la fuente de avance. Workspace objetivo `1600300000002171`, lista `1600300
 - 2026-11-13 — CI 42501 en `0003`: roles destino de `ALTER OWNER` necesitan `CREATE` en schema `app` (harness `grantHistoricalRoleSchemaCreate`); dbmate por archivo + reparar grants; teardown `REVOKE ADMIN … CASCADE`.
 - 2026-11-13 — e2e seed: cumplir WITH CHECK de RLS (sin insertar `archived` en clients; suscripciones vía active + update; notas y renovaciones con `app.*` coherente al autor).
 - 2026-11-13 — Ronda 4 QA F0: revoke CREATE efímero en `app`, CTE membresías migrator, guard migrator URL, upgrade develop reassign+ACL, suites `roles`/`rls-effective`/`no-owner-assertions`, `test:security` sin paralelo de archivos.
+- 2026-11-13 — Ronda 5 QA F0: reparación REVOKE/GRANT post ALTER OWNER, `db:reconcile:owner-to-migrator`, ACL aclexplode estricto en foundation, `assert_rls_everywhere` en db:migrate, `definer-privileges.test.ts`.

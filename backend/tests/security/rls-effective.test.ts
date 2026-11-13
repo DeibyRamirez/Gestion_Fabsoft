@@ -146,18 +146,16 @@ describe.skipIf(!migratorUrl)('F0 — inventario RLS (T-F0-08)', () => {
     }
   });
 
-  it('T-F0-08b documenta asimetría fabsoft_enforce_rls (upgrade vs fresh)', async () => {
+  it('T-F0-08b CI fresh: sin event trigger fabsoft_enforce_rls (migrator no super)', async () => {
     const client = new pg.Client({ connectionString: migratorUrl! });
     await client.connect();
     try {
       const { rows } = await client.query<{ evtname: string }>(
         `select evtname from pg_event_trigger where evtname = 'fabsoft_enforce_rls'`,
       );
-      const note =
-        rows.length === 0
-          ? 'CI main fresh/migrator: sin event trigger (0003 no rolsuper); red app.assert_rls_everywhere()'
-          : 'event trigger presente (típico upgrade owner superusuario)';
-      expect(note.length).toBeGreaterThan(10);
+      expect(rows, 'única asimetría permitida es upgrade superusuario (harness foundation)').toEqual(
+        [],
+      );
     } finally {
       await client.end();
     }
@@ -165,6 +163,22 @@ describe.skipIf(!migratorUrl)('F0 — inventario RLS (T-F0-08)', () => {
 });
 
 describe.skipIf(!appUrl)('F0 — aislamiento (T-F0-09)', () => {
+  it('T-F0-09b cada tabla app tiene ENABLE+FORCE y al menos una política', async () => {
+    const client = new pg.Client({ connectionString: migratorUrl! });
+    await client.connect();
+    try {
+      const { rows } = await client.query<{ n: number; bad: number }>(
+        `select count(*)::int as n,
+                count(*) filter (where not rls_enabled or not rls_forced or policy_count < 1)::int as bad
+         from app.rls_inventory()`,
+      );
+      expect(rows[0]!.n).toBe(18);
+      expect(rows[0]!.bad).toBe(0);
+    } finally {
+      await client.end();
+    }
+  });
+
   it('T-F0-09 aislamiento A/B: cliente A no lee ni escribe filas del cliente B', async () => {
     await ensureAppPoolRoleVerified();
     const pool = getAppPool();

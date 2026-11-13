@@ -4,6 +4,7 @@
  */
 import type pg from 'pg';
 import { quoteIdent } from './database-url.js';
+import { repairHistoricalMigrationGrants } from './historical-migration-grant-repair.js';
 
 const MIGRATOR = 'fabsoft_migrator';
 const BOOTSTRAP = 'fabsoft_bootstrap';
@@ -219,12 +220,29 @@ export async function revokeMigratorHistoricalElevation(
   await exec(owner, `grant connect on database ${db} to ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `grant ${quoteIdent('fabsoft_app')} to ${quoteIdent('fabsoft_worker')}`);
   await revokeHistoricalRoleSchemaCreate(owner);
+  await repairHistoricalMigrationGrants(owner);
 }
 
 export async function assertMigratorElevationClosed(owner: QueryFn): Promise<void> {
   const rows = await queryMigratorMembershipClosure(owner, MIGRATOR);
   if (rows.length > 0) {
     throw new Error(`Migrator conserva membresías tras cierre efímero: ${JSON.stringify(rows)}`);
+  }
+  const { rows: grantedByMigrator } = (await owner(
+    `select grantor.rolname::text as grantor, granted.rolname::text as granted, member.rolname::text as member
+     from pg_catalog.pg_auth_members am
+     join pg_catalog.pg_roles grantor on grantor.oid = am.grantor
+     join pg_catalog.pg_roles granted on granted.oid = am.roleid
+     join pg_catalog.pg_roles member on member.oid = am.member
+     where grantor.rolname = $1`,
+    [MIGRATOR],
+  )) as {
+    rows: { grantor: string; granted: string; member: string }[];
+  };
+  if (grantedByMigrator.length > 0) {
+    throw new Error(
+      `Privilegios de rol aún otorgados por migrator tras cierre: ${JSON.stringify(grantedByMigrator)}`,
+    );
   }
   const { rows: privs } = (await owner(
     `select rolname, rolcreatedb, rolcreaterole from pg_roles where rolname = $1`,

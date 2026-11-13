@@ -28,6 +28,8 @@ import {
   repairMigratorSchemaPrivileges,
   revokeMigratorHistoricalElevation,
 } from './migrator-historical-elevation.js';
+import { repairHistoricalMigrationGrants } from './historical-migration-grant-repair.js';
+import { assertNoFabsoftOwnerInApp } from './reconcile-owner-to-migrator.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATOR = 'fabsoft_migrator';
@@ -281,3 +283,23 @@ try {
 }
 
 await assertInventory(migratorUrl, provisionUrlForMigratorDb(), migrationFiles);
+
+{
+  const prov = new pg.Client({ connectionString: provisionUrlForMigratorDb() });
+  await prov.connect();
+  try {
+    await repairHistoricalMigrationGrants((sql, params) => prov.query(sql, params));
+  } finally {
+    await prov.end();
+  }
+}
+
+await assertNoFabsoftOwnerInApp(migratorUrl, 'db:migrate fresh');
+
+const rlsClient = new pg.Client({ connectionString: migratorUrl });
+await rlsClient.connect();
+try {
+  await rlsClient.query('select app.assert_rls_everywhere()');
+} finally {
+  await rlsClient.end();
+}

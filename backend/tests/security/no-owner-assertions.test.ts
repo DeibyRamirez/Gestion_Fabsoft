@@ -49,7 +49,7 @@ describe.skipIf(!migratorUrl)('F0 — inventario sin fabsoft_owner (T-F0-10)', (
     }
   });
 
-  it('T-F0-10c worker: CREATE TABLE en app denegado (42501)', async () => {
+  it('T-F0-10c worker sin DDL: CREATE TABLE y CREATE FUNCTION (42501)', async () => {
     if (!workerUrl) return;
     const client = new pg.Client({ connectionString: workerUrl });
     await client.connect();
@@ -57,7 +57,32 @@ describe.skipIf(!migratorUrl)('F0 — inventario sin fabsoft_owner (T-F0-10)', (
       await client.query('begin');
       await client.query('set local role fabsoft_worker');
       await expectPgError(client, 'create table app.zz_worker_ddl_regress(id int)', [], '42501');
+      await expectPgError(
+        client,
+        `create function app.zz_worker_fn_regress() returns int language sql as $$ select 1 $$`,
+        [],
+        '42501',
+      );
       await client.query('rollback');
+    } finally {
+      await client.end();
+    }
+  });
+
+  it('T-F0-10d fresh: ningún objeto app owned by fabsoft_owner', async () => {
+    const client = new pg.Client({ connectionString: migratorUrl! });
+    await client.connect();
+    try {
+      const { rows } = await client.query<{ kind: string; name: string }>(
+        `select c.relkind::text as kind, c.relname::text as name
+         from pg_class c join pg_namespace n on n.oid = c.relnamespace
+         where n.nspname = 'app' and pg_catalog.pg_get_userbyid(c.relowner)::text = 'fabsoft_owner'
+         union all
+         select 'function', p.proname::text
+         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+         where n.nspname = 'app' and pg_catalog.pg_get_userbyid(p.proowner)::text = 'fabsoft_owner'`,
+      );
+      expect(rows, JSON.stringify(rows)).toEqual([]);
     } finally {
       await client.end();
     }
