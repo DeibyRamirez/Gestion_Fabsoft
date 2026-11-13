@@ -231,7 +231,7 @@ export async function revokeMigratorHistoricalElevation(
 export async function elevateMigratorForFutureMigrations(owner: QueryFn): Promise<void> {
   await exec(
     owner,
-    `grant ${quoteIdent('fabsoft_audit_definer')} to ${quoteIdent(MIGRATOR)} with inherit false, set true`,
+    `grant ${quoteIdent('fabsoft_audit_definer')} to ${quoteIdent(MIGRATOR)} with inherit false, set true, admin true`,
   );
 }
 

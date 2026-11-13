@@ -296,6 +296,7 @@ try {
         const q = (sql: string, params?: unknown[]) => owner.query(sql, params);
         await assertEphemeralDatabase(q);
         await precreateStubRoles(q);
+        await repairMigratorSchemaPrivileges(q);
         await elevateMigratorForFutureMigrations(q);
         try {
           const dirF = join(tmpBase, 'future');
