@@ -129,6 +129,56 @@ describe.skipIf(!migUrl || !provUrl)('prosecdef gate mutations', () => {
     }
   });
 
+  it('SET hacia fabsoft_auth_definer (NOINHERIT) → db:migrate falla', async () => {
+    const c = await owner.connect();
+    try {
+      await c.query(`create role fabsoft_gate_set_probe login`);
+      await c.query(
+        `grant fabsoft_auth_definer to fabsoft_gate_set_probe with inherit false, set true`,
+      );
+    } finally {
+      c.release();
+    }
+    try {
+      const { status, text } = runMigrate();
+      expect(status).not.toBe(0);
+      expect(text).toMatch(/SET|NOINHERIT|fabsoft_auth_definer|Gate prosecdef/i);
+    } finally {
+      const fix = await owner.connect();
+      try {
+        await fix.query(`revoke fabsoft_auth_definer from fabsoft_gate_set_probe`);
+        await fix.query(`drop role if exists fabsoft_gate_set_probe`);
+      } finally {
+        fix.release();
+      }
+    }
+  });
+
+  it('SET hacia fabsoft_audit_definer (NOINHERIT) → db:migrate falla', async () => {
+    const c = await owner.connect();
+    try {
+      await c.query(`create role fabsoft_gate_audit_set_probe login`);
+      await c.query(
+        `grant fabsoft_audit_definer to fabsoft_gate_audit_set_probe with inherit false, set true`,
+      );
+    } finally {
+      c.release();
+    }
+    try {
+      const { status, text } = runMigrate();
+      expect(status).not.toBe(0);
+      expect(text).toMatch(/SET|NOINHERIT|audit_definer|Gate prosecdef/i);
+    } finally {
+      const fix = await owner.connect();
+      try {
+        await fix.query(`revoke fabsoft_audit_definer from fabsoft_gate_audit_set_probe`);
+        await fix.query(`drop role if exists fabsoft_gate_audit_set_probe`);
+      } finally {
+        fix.release();
+      }
+    }
+  });
+
   it('EXECUTE bootstrap vía membresía heredada (worker → rol hijo) → db:migrate falla', async () => {
     const c = await owner.connect();
     try {

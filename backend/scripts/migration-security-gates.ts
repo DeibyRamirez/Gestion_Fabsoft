@@ -20,6 +20,21 @@ export const APP_SECURITY_DEFINER_OWNERS = new Set([
   'fabsoft_secure_view',
 ]);
 
+/** Únicas membresías SET→rol NOINHERIT permitidas en estado estable (fail-closed). */
+export const NOINHERIT_SET_EDGE_ALLOWLIST = [
+  { member: 'fabsoft_seed_writer', granted: 'fabsoft_app' },
+] as const;
+
+const NOINHERIT_SET_EXTRA_SENSITIVE = ['fabsoft_bootstrap'] as const;
+
+function allowlistEdgeKey(member: string, granted: string): string {
+  return `${member}\0${granted}`;
+}
+
+const ALLOWLIST_EDGE_KEYS = new Set(
+  NOINHERIT_SET_EDGE_ALLOWLIST.map((e) => allowlistEdgeKey(e.member, e.granted)),
+);
+
 function expectedExecute(fn: string, role: string): boolean {
   const n = normSig(fn);
   const spec = DEFINER_FUNCTION_PRIVILEGE_CHECKS.find((s) => normSig(s.fn) === n);
@@ -45,6 +60,73 @@ export async function assertSecurityDefinerOwnersAllowlist(databaseUrl: string):
     if (bad.length > 0) {
       throw new Error(
         `Gate prosecdef: dueños no allowlisted: ${bad.map((r) => `${r.fn}@${r.owner}`).join(', ')}`,
+      );
+    }
+  } finally {
+    await c.end();
+  }
+}
+
+/**
+ * Detecta cadenas pg_auth_members con set_option hacia roles NOINHERIT que alcanzan
+ * dueños SECURITY DEFINER o roles con INSERT en audit_logs (sin SET ROLE al dueño en runtime).
+ */
+export async function assertNoNoinheritSetPathToSensitive(databaseUrl: string): Promise<void> {
+  const c = new pg.Client({ connectionString: normalizeDatabaseUrl(databaseUrl) });
+  await c.connect();
+  try {
+    const sensitive = new Set<string>([
+      ...APP_SECURITY_DEFINER_OWNERS,
+      ...NOINHERIT_SET_EXTRA_SENSITIVE,
+    ]);
+    const { rows: ins } = await c.query<{ rolname: string }>(
+      `select r.rolname::text as rolname
+       from pg_catalog.pg_roles r
+       where r.rolname not like 'pg\\_%'
+         and has_table_privilege(r.rolname, 'app.audit_logs', 'INSERT')`,
+    );
+    for (const { rolname } of ins) sensitive.add(rolname);
+
+    const { rows: paths } = await c.query<{ login_member: string; reached: string; depth: number }>(
+      `with recursive walk as (
+         select mr.rolname::text as login_member,
+                gr.rolname::text as current_role,
+                1 as depth,
+                array[mr.rolname::text, gr.rolname::text] as path
+         from pg_catalog.pg_auth_members m
+         join pg_catalog.pg_roles mr on mr.oid = m.member
+         join pg_catalog.pg_roles gr on gr.oid = m.roleid
+         where m.set_option
+           and not gr.rolinherit
+         union all
+         select w.login_member,
+                gr.rolname::text,
+                w.depth + 1,
+                w.path || gr.rolname::text
+         from walk w
+         join pg_catalog.pg_roles cr on cr.rolname = w.current_role
+         join pg_catalog.pg_auth_members m on m.member = cr.oid
+         join pg_catalog.pg_roles gr on gr.oid = m.roleid
+         where m.set_option
+           and not gr.rolinherit
+           and w.depth < 16
+           and not gr.rolname::text = any (w.path)
+       )
+       select distinct login_member, current_role as reached, depth
+       from walk
+       where current_role = any ($1::text[])
+       order by 1, 2`,
+      [[...sensitive]],
+    );
+
+    const offenders: string[] = [];
+    for (const { login_member, reached, depth } of paths) {
+      if (depth === 1 && ALLOWLIST_EDGE_KEYS.has(allowlistEdgeKey(login_member, reached))) continue;
+      offenders.push(`${login_member}→${reached}(SET/NOINHERIT,d=${depth})`);
+    }
+    if (offenders.length > 0) {
+      throw new Error(
+        `Gate prosecdef: membresía SET hacia NOINHERIT alcanza rol sensible: ${offenders.join(', ')}`,
       );
     }
   } finally {

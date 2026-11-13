@@ -35,6 +35,7 @@ import {
 import { assertNoFabsoftOwnerInApp } from './reconcile-owner-to-migrator.js';
 import {
   assertDefinerExecuteAllowlist,
+  assertNoNoinheritSetPathToSensitive,
   assertSecurityDefinerOwnersAllowlist,
 } from './migration-security-gates.js';
 
@@ -314,6 +315,7 @@ await assertInventory(migratorUrl, provisionUrlForMigratorDb(), migrationFiles);
 await assertNoFabsoftOwnerInApp(migratorUrl, 'db:migrate fresh');
 await assertSecurityDefinerOwnersAllowlist(migratorUrl);
 await assertDefinerExecuteAllowlist(migratorUrl);
+await assertNoNoinheritSetPathToSensitive(migratorUrl);
 
 const rlsClient = new pg.Client({ connectionString: migratorUrl });
 await rlsClient.connect();
