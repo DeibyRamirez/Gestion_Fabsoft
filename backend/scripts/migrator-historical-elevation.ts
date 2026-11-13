@@ -124,6 +124,8 @@ export async function revokeMigratorHistoricalElevation(
 ): Promise<void> {
   const db = quoteIdent(databaseName);
   await exec(owner, `grant ${quoteIdent('fabsoft_app')} to ${quoteIdent('fabsoft_worker')}`);
+  await exec(owner, `revoke create on database ${db} from ${quoteIdent('fabsoft_app')}`);
+  await exec(owner, `revoke create on database ${db} from ${quoteIdent('fabsoft_worker')}`);
   await exec(
     owner,
     `revoke admin option for ${quoteIdent('fabsoft_app')} from ${quoteIdent(MIGRATOR)}`,
@@ -132,10 +134,13 @@ export async function revokeMigratorHistoricalElevation(
   await exec(owner, `revoke ${quoteIdent('fabsoft_secure_view')} from ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `revoke ${quoteIdent('fabsoft_auth_definer')} from ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `revoke ${quoteIdent('fabsoft_app')} from ${quoteIdent(MIGRATOR)}`);
-  await exec(owner, `revoke create on database ${db} from ${quoteIdent('fabsoft_app')}`);
-  await exec(owner, `revoke create on database ${db} from ${quoteIdent('fabsoft_worker')}`);
-  await exec(owner, `revoke all privileges on database ${db} from ${quoteIdent(MIGRATOR)}`);
+  // CASCADE sólo sobre privilegios de DATABASE otorgados por el migrador (p. ej. CREATE a app en 0002).
+  await exec(
+    owner,
+    `revoke all privileges on database ${db} from ${quoteIdent(MIGRATOR)} cascade`,
+  );
   await exec(owner, `grant connect on database ${db} to ${quoteIdent(MIGRATOR)}`);
+  await exec(owner, `grant ${quoteIdent('fabsoft_app')} to ${quoteIdent('fabsoft_worker')}`);
 }
 
 export async function assertMigratorElevationClosed(owner: QueryFn): Promise<void> {
