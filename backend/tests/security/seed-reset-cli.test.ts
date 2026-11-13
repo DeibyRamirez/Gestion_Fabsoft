@@ -164,7 +164,7 @@ describe('seed --reset CLI', () => {
   it('seed.ts mantiene assertSeedResetProvisionerTarget antes de TRUNCATE', () => {
     const body = readFileSync(`${backendRoot}/scripts/seed.ts`, 'utf8');
     const guardAt = body.indexOf('assertSeedResetProvisionerTarget');
-    const truncAt = body.indexOf('truncate app.tasks');
+    const truncAt = body.indexOf('truncate app.integration_clients');
     expect(guardAt).toBeGreaterThan(-1);
     expect(truncAt).toBeGreaterThan(-1);
     expect(guardAt).toBeLessThan(truncAt);

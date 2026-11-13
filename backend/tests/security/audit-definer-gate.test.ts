@@ -24,7 +24,7 @@ describe.skipIf(!migratorUrl)('audit_definer gate', () => {
         env: {
           ...process.env,
           DATABASE_MIGRATION_URL: provisionUrl!,
-          DATABASE_PROVISION_URL: '',
+          DATABASE_PROVISION_URL: provisionUrl!,
         } as NodeJS.ProcessEnv,
         encoding: 'utf8',
       });

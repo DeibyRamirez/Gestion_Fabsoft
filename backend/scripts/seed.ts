@@ -284,9 +284,14 @@ try {
       await boot.query(
         `truncate app.integration_clients, app.api_credentials, app.tasks, app.renewal_requests,
           app.subscription_periods, app.subscriptions, app.client_notes, app.client_contacts,
-          app.refresh_tokens, app.idempotency_keys, app.notifications, app.audit_logs,
-          app.users, app.clients, app.products restart identity`,
+          app.refresh_tokens, app.idempotency_keys, app.notifications, app.audit_logs restart identity`,
       );
+      await boot.query(
+        `update app.clients set owner_user_id = null, created_by = null, updated_by = null`,
+      );
+      await boot.query(`delete from app.users`);
+      await boot.query(`delete from app.clients`);
+      await boot.query(`delete from app.products`);
       await boot.query('commit');
     } finally {
       await boot.end();
