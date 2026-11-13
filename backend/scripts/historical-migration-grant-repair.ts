@@ -80,8 +80,9 @@ export async function repairHistoricalMigrationGrants(owner: QueryFn): Promise<v
   for (const sql of stmts) await run(owner, sql);
 }
 
-const denyExtra = [
-  { role: 'fabsoft_worker', execute: false },
+/** Roles que heredan EXECUTE de `fabsoft_app` vía `GRANT fabsoft_app TO fabsoft_worker` (0003). */
+const workerInheritsAppExecute = { role: 'fabsoft_worker', execute: true } as const;
+const denyNonApp = [
   { role: 'fabsoft_seed_writer', execute: false },
   { role: 'fabsoft_migrator', execute: false },
   { role: 'fabsoft_auth_definer', execute: false },
@@ -94,7 +95,8 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
       { role: 'public', execute: false },
       { role: 'fabsoft_app', execute: false },
       { role: 'fabsoft_bootstrap', execute: true },
-      ...denyExtra,
+      { role: 'fabsoft_worker', execute: false },
+      ...denyNonApp,
     ],
   },
   {
@@ -102,7 +104,8 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
     roles: [
       { role: 'public', execute: false },
       { role: 'fabsoft_app', execute: true },
-      ...denyExtra,
+      workerInheritsAppExecute,
+      ...denyNonApp,
     ],
   },
   {
@@ -110,7 +113,8 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
     roles: [
       { role: 'public', execute: false },
       { role: 'fabsoft_app', execute: true },
-      ...denyExtra,
+      workerInheritsAppExecute,
+      ...denyNonApp,
     ],
   },
   {
@@ -118,7 +122,8 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
     roles: [
       { role: 'public', execute: false },
       { role: 'fabsoft_app', execute: true },
-      ...denyExtra,
+      workerInheritsAppExecute,
+      ...denyNonApp,
     ],
   },
   {
@@ -127,7 +132,8 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
       { role: 'public', execute: false },
       { role: 'fabsoft_app', execute: true },
       { role: 'fabsoft_secure_view', execute: true },
-      ...denyExtra,
+      workerInheritsAppExecute,
+      ...denyNonApp,
     ],
   },
 ] as const;

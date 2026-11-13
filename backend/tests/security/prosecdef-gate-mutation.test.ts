@@ -81,21 +81,23 @@ describe.skipIf(!migUrl || !provUrl)('prosecdef gate mutations', () => {
     }
   });
 
-  it('GRANT EXECUTE auth_password_hash a fabsoft_worker → db:migrate falla', async () => {
+  it('GRANT EXECUTE auth_password_hash a fabsoft_migrator → db:migrate falla', async () => {
     const c = await owner.connect();
     try {
-      await c.query(`grant execute on function app.auth_password_hash(uuid) to fabsoft_worker`);
+      await c.query(`grant execute on function app.auth_password_hash(uuid) to fabsoft_migrator`);
     } finally {
       c.release();
     }
     try {
       const { status, text } = runMigrate();
       expect(status).not.toBe(0);
-      expect(text).toMatch(/auth_password_hash|fabsoft_worker|Gate prosecdef/i);
+      expect(text).toMatch(/auth_password_hash|fabsoft_migrator|Gate prosecdef/i);
     } finally {
       const fix = await owner.connect();
       try {
-        await fix.query(`revoke execute on function app.auth_password_hash(uuid) from fabsoft_worker`);
+        await fix.query(
+          `revoke execute on function app.auth_password_hash(uuid) from fabsoft_migrator`,
+        );
       } finally {
         fix.release();
       }

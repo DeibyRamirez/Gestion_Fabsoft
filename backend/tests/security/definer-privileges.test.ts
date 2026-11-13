@@ -71,6 +71,7 @@ describe.skipIf(!migratorUrl)('F0 — privilegios definer (P0)', () => {
         await owner.query('commit');
         return await fn();
       } finally {
+        let restoreFailed = false;
         await owner.query('begin');
         await owner.query(`set local session_replication_role = replica`);
         try {
@@ -94,12 +95,12 @@ describe.skipIf(!migratorUrl)('F0 — privilegios definer (P0)', () => {
           }
           await owner.query(`set local session_replication_role = origin`);
           await owner.query('commit');
-        } catch (err) {
+        } catch {
+          restoreFailed = true;
           await owner.query('rollback');
-          await owner.end();
-          throw err;
         }
         await owner.end();
+        expect(restoreFailed, 'restore admins T-SEC-30').toBe(false);
       }
     }
 
