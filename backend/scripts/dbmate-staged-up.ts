@@ -3,7 +3,8 @@
  *   0001: fabsoft_migrator (LOGIN directo)
  *   0002–0005: fabsoft_migrator con elevación efímera (stub roles + membresías/CREATE temporales;
  *             sólo BD desechable). Provisioner ejecuta elevate/teardown, no dbmate.
- * Migraciones nuevas (0006+): sólo migrator (lista dinámica).
+ * Migraciones 0006+: migrator con elevación futura mínima (SET audit_definer para ALTER OWNER);
+ *   sin membresías históricas abiertas — evita DDL en `app` sin USAGE efectivo tras 0005.
  */
 import { copyFile, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -198,9 +199,9 @@ function splitHistorical(files: string[]): {
     const n = Number.parseInt(f.slice(0, 4), 10);
     if (f <= HISTORICAL_MIGRATOR_MAX) {
       migrator.push(f);
-    } else if (n >= 2 && n <= 6) {
+    } else if (n >= 2 && n <= 5) {
       provisioner.push(f);
-    } else if (n > 6) {
+    } else if (n >= 6) {
       future.push(f);
     } else {
       provisioner.push(f);
@@ -271,11 +272,6 @@ try {
             const still = await pendingMigrationVersions(migratorUrl, [f]);
             if (still.length === 0) continue;
             await repairMigratorSchemaPrivileges(q);
-            if (f === '0006_audit_write.sql') {
-              await q(
-                `grant usage, create on schema app to ${quoteIdent(MIGRATOR)} with grant option`,
-              );
-            }
             const dirOne = join(tmpBase, `provisioner-${f.replace(/\.sql$/, '')}`);
             await mkdir(dirOne, { recursive: true });
             await copyFiles([f], dirOne);
@@ -304,11 +300,19 @@ try {
         await repairMigratorSchemaPrivileges(q);
         await elevateMigratorForFutureMigrations(q);
         try {
-          const dirF = join(tmpBase, 'future');
-          await copyFiles(future, dirF);
-          runDbmate(migratorUrl, dirF);
+          for (const f of future) {
+            const still = await pendingMigrationVersions(migratorUrl, [f]);
+            if (still.length === 0) continue;
+            await repairMigratorSchemaPrivileges(q);
+            const dirF = join(tmpBase, `future-${f.replace(/\.sql$/, '')}`);
+            await mkdir(dirF, { recursive: true });
+            await copyFiles([f], dirF);
+            runDbmate(migratorUrl, dirF);
+          }
         } finally {
           await revokeMigratorFutureElevation(q);
+          await repairMigratorSchemaPrivileges(q);
+          await assertMigratorElevationClosed(q);
         }
       } finally {
         await owner.end();
