@@ -255,7 +255,7 @@ export async function assignAuditWriteDefinerOwner(owner: QueryFn): Promise<void
     'app.audit_is_secret_key(text)',
     'app.audit_allowlist_keys(text)',
     'app.audit_redact_jsonb(jsonb, text[], boolean)',
-    'app.audit_redact_jsonb_array(jsonb, text[], boolean)',
+    'app.audit_redact_jsonb_array(jsonb, text[], boolean, text)',
     'app.audit_prepare_changes(text, text, jsonb, boolean)',
     'app.audit_resolve_client_id(text, text)',
     'app.audit_resource_exists(text, text)',

@@ -16,7 +16,11 @@ export function authenticate(useCase: AuthenticateAccessToken): RequestHandler {
       return sendProblem(res, 'unauthenticated', 'Falta el token de acceso');
     const clientRequestId =
       typeof res.locals['clientRequestId'] === 'string' ? res.locals['clientRequestId'] : undefined;
-    const result = await useCase.execute(auth.slice(7).trim(), String(res.locals['requestId']), clientRequestId);
+    const result = await useCase.execute(
+      auth.slice(7).trim(),
+      String(res.locals['requestId']),
+      clientRequestId,
+    );
     res.locals['actor'] = result.actor;
     res.locals['mustChangePassword'] = result.mustChangePassword;
     next();

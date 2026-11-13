@@ -76,6 +76,10 @@ create unique index audit_logs_idempotent_uq on app.audit_logs (
   where request_id is not null and btrim(request_id) <> '';
 
 -- Claves sensibles (redacción recursiva).
+drop function if exists app.audit_redact_jsonb(jsonb, text[], boolean);
+drop function if exists app.audit_redact_jsonb_array(jsonb, text[], boolean);
+drop function if exists app.audit_redact_jsonb_array(jsonb, text[], boolean, text);
+
 create or replace function app.audit_is_secret_key(p_key text) returns boolean
 language sql immutable parallel safe security definer set search_path = pg_catalog as $$
   select lower(p_key) ~ '^(password|password_hash|passwordhash|apikey|api_key|key_hash|keyhash|token|secret|authorization|connection_string|database_url|jwt|private_key|.*_token)$'
@@ -107,6 +111,33 @@ language sql immutable parallel safe security definer set search_path = pg_catal
   end;
 $$;
 
+create or replace function app.audit_redact_jsonb_array(p_val jsonb, p_allow text[], p_admin boolean, p_key text default null)
+returns jsonb
+language plpgsql immutable security definer set search_path = pg_catalog as $$
+declare i jsonb; out jsonb := '[]'::jsonb;
+begin
+  if p_val is null then return null; end if;
+  if jsonb_typeof(p_val) <> 'array' then
+    raise exception 'audit_redact_jsonb_array esperaba arreglo, obtuvo %', jsonb_typeof(p_val) using errcode = '22023';
+  end if;
+  for i in select value from jsonb_array_elements(p_val) loop
+    if jsonb_typeof(i) = 'object' then
+      out := out || jsonb_build_array(app.audit_redact_jsonb(i, p_allow, p_admin));
+    elsif jsonb_typeof(i) = 'array' then
+      out := out || jsonb_build_array(app.audit_redact_jsonb_array(i, p_allow, p_admin, p_key));
+    elsif p_key is not null and app.audit_is_secret_key(p_key) then
+      out := out || jsonb_build_array('[REDACTED]');
+    elsif jsonb_typeof(i) = 'string' and (
+      lower(i #>> '{}') ~ 'eyj[a-z0-9_-]*\.[a-z0-9._-]+\.[a-z0-9._-]+'
+      or lower(i #>> '{}') like '%private_key%') then
+      out := out || jsonb_build_array('[REDACTED]');
+    else
+      out := out || jsonb_build_array(i);
+    end if;
+  end loop;
+  return out;
+end $$;
+
 create or replace function app.audit_redact_jsonb(p_val jsonb, p_allow text[], p_admin boolean) returns jsonb
 language plpgsql immutable security definer set search_path = pg_catalog as $$
 declare k text; out jsonb := '{}'::jsonb; v jsonb;
@@ -130,33 +161,6 @@ begin
       continue;
     else
       out := out || jsonb_build_object(k, v);
-    end if;
-  end loop;
-  return out;
-end $$;
-
-create or replace function app.audit_redact_jsonb_array(p_val jsonb, p_allow text[], p_admin boolean, p_key text default null)
-returns jsonb
-language plpgsql immutable security definer set search_path = pg_catalog as $$
-declare i jsonb; out jsonb := '[]'::jsonb;
-begin
-  if p_val is null then return null; end if;
-  if jsonb_typeof(p_val) <> 'array' then
-    raise exception 'audit_redact_jsonb_array esperaba arreglo, obtuvo %', jsonb_typeof(p_val) using errcode = '22023';
-  end if;
-  for i in select value from jsonb_array_elements(p_val) loop
-    if jsonb_typeof(i) = 'object' then
-      out := out || jsonb_build_array(app.audit_redact_jsonb(i, p_allow, p_admin));
-    elsif jsonb_typeof(i) = 'array' then
-      out := out || jsonb_build_array(app.audit_redact_jsonb_array(i, p_allow, p_admin, p_key));
-    elsif p_key is not null and app.audit_is_secret_key(p_key) then
-      out := out || jsonb_build_array('[REDACTED]');
-    elsif jsonb_typeof(i) = 'string' and (
-      lower(i #>> '{}') ~ 'eyj[a-z0-9_-]*\.[a-z0-9._-]+\.[a-z0-9._-]+'
-      or lower(i #>> '{}') like '%private_key%') then
-      out := out || jsonb_build_array('[REDACTED]');
-    else
-      out := out || jsonb_build_array(i);
     end if;
   end loop;
   return out;
@@ -376,7 +380,7 @@ end $$;
 revoke all on function app.audit_is_secret_key(text) from public, fabsoft_app;
 revoke all on function app.audit_allowlist_keys(text) from public, fabsoft_app;
 revoke all on function app.audit_redact_jsonb(jsonb, text[], boolean) from public, fabsoft_app;
-revoke all on function app.audit_redact_jsonb_array(jsonb, text[], boolean) from public, fabsoft_app;
+revoke all on function app.audit_redact_jsonb_array(jsonb, text[], boolean, text) from public, fabsoft_app;
 revoke all on function app.audit_prepare_changes(text, text, jsonb, boolean) from public, fabsoft_app;
 revoke all on function app.audit_resource_exists(text, text) from public, fabsoft_app;
 revoke all on function app.audit_resolve_client_id(text, text) from public, fabsoft_app;
@@ -392,6 +396,7 @@ drop function if exists app.audit_write(text, text, text, jsonb, text, inet);
 drop function if exists app.audit_resource_exists(text, text);
 drop function if exists app.audit_resolve_client_id(text, text);
 drop function if exists app.audit_prepare_changes(text, text, jsonb, boolean);
+drop function if exists app.audit_redact_jsonb_array(jsonb, text[], boolean, text);
 drop function if exists app.audit_redact_jsonb_array(jsonb, text[], boolean);
 drop function if exists app.audit_redact_jsonb(jsonb, text[], boolean);
 drop function if exists app.audit_is_secret_key(text);

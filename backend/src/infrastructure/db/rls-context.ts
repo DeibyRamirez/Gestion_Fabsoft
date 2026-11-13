@@ -18,7 +18,12 @@ export type RlsContext =
       requestId: string;
       clientRequestId?: string | undefined;
     }
-  | { actorType: 'integration'; integrationId: string; requestId: string; clientRequestId?: string | undefined }
+  | {
+      actorType: 'integration';
+      integrationId: string;
+      requestId: string;
+      clientRequestId?: string | undefined;
+    }
   | {
       actorType: 'system';
       purpose: 'auth' | 'worker' | 'maintenance';

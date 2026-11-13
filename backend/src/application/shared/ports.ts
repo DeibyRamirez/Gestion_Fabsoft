@@ -10,11 +10,7 @@ export interface UnitOfWork<R> {
  * La implementación construye el contexto en infrastructure; application nunca lo fabrica.
  */
 export interface AuthUnitOfWork<R> {
-  run<T>(
-    requestId: string,
-    work: (repos: R) => Promise<T>,
-    clientRequestId?: string,
-  ): Promise<T>;
+  run<T>(requestId: string, work: (repos: R) => Promise<T>, clientRequestId?: string): Promise<T>;
 }
 
 export interface Clock {

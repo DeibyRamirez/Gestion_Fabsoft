@@ -151,9 +151,7 @@ export async function assertNoNoinheritSetPathToSensitive(databaseUrl: string): 
       offenders.push(`${login_member}→${reached}(${tags.join('+') || 'edge'},d=${depth})`);
     }
     if (offenders.length > 0) {
-      throw new Error(
-        `Gate prosecdef: membresía alcanza rol sensible: ${offenders.join(', ')}`,
-      );
+      throw new Error(`Gate prosecdef: membresía alcanza rol sensible: ${offenders.join(', ')}`);
     }
   } finally {
     await c.end();

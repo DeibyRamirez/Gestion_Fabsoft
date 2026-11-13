@@ -21,11 +21,7 @@ export class PgSystemUnitOfWork<R> implements AuthUnitOfWork<R> {
     private readonly factory: (tx: Tx) => R,
     private readonly purpose: 'auth' | 'worker' = 'auth',
   ) {}
-  run<T>(
-    requestId: string,
-    work: (repos: R) => Promise<T>,
-    clientRequestId?: string,
-  ): Promise<T> {
+  run<T>(requestId: string, work: (repos: R) => Promise<T>, clientRequestId?: string): Promise<T> {
     return this.withRlsContext(
       { ...SystemContext[this.purpose](requestId), clientRequestId },
       (tx) => work(this.factory(tx)),
