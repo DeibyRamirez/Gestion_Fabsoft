@@ -161,9 +161,6 @@ async function grantMigratorMigrationCatalogAccess(dbName: string): Promise<void
     await dbClient.query(
       `grant select on all tables in schema app to ${quoteIdent(MIGRATOR_ROLE)}`,
     );
-    await dbClient.query(
-      `grant execute on all functions in schema app to ${quoteIdent(MIGRATOR_ROLE)}`,
-    );
   } finally {
     await dbClient.end();
   }
