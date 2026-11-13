@@ -162,15 +162,22 @@ begin
   return out;
 end $$;
 
-drop rule if exists audit_logs_select_redact on app.audit_logs;
-create or replace rule audit_logs_select_redact as
-  on select to app.audit_logs
-  do instead
-  select id, occurred_at, actor_type, actor_user_id, actor_integration_id, action, resource_type, resource_id,
-         client_id,
-         app.audit_redact_jsonb(changes, app.audit_allowlist_keys(resource_type), app.is_admin() or app.is_system()) as changes,
-         reason, request_id, client_request_id, ip
-    from only app.audit_logs;
+-- PG no admite RULE ON SELECT sobre tablas; lectura redactada vía función invoker (operador vs admin).
+create or replace function app.audit_logs_reader_changes(p_changes jsonb, p_resource_type text)
+returns jsonb
+language sql stable security invoker set search_path = app, pg_catalog as $$
+  select case
+    when app.is_admin() or app.is_system() then p_changes
+    when p_changes is null then null
+    when jsonb_typeof(p_changes) = 'object' and (p_changes ? 'before' or p_changes ? 'after') then
+      jsonb_build_object(
+        'before', case when p_changes ? 'before'
+          then app.audit_redact_jsonb(p_changes -> 'before', app.audit_allowlist_keys(p_resource_type), false) end,
+        'after', case when p_changes ? 'after'
+          then app.audit_redact_jsonb(p_changes -> 'after', app.audit_allowlist_keys(p_resource_type), false) end)
+    else app.audit_redact_jsonb(p_changes, app.audit_allowlist_keys(p_resource_type), false)
+  end;
+$$;
 
 create or replace function app.audit_prepare_changes(
   p_action text, p_resource_type text, p_changes jsonb, p_admin boolean)
@@ -375,6 +382,8 @@ revoke all on function app.audit_resource_exists(text, text) from public, fabsof
 revoke all on function app.audit_resolve_client_id(text, text) from public, fabsoft_app;
 revoke all on function app.audit_write(text, text, text, jsonb, text, inet) from public;
 grant execute on function app.audit_write(text, text, text, jsonb, text, inet) to fabsoft_app;
+revoke all on function app.audit_logs_reader_changes(jsonb, text) from public;
+grant execute on function app.audit_logs_reader_changes(jsonb, text) to fabsoft_app;
 
 select app.assert_rls_everywhere();
 
@@ -387,7 +396,7 @@ drop function if exists app.audit_redact_jsonb_array(jsonb, text[], boolean);
 drop function if exists app.audit_redact_jsonb(jsonb, text[], boolean);
 drop function if exists app.audit_is_secret_key(text);
 drop function if exists app.audit_allowlist_keys(text);
-drop rule if exists audit_logs_select_redact on app.audit_logs;
+drop function if exists app.audit_logs_reader_changes(jsonb, text);
 drop index if exists audit_logs_idempotent_uq;
 alter table app.audit_logs drop column if exists client_request_id;
 

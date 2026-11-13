@@ -427,7 +427,8 @@ describe.skipIf(!ownerUrl || !appUrl)('app.audit_write', () => {
         [opUser],
       );
       const { rows } = await client.query<{ changes: { after?: Record<string, unknown> } }>(
-        `select changes from app.audit_logs where request_id = $1`,
+        `select app.audit_logs_reader_changes(changes, resource_type) as changes
+         from app.audit_logs where request_id = $1`,
         [reqAd],
       );
       expect(rows).toHaveLength(1);

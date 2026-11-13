@@ -123,7 +123,7 @@ const allowlistRel = OWNER_ALLOWLIST.map((abs) =>
 
 const eslintIgnores = fixtureLint
   ? ['tests/eslint-fixtures/**', '!tests/eslint-fixtures/t-f0-05/**']
-  : ['tests/eslint-fixtures/**'];
+  : ['tests/eslint-fixtures/**', 'tests/misc/t-f0-05-glob-probe.ts'];
 
 /** @type {import('eslint').Linter.Config[]} */
 export const f0TestOwnerBypassRules = [
@@ -131,10 +131,7 @@ export const f0TestOwnerBypassRules = [
     ignores: eslintIgnores,
   },
   {
-    files: [
-      'tests/{security,api,integration}/**/*.{ts,tsx}',
-      'tests/misc/t-f0-05-glob-probe.ts',
-    ],
+    files: ['tests/{security,api,integration}/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -167,6 +164,19 @@ export const f0TestOwnerBypassRules = [
               { patterns: [...ownerImportPatterns, ...poolImportPatterns] },
             ],
             'no-restricted-syntax': ['error', ...helperFixtureSyntax],
+          },
+        },
+        {
+          files: ['tests/misc/t-f0-05-glob-probe.ts'],
+          rules: {
+            'no-restricted-imports': [
+              'error',
+              {
+                patterns: [...ownerImportPatterns, ...poolImportPatterns],
+                paths: ownerImportPaths,
+              },
+            ],
+            'no-restricted-syntax': ['error', ...ownerBypassInSource],
           },
         },
       ]
