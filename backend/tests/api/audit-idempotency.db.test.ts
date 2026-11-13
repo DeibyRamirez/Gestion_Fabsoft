@@ -19,10 +19,10 @@ assertDbTestsRequired();
 const clientHdr = `client-req-${Date.now()}-idem`;
 
 describe.skipIf(!dbTestsConfigured())('audit idempotency (api-db)', () => {
-  const factories = createFactories();
+  let factories: ReturnType<typeof createFactories>;
 
   beforeAll(async () => {
-    await getTestAccessTokens();
+    factories = createFactories({ tokens: await getTestAccessTokens() });
     await buildTestApp();
   });
 
