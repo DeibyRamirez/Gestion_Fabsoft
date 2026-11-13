@@ -1,96 +1,125 @@
 /**
- * Fidelidad RLS fabsoft_app ↔ definición post-migraciones (0004/0003), sin reescribir políticas en tests.
+ * Fidelidad RLS schema app ↔ snapshot develop (pg_policies completo, sin reescritura en tests).
  */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type pg from 'pg';
 
-export type ExpectedSelectPolicy = {
+export type AppPolicyRow = {
   table: string;
   polname: string;
-  /** Expresión USING esperada (normalizada). */
-  qualIncludes: readonly string[];
-  /** subcadenas que NO deben aparecer (p. ej. true suelto como política rota). */
-  qualMustNotInclude?: readonly string[];
+  cmd: string;
+  permissive: boolean;
+  qual: string | null;
+  with_check: string | null;
+  roles: string[];
 };
 
-/** Estado canónico tras 0001–0005 (cadenas distintivas de pg_get_expr). */
-export const EXPECTED_FABSOFT_APP_SELECT: ExpectedSelectPolicy[] = [
-  {
-    table: 'subscriptions',
-    polname: 'subscriptions_select',
-    qualIncludes: ['app.is_staff()', 'app.is_system()'],
-    qualMustNotInclude: ['using (true)', ' is true'],
-  },
-  {
-    table: 'client_contacts',
-    polname: 'client_contacts_select',
-    qualIncludes: ['app.is_staff()', 'app.integration_sees_client'],
-    qualMustNotInclude: ['is_client_user()'],
-  },
-  {
-    table: 'tasks',
-    polname: 'tasks_select',
-    qualIncludes: ['app.is_staff()', 'app.integration_sees_client'],
-  },
-  {
-    table: 'notifications',
-    polname: 'notifications_select',
-    qualIncludes: ['app.is_staff()', 'app.is_system()'],
-    qualMustNotInclude: ['using (true)', ' is true'],
-  },
-];
+type SnapshotFile = {
+  schema: string;
+  policyCount: number;
+  policies: AppPolicyRow[];
+};
 
-function normalizeQual(q: string | null): string {
-  return (q ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+const snapshotPath = fileURLToPath(
+  new URL('./fixtures/app-rls-policies-develop.snapshot.json', import.meta.url),
+);
+
+export function loadDevelopPolicySnapshot(): SnapshotFile {
+  return JSON.parse(readFileSync(snapshotPath, 'utf8')) as SnapshotFile;
 }
 
 type SqlClient = Pick<pg.Client, 'query'>;
 
-export async function fetchFabsoftAppSelectQuals(client: SqlClient): Promise<Map<string, string>> {
-  const { rows } = await client.query<{ table: string; polname: string; qual: string | null }>(
-    `select c.relname as table, p.polname,
-            pg_get_expr(p.polqual, p.polrelid) as qual
+function normExpr(q: string | null): string | null {
+  if (q === null) return null;
+  return q.replace(/\s+/g, ' ').trim();
+}
+
+export async function fetchAppSchemaPolicies(client: SqlClient): Promise<AppPolicyRow[]> {
+  const { rows } = await client.query<{
+    table: string;
+    polname: string;
+    polcmd: string;
+    permissive: boolean;
+    qual: string | null;
+    with_check: string | null;
+    roles: string[];
+  }>(
+    `select c.relname as table,
+            p.polname,
+            p.polcmd,
+            p.polpermissive as permissive,
+            pg_get_expr(p.polqual, p.polrelid) as qual,
+            pg_get_expr(p.polwithcheck, p.polrelid) as with_check,
+            coalesce(
+              (select array_agg(r.rolname order by r.rolname)
+               from unnest(p.polroles) u(oid)
+               join pg_roles r on r.oid = u.oid),
+              '{}'::text[]
+            ) as roles
      from pg_policy p
      join pg_class c on c.oid = p.polrelid
      join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'app'
-       and p.polcmd = 'r'
-       and (select oid from pg_roles where rolname = 'fabsoft_app') = any (p.polroles)`,
+     order by c.relname, p.polname`,
   );
-  const out = new Map<string, string>();
-  for (const r of rows) {
-    out.set(`${r.table}.${r.polname}`, normalizeQual(r.qual));
-  }
-  return out;
+  return rows.map((r) => ({
+    table: r.table,
+    polname: r.polname,
+    cmd: r.polcmd,
+    permissive: r.permissive,
+    qual: normExpr(r.qual),
+    with_check: normExpr(r.with_check),
+    roles: [...r.roles].sort(),
+  }));
 }
 
-export function assertFabsoftAppPoliciesMatchMigrations(
-  quals: Map<string, string>,
-): void {
+function policyKey(p: AppPolicyRow): string {
+  return `${p.table}\0${p.polname}`;
+}
+
+export function assertAppPoliciesMatchDevelopSnapshot(live: AppPolicyRow[]): void {
+  const expected = loadDevelopPolicySnapshot().policies;
+  if (live.length !== expected.length) {
+    throw new Error(
+      `RLS: conteo ${live.length} distinto de develop (${expected.length})`,
+    );
+  }
+  const byKey = new Map(live.map((p) => [policyKey(p), p]));
   const errors: string[] = [];
-  for (const exp of EXPECTED_FABSOFT_APP_SELECT) {
-    const key = `${exp.table}.${exp.polname}`;
-    const qual = quals.get(key);
-    if (qual === undefined) {
-      errors.push(`falta política ${key}`);
+  for (const exp of expected) {
+    const key = policyKey(exp);
+    const act = byKey.get(key);
+    if (!act) {
+      errors.push(`falta política ${exp.table}.${exp.polname}`);
       continue;
     }
-    for (const frag of exp.qualIncludes) {
-      if (!qual.includes(frag.toLowerCase())) {
-        errors.push(`${key}: falta fragmento "${frag}" en ${qual}`);
+    for (const field of ['cmd', 'permissive', 'qual', 'with_check'] as const) {
+      if (act[field] !== exp[field]) {
+        errors.push(
+          `${key}: ${field} esperado ${JSON.stringify(exp[field])} obtuvo ${JSON.stringify(act[field])}`,
+        );
       }
     }
-    for (const bad of exp.qualMustNotInclude ?? []) {
-      if (qual === 'true' || qual.includes(bad.toLowerCase())) {
-        errors.push(`${key}: política corrupta (${qual})`);
-      }
+    const expRoles = [...exp.roles].sort().join(',');
+    const actRoles = [...act.roles].sort().join(',');
+    if (expRoles !== actRoles) {
+      errors.push(`${key}: roles esperado [${expRoles}] obtuvo [${actRoles}]`);
+    }
+  }
+  const expKeys = new Set(expected.map(policyKey));
+  for (const p of live) {
+    if (!expKeys.has(policyKey(p))) {
+      errors.push(`política extra ${p.table}.${p.polname}`);
     }
   }
   if (errors.length) {
-    throw new Error(`RLS no coincide con migraciones: ${errors.join('; ')}`);
+    throw new Error(`RLS no coincide con develop: ${errors.join('; ')}`);
   }
 }
 
-export async function assertDatabaseFabsoftAppPoliciesFidelity(client: SqlClient): Promise<void> {
-  const quals = await fetchFabsoftAppSelectQuals(client);
-  assertFabsoftAppPoliciesMatchMigrations(quals);
+export async function assertDatabaseAppPoliciesFidelity(client: SqlClient): Promise<void> {
+  const live = await fetchAppSchemaPolicies(client);
+  assertAppPoliciesMatchDevelopSnapshot(live);
 }

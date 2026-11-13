@@ -1,0 +1,564 @@
+{
+  "schema": "app",
+  "policyCount": 62,
+  "policies": [
+    {
+      "table": "alert_rules",
+      "polname": "alert_rules_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "app.is_admin()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "alert_rules",
+      "polname": "alert_rules_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_staff() OR app.is_system())",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "alert_rules",
+      "polname": "alert_rules_update",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "app.is_admin()",
+      "with_check": "app.is_admin()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "api_credentials",
+      "polname": "api_credentials_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "app.is_admin()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "api_credentials",
+      "polname": "api_credentials_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_admin() OR app.is_system())",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "api_credentials",
+      "polname": "api_credentials_update",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "(app.is_admin() OR app.is_system())",
+      "with_check": "(app.is_admin() OR app.is_system())",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "app_settings",
+      "polname": "app_settings_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "app.is_admin()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "app_settings",
+      "polname": "app_settings_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_staff() OR app.is_system() OR (app.is_client_user() AND (key = 'contact_channel'::text)))",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "app_settings",
+      "polname": "app_settings_update",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "app.is_admin()",
+      "with_check": "app.is_admin()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "audit_logs",
+      "polname": "audit_logs_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "(((actor_type = 'user'::app.actor_type) AND (actor_user_id = app.ctx_user_id())) OR ((actor_type = 'integration'::app.actor_type) AND (actor_integration_id = app.ctx_integration_id())) OR ((actor_type = 'system'::app.actor_type) AND app.is_system()))",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "audit_logs",
+      "polname": "audit_logs_insert_auth_definer",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "((actor_type = 'system'::app.actor_type) AND (action = ANY (ARRAY['user.bootstrap_admin'::text, 'auth.sessions_revoked'::text])))",
+      "roles": "{fabsoft_auth_definer}"
+    },
+    {
+      "table": "audit_logs",
+      "polname": "audit_logs_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_admin() OR app.is_system() OR (app.is_operator() AND (resource_type = ANY (ARRAY['client'::text, 'client_contact'::text, 'client_note'::text, 'product'::text, 'subscription'::text, 'subscription_period'::text, 'renewal_request'::text, 'task'::text]))))",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "client_contacts",
+      "polname": "client_contacts_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "app.is_staff()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "client_contacts",
+      "polname": "client_contacts_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_staff() OR app.is_system() OR app.integration_sees_client(client_id))",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "client_contacts",
+      "polname": "client_contacts_update",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "app.is_staff()",
+      "with_check": "app.is_staff()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "client_notes",
+      "polname": "client_notes_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "(app.is_staff() AND (author_user_id = app.ctx_user_id()))",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "client_notes",
+      "polname": "client_notes_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "app.is_staff()",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "clients",
+      "polname": "clients_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "(app.is_staff() AND (status <> 'archived'::app.client_status))",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "clients",
+      "polname": "clients_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_staff() OR app.is_system() OR (app.is_client_user() AND (id = app.ctx_client_id())) OR app.integration_sees_client(id))",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "clients",
+      "polname": "clients_update",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "(app.is_admin() OR (app.is_operator() AND (status <> 'archived'::app.client_status)))",
+      "with_check": "(app.is_admin() OR (app.is_operator() AND (status <> 'archived'::app.client_status)))",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "idempotency_keys",
+      "polname": "idempotency_keys_delete",
+      "cmd": "d",
+      "permissive": true,
+      "qual": "app.is_system()",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "idempotency_keys",
+      "polname": "idempotency_keys_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "(((actor_type = 'user'::app.actor_type) AND (actor_id = app.ctx_user_id())) OR ((actor_type = 'integration'::app.actor_type) AND (actor_id = app.ctx_integration_id())))",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "idempotency_keys",
+      "polname": "idempotency_keys_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(((actor_type = 'user'::app.actor_type) AND (actor_id = app.ctx_user_id())) OR ((actor_type = 'integration'::app.actor_type) AND (actor_id = app.ctx_integration_id())) OR app.is_system())",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "idempotency_keys",
+      "polname": "idempotency_keys_update",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "(((actor_type = 'user'::app.actor_type) AND (actor_id = app.ctx_user_id())) OR ((actor_type = 'integration'::app.actor_type) AND (actor_id = app.ctx_integration_id())))",
+      "with_check": "(((actor_type = 'user'::app.actor_type) AND (actor_id = app.ctx_user_id())) OR ((actor_type = 'integration'::app.actor_type) AND (actor_id = app.ctx_integration_id())))",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "integration_clients",
+      "polname": "integration_clients_delete",
+      "cmd": "d",
+      "permissive": true,
+      "qual": "app.is_admin()",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "integration_clients",
+      "polname": "integration_clients_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "app.is_admin()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "integration_clients",
+      "polname": "integration_clients_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_admin() OR app.is_system() OR (app.is_integration() AND (integration_id = app.ctx_integration_id())))",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "integration_clients",
+      "polname": "integration_clients_select_secure_view",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_integration() AND (integration_id = app.ctx_integration_id()))",
+      "with_check": null,
+      "roles": "{fabsoft_secure_view}"
+    },
+    {
+      "table": "integrations",
+      "polname": "integrations_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "app.is_admin()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "integrations",
+      "polname": "integrations_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_admin() OR app.is_system() OR (app.is_integration() AND (id = app.ctx_integration_id())))",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "integrations",
+      "polname": "integrations_select_secure_view",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_integration() AND (id = app.ctx_integration_id()))",
+      "with_check": null,
+      "roles": "{fabsoft_secure_view}"
+    },
+    {
+      "table": "integrations",
+      "polname": "integrations_update",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "(app.is_admin() OR app.is_system())",
+      "with_check": "(app.is_admin() OR app.is_system())",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "notifications",
+      "polname": "notifications_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "(app.is_staff() OR app.is_system())",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "notifications",
+      "polname": "notifications_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_staff() OR app.is_system())",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "notifications",
+      "polname": "notifications_update",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "(app.is_staff() OR app.is_system())",
+      "with_check": "(app.is_staff() OR app.is_system())",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "products",
+      "polname": "products_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "app.is_admin()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "products",
+      "polname": "products_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_staff() OR app.is_system() OR app.is_integration() OR app.client_has_visible_product(id))",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "products",
+      "polname": "products_update",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "app.is_admin()",
+      "with_check": "app.is_admin()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "refresh_tokens",
+      "polname": "refresh_tokens_all",
+      "cmd": "*",
+      "permissive": true,
+      "qual": "app.is_system()",
+      "with_check": "app.is_system()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "refresh_tokens",
+      "polname": "refresh_tokens_select_auth_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_system() OR app.is_admin() OR (user_id = app.ctx_user_id()))",
+      "with_check": null,
+      "roles": "{fabsoft_auth_definer}"
+    },
+    {
+      "table": "refresh_tokens",
+      "polname": "refresh_tokens_update_auth_definer",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "(app.is_system() OR app.is_admin() OR (user_id = app.ctx_user_id()))",
+      "with_check": "(revoked_at IS NOT NULL)",
+      "roles": "{fabsoft_auth_definer}"
+    },
+    {
+      "table": "renewal_requests",
+      "polname": "renewal_requests_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "((status = 'pending_review'::app.renewal_request_status) AND ((app.is_staff() AND (requested_by_user_id = app.ctx_user_id())) OR (app.is_client_user() AND (client_id = app.ctx_client_id()) AND (requested_by_user_id = app.ctx_user_id())) OR (app.integration_sees_client(client_id) AND (requested_by_integration_id = app.ctx_integration_id()))))",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "renewal_requests",
+      "polname": "renewal_requests_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_staff() OR app.is_system() OR (app.is_client_user() AND (client_id = app.ctx_client_id())) OR app.integration_sees_client(client_id))",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "renewal_requests",
+      "polname": "renewal_requests_update",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "(app.is_staff() OR app.is_system())",
+      "with_check": "(app.is_staff() OR app.is_system())",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "subscription_periods",
+      "polname": "subscription_periods_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "app.is_staff()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "subscription_periods",
+      "polname": "subscription_periods_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_staff() OR app.is_system())",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "subscription_periods",
+      "polname": "subscription_periods_select_secure_view",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(EXISTS ( SELECT 1 FROM app.subscriptions s WHERE (s.id = subscription_periods.subscription_id)))",
+      "with_check": null,
+      "roles": "{fabsoft_secure_view}"
+    },
+    {
+      "table": "subscription_periods",
+      "polname": "subscription_periods_update",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "app.is_staff()",
+      "with_check": "app.is_staff()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "subscriptions",
+      "polname": "subscriptions_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "(app.is_staff() AND (status = ANY (ARRAY['pending_activation'::app.subscription_status, 'active'::app.subscription_status])))",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "subscriptions",
+      "polname": "subscriptions_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_staff() OR app.is_system())",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "subscriptions",
+      "polname": "subscriptions_select_secure_view",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_client_user() AND (client_id = app.ctx_client_id()) AND visible_in_portal)",
+      "with_check": null,
+      "roles": "{fabsoft_secure_view}"
+    },
+    {
+      "table": "subscriptions",
+      "polname": "subscriptions_select_secure_view_integration",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "app.integration_reads_subscriptions(client_id)",
+      "with_check": null,
+      "roles": "{fabsoft_secure_view}"
+    },
+    {
+      "table": "subscriptions",
+      "polname": "subscriptions_update",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "(app.is_admin() OR app.is_system() OR (app.is_operator() AND (status <> 'cancelled'::app.subscription_status)))",
+      "with_check": "(app.is_admin() OR app.is_system() OR (app.is_operator() AND (status <> 'cancelled'::app.subscription_status)))",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "tasks",
+      "polname": "tasks_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "(app.is_staff() OR app.is_system())",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "tasks",
+      "polname": "tasks_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_staff() OR app.is_system() OR app.integration_sees_client(client_id))",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "tasks",
+      "polname": "tasks_update",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "(app.is_staff() OR app.is_system())",
+      "with_check": "(app.is_staff() OR app.is_system())",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "users",
+      "polname": "users_insert",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "app.is_admin()",
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "users",
+      "polname": "users_insert_auth_definer",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "((role = 'admin'::app.user_role) AND (client_id IS NULL) AND must_change_password)",
+      "roles": "{fabsoft_auth_definer}"
+    },
+    {
+      "table": "users",
+      "polname": "users_select",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_staff() OR app.is_system() OR (id = app.ctx_user_id()))",
+      "with_check": null,
+      "roles": "{fabsoft_app}"
+    },
+    {
+      "table": "users",
+      "polname": "users_select_auth_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": "{fabsoft_auth_definer}"
+    },
+    {
+      "table": "users",
+      "polname": "users_select_secure_view",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "(app.is_system() OR (id = app.ctx_user_id()))",
+      "with_check": null,
+      "roles": "{fabsoft_secure_view}"
+    },
+    {
+      "table": "users",
+      "polname": "users_update",
+      "cmd": "w",
+      "permissive": true,
+      "qual": "(app.is_admin() OR app.is_system() OR (id = app.ctx_user_id()))",
+      "with_check": "(app.is_admin() OR app.is_system() OR (id = app.ctx_user_id()))",
+      "roles": "{fabsoft_app}"
+    }
+  ]
+}
