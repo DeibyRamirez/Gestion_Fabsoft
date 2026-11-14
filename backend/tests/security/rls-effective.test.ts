@@ -45,9 +45,11 @@ const ids = {
   alertRule: '00000000-0000-4000-8ff0-00000000b701',
 };
 
+const harnessProvisionerUrl =
+  process.env.DATABASE_PROVISION_URL ?? migrationUrl;
 const ownerPool =
-  migrationUrl && process.env.REQUIRE_DB_TESTS === '1'
-    ? new pg.Pool({ connectionString: migrationUrl, max: 2 })
+  harnessProvisionerUrl && process.env.REQUIRE_DB_TESTS === '1'
+    ? new pg.Pool({ connectionString: harnessProvisionerUrl, max: 2 })
     : undefined;
 
 beforeAll(async () => {

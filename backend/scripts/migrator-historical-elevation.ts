@@ -1,5 +1,6 @@
 /**
  * Elevación efímera para aplicar 0002–0005 como fabsoft_migrator (sin SUPERUSER/CREATEROLE)
+ * y stubs/grants temporales para 0006+ (CREATE ROLE / ALTER OWNER sin CREATEROLE).
  * en bases desechables marcadas por el harness. Los SQL 0001–0005 no se modifican.
  */
 import type pg from 'pg';
@@ -9,7 +10,7 @@ import { repairHistoricalMigrationGrants } from './historical-migration-grant-re
 const MIGRATOR = 'fabsoft_migrator';
 const BOOTSTRAP = 'fabsoft_bootstrap';
 
-/** Roles que 0002–0005 crean condicionalmente; deben existir antes del dbmate del migrador. */
+/** Roles que 0002–0006 crean condicionalmente; deben existir antes del dbmate del migrador. */
 const STUB_ROLE_DDL: readonly { name: string; sql: string }[] = [
   {
     name: 'fabsoft_app',
@@ -30,6 +31,10 @@ const STUB_ROLE_DDL: readonly { name: string; sql: string }[] = [
   {
     name: 'fabsoft_bootstrap',
     sql: `create role fabsoft_bootstrap nologin nosuperuser nocreatedb nocreaterole inherit nobypassrls`,
+  },
+  {
+    name: 'fabsoft_audit_definer',
+    sql: `create role fabsoft_audit_definer nologin nosuperuser nocreatedb nocreaterole noinherit nobypassrls`,
   },
 ];
 
@@ -213,6 +218,7 @@ export async function revokeMigratorHistoricalElevation(
   await exec(owner, `revoke ${quoteIdent('fabsoft_worker')} from ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `revoke ${quoteIdent('fabsoft_secure_view')} from ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `revoke ${quoteIdent('fabsoft_auth_definer')} from ${quoteIdent(MIGRATOR)}`);
+  await exec(owner, `revoke ${quoteIdent('fabsoft_audit_definer')} from ${quoteIdent(MIGRATOR)}`);
   await exec(owner, `revoke ${quoteIdent('fabsoft_app')} from ${quoteIdent(MIGRATOR)}`);
   // CASCADE sólo sobre privilegios de DATABASE otorgados por el migrador (p. ej. CREATE a app en 0002).
   await exec(owner, `revoke all privileges on database ${db} from ${quoteIdent(MIGRATOR)} cascade`);
@@ -220,6 +226,46 @@ export async function revokeMigratorHistoricalElevation(
   await exec(owner, `grant ${quoteIdent('fabsoft_app')} to ${quoteIdent('fabsoft_worker')}`);
   await revokeHistoricalRoleSchemaCreate(owner);
   await repairHistoricalMigrationGrants(owner);
+}
+
+/** SET temporal hacia fabsoft_audit_definer para ALTER OWNER en 0006 (revocar antes de gates). */
+export async function elevateMigratorForFutureMigrations(owner: QueryFn): Promise<void> {
+  // INHERIT TRUE: PG exige membresía efectiva para ALTER OWNER; SET solo no basta (42501 schema app).
+  await exec(
+    owner,
+    `grant ${quoteIdent('fabsoft_audit_definer')} to ${quoteIdent(MIGRATOR)} with inherit true, set true, admin true`,
+  );
+}
+
+export async function revokeMigratorFutureElevation(owner: QueryFn): Promise<void> {
+  await exec(owner, `revoke ${quoteIdent('fabsoft_audit_definer')} from ${quoteIdent(MIGRATOR)}`);
+}
+
+/** Tras 0006: migrator crea la función; el dueño definer lo fija el provisioner (ALTER OWNER). */
+export async function assignAuditWriteDefinerOwner(owner: QueryFn): Promise<void> {
+  const { rows } = (await owner(
+    `select exists (
+       select 1 from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'app' and p.proname = 'audit_write'
+     ) as ok`,
+  )) as { rows: { ok: boolean }[] };
+  if (!rows[0]?.ok) return;
+  const auditFns = [
+    'app.audit_is_secret_key(text)',
+    'app.audit_allowlist_keys(text)',
+    'app.audit_redact_jsonb(jsonb, text[], boolean)',
+    'app.audit_redact_jsonb_array(jsonb, text[], boolean, text)',
+    'app.audit_prepare_changes(text, text, jsonb, boolean)',
+    'app.audit_resolve_client_id(text, text)',
+    'app.audit_resource_exists(text, text)',
+    'app.audit_write(text, text, text, jsonb, text, inet)',
+    'app.audit_logs_reader_changes(jsonb, text)',
+    'app.audit_log_changes_for_reader(bigint)',
+  ];
+  for (const fn of auditFns) {
+    await exec(owner, `alter function ${fn} owner to fabsoft_audit_definer`);
+  }
 }
 
 export async function assertMigratorElevationClosed(owner: QueryFn): Promise<void> {

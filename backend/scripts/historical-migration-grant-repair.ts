@@ -44,7 +44,8 @@ export async function assertNoUnexpectedPublicExecuteBeforeRepair(owner: QueryFn
          'auth_password_hash',
          'integration_reads_subscriptions',
          'bootstrap_first_admin',
-         'revoke_user_sessions'
+         'revoke_user_sessions',
+         'audit_write'
        )`,
   )) as pg.QueryResult<{ sig: string }>;
   if (rows.length > 0) {
@@ -78,6 +79,32 @@ export async function repairHistoricalMigrationGrants(owner: QueryFn): Promise<v
     `alter default privileges for role ${quoteIdent(MIGRATOR)} in schema app grant usage, select on sequences to fabsoft_app`,
   ];
   for (const sql of stmts) await run(owner, sql);
+  const auditWriteProbe = (await owner(
+    `select exists (
+       select 1 from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'app' and p.proname = 'audit_write'
+     ) as ok`,
+  )) as pg.QueryResult<{ ok: boolean }>;
+  if (auditWriteProbe.rows[0]?.ok) {
+    const auditFnRepair = [
+      `revoke execute on function app.audit_write(text, text, text, jsonb, text, inet) from public`,
+      `grant execute on function app.audit_write(text, text, text, jsonb, text, inet) to fabsoft_app`,
+      `revoke execute on function app.audit_is_secret_key(text) from public, fabsoft_app`,
+      `revoke execute on function app.audit_allowlist_keys(text) from public, fabsoft_app`,
+      `revoke execute on function app.audit_redact_jsonb(jsonb, text[], boolean) from public, fabsoft_app`,
+      `revoke execute on function app.audit_redact_jsonb_array(jsonb, text[], boolean, text) from public, fabsoft_app`,
+      `revoke execute on function app.audit_prepare_changes(text, text, jsonb, boolean) from public, fabsoft_app`,
+      `revoke execute on function app.audit_resource_exists(text, text) from public, fabsoft_app`,
+      `revoke execute on function app.audit_resolve_client_id(text, text) from public, fabsoft_app`,
+      `revoke select on app.audit_logs from fabsoft_app, fabsoft_worker`,
+      `grant select (id, occurred_at, actor_type, actor_user_id, actor_integration_id, action, resource_type, resource_id, client_id, reason, request_id, client_request_id, ip) on app.audit_logs to fabsoft_app`,
+      `grant select (id, occurred_at, actor_type, actor_user_id, actor_integration_id, action, resource_type, resource_id, client_id, reason, request_id, client_request_id, ip) on app.audit_logs to fabsoft_worker`,
+      `revoke execute on function app.audit_log_changes_for_reader(bigint) from public`,
+      `grant execute on function app.audit_log_changes_for_reader(bigint) to fabsoft_app`,
+    ];
+    for (const sql of auditFnRepair) await run(owner, sql);
+  }
 }
 
 /** Roles que heredan EXECUTE de `fabsoft_app` vía `GRANT fabsoft_app TO fabsoft_worker` (0003). */
@@ -135,4 +162,56 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
       ...denyNonApp,
     ],
   },
+  {
+    fn: 'app.audit_write(text,text,text,jsonb,text,inet)',
+    roles: [
+      { role: 'public', execute: false },
+      { role: 'fabsoft_app', execute: true },
+      workerInheritsAppExecute,
+      { role: 'fabsoft_auth_definer', execute: false },
+      { role: 'fabsoft_bootstrap', execute: false },
+      ...denyNonApp,
+    ],
+  },
+  {
+    fn: 'app.audit_logs_reader_changes(jsonb,text)',
+    roles: [
+      { role: 'public', execute: false },
+      { role: 'fabsoft_app', execute: true },
+      workerInheritsAppExecute,
+      { role: 'fabsoft_auth_definer', execute: false },
+      { role: 'fabsoft_bootstrap', execute: false },
+      ...denyNonApp,
+    ],
+  },
+  {
+    fn: 'app.audit_log_changes_for_reader(bigint)',
+    roles: [
+      { role: 'public', execute: false },
+      { role: 'fabsoft_app', execute: true },
+      workerInheritsAppExecute,
+      { role: 'fabsoft_auth_definer', execute: false },
+      { role: 'fabsoft_bootstrap', execute: false },
+      ...denyNonApp,
+    ],
+  },
+  ...[
+    'app.audit_is_secret_key(text)',
+    'app.audit_allowlist_keys(text)',
+    'app.audit_redact_jsonb(jsonb,text[],boolean)',
+    'app.audit_redact_jsonb_array(jsonb,text[],boolean,text)',
+    'app.audit_prepare_changes(text,text,jsonb,boolean)',
+    'app.audit_resolve_client_id(text,text)',
+    'app.audit_resource_exists(text,text)',
+  ].map((fn) => ({
+    fn,
+    roles: [
+      { role: 'public', execute: false },
+      { role: 'fabsoft_app', execute: false },
+      { role: 'fabsoft_worker', execute: false },
+      { role: 'fabsoft_bootstrap', execute: false },
+      { role: 'fabsoft_auth_definer', execute: false },
+      ...denyNonApp,
+    ],
+  })),
 ] as const;

@@ -72,6 +72,7 @@ jobs:
   db-security:
     name: db-security (migraciones + RLS)
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     services:
       postgres:
         image: postgres:16
@@ -128,7 +129,11 @@ jobs:
       - name: Assert RLS en todas las tablas
         run: psql "$DATABASE_MIGRATION_URL" -v ON_ERROR_STOP=1 -c 'SELECT app.assert_rls_everywhere();'
       - name: Tests de seguridad + foundation F0
+        timeout-minutes: 90
         run: pnpm test:security
+      - name: Suite idempotencia test:security (2×)
+        timeout-minutes: 90
+        run: pnpm --filter @fabsoft/backend test:security:idempotency
 
   integration-api:
     name: integration-api

@@ -20,6 +20,8 @@ const baseEnv = {
 
 function withEnv(overrides: Record<string, string | undefined>, fn: () => void): void {
   const snapshot = { ...process.env };
+  delete process.env.DATABASE_MIGRATION_URL;
+  delete process.env.DATABASE_PROVISION_URL;
   Object.assign(process.env, baseEnv, overrides);
   try {
     fn();

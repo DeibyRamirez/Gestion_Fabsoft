@@ -12,7 +12,7 @@ import {
   type RlsFixtureIds,
 } from './rls-isolation-checks.js';
 
-const ownerUrl = migrationUrl;
+const ownerUrl = process.env.DATABASE_PROVISION_URL ?? migrationUrl;
 const appUrl = process.env.TEST_DATABASE_URL;
 
 if (process.env.REQUIRE_DB_TESTS === '1' && (!ownerUrl || !appUrl)) {

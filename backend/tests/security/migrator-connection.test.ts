@@ -20,6 +20,19 @@ describe.skipIf(!migratorUrl)('F0 — conexión migrator (T-F0-03b)', () => {
     expect(() => assertMigratorMigrationUser(provisionUrl!)).toThrow(/fabsoft_migrator/);
   });
 
+  it('TEST_DATABASE_MIGRATION_URL no conecta como provisioner/owner', async () => {
+    const testMig = process.env.TEST_DATABASE_MIGRATION_URL;
+    if (!testMig) return;
+    const client = new pg.Client({ connectionString: testMig });
+    await client.connect();
+    try {
+      const { rows } = await client.query<{ u: string }>(`select session_user::text as u`);
+      expect(rows[0]!.u).toBe('fabsoft_migrator');
+    } finally {
+      await client.end();
+    }
+  });
+
   it('acepta sesión LOGIN fabsoft_migrator sin superusuario', async () => {
     const client = new pg.Client({ connectionString: migratorUrl! });
     await client.connect();

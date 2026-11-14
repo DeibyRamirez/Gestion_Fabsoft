@@ -37,6 +37,8 @@ export interface AuthRouteDeps {
 
 const meta = (req: Request, res: Response) => ({
   requestId: String(res.locals['requestId']),
+  clientRequestId:
+    typeof res.locals['clientRequestId'] === 'string' ? res.locals['clientRequestId'] : undefined,
   userAgent: req.header('user-agent') ?? null,
   ip: req.ip ?? null,
 });

@@ -21,36 +21,40 @@ export class Login {
 
   async execute(
     input: LoginInput,
-    meta: SessionMeta & { requestId: string },
+    meta: SessionMeta & { requestId: string; clientRequestId?: string | undefined },
   ): Promise<SessionResult> {
-    const result = await this.uow.run(meta.requestId, async ({ login, audit }) => {
-      const user = await login.findByEmail(input.email);
-      const ok = await this.hasher.verify(user?.passwordHash ?? this.dummyHash, input.password);
-      if (!user || !ok || user.status !== 'active') {
-        await audit.write({
-          actor: { type: 'system' },
-          action: 'auth.login_failed',
-          resourceType: 'user',
-          resourceId: user?.id ?? 'unknown',
-          requestId: meta.requestId,
-          ip: meta.ip,
-        });
-        return null;
-      }
-      const publicUser = {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        role: user.role,
-        clientId: user.clientId,
-        status: user.status,
-        mustChangePassword: user.mustChangePassword,
-      };
-      const { session, row } = await this.issuer.issue(publicUser, this.ids.uuid(), meta);
-      await login.createRefreshToken(row);
-      await login.recordSuccessfulLogin(user.id, this.clock.now());
-      return session;
-    });
+    const result = await this.uow.run(
+      meta.requestId,
+      async ({ login, audit }) => {
+        const user = await login.findByEmail(input.email);
+        const ok = await this.hasher.verify(user?.passwordHash ?? this.dummyHash, input.password);
+        if (!user || !ok || user.status !== 'active') {
+          await audit.write({
+            actor: { type: 'system' },
+            action: 'auth.login_failed',
+            resourceType: 'user',
+            resourceId: user?.id ?? 'unknown',
+            requestId: meta.requestId,
+            ip: meta.ip,
+          });
+          return null;
+        }
+        const publicUser = {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          role: user.role,
+          clientId: user.clientId,
+          status: user.status,
+          mustChangePassword: user.mustChangePassword,
+        };
+        const { session, row } = await this.issuer.issue(publicUser, this.ids.uuid(), meta);
+        await login.createRefreshToken(row);
+        await login.recordSuccessfulLogin(user.id, this.clock.now());
+        return session;
+      },
+      meta.clientRequestId,
+    );
     if (!result) throw new ApplicationError('invalid_credentials', 'Credenciales inválidas');
     return result;
   }

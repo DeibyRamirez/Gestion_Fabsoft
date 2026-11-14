@@ -12,8 +12,13 @@ export function assertTestDatabaseUrl(url: string): void {
   }
 }
 
+/** URL de migración (fabsoft_migrator en CI tras provision); no usar como superusuario de tablas. */
 export const migrationUrl = process.env.TEST_DATABASE_MIGRATION_URL;
 export const appDatabaseUrl = process.env.TEST_DATABASE_URL;
+
+/** Rol propietario/provisioner para TRUNCATE y mutaciones de harness (no TEST_DATABASE_MIGRATION_URL). */
+export const provisionUrl =
+  process.env.DATABASE_PROVISION_URL ?? process.env.TEST_DATABASE_MIGRATION_URL;
 
 export function dbTestsConfigured(): boolean {
   return Boolean(migrationUrl && appDatabaseUrl);
@@ -57,9 +62,9 @@ let appPool: pg.Pool | undefined;
 let appPoolReady: Promise<void> | undefined;
 
 export function getOwnerPool(): pg.Pool {
-  if (!migrationUrl) throw new Error('TEST_DATABASE_MIGRATION_URL no definido');
-  assertTestDatabaseUrl(migrationUrl);
-  ownerPool ??= new pg.Pool({ connectionString: migrationUrl, max: 4 });
+  if (!provisionUrl) throw new Error('DATABASE_PROVISION_URL no definido');
+  assertTestDatabaseUrl(provisionUrl);
+  ownerPool ??= new pg.Pool({ connectionString: provisionUrl, max: 4 });
   return ownerPool;
 }
 
@@ -108,8 +113,8 @@ export async function resetDatabaseWithPool(url: string, pool: pg.Pool): Promise
 
 /** Trunca todas las tablas de `app` (excepto schema_migrations) con el rol propietario. */
 export async function resetDatabase(): Promise<void> {
-  if (!migrationUrl) throw new Error('TEST_DATABASE_MIGRATION_URL no definido');
-  await resetDatabaseWithPool(migrationUrl, getOwnerPool());
+  if (!provisionUrl) throw new Error('DATABASE_PROVISION_URL no definido');
+  await resetDatabaseWithPool(provisionUrl, getOwnerPool());
 }
 
 export type AppUserContext = {

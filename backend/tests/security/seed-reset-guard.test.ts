@@ -1,9 +1,10 @@
 /**
  * seed --reset fail-closed (ronda 6): no borrar BDs sin marcador / sin coincidir con seed.
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
+import pg from 'pg';
 import { assertSeedResetProvisionerTarget } from '../../scripts/guard.js';
-import { parseDatabaseTarget } from '../../scripts/database-url.js';
+import { parseDatabaseTarget, quoteIdent } from '../../scripts/database-url.js';
 
 const ownerUrl = process.env.DATABASE_PROVISION_URL;
 
@@ -28,7 +29,62 @@ afterEach(() => {
   if (ownerUrl) process.env.DATABASE_PROVISION_URL = ownerUrl;
 });
 
+afterAll(async () => {
+  if (!ownerUrl) return;
+  const target = parseDatabaseTarget(ownerUrl);
+  const decoyDb = `${target.database}_decoy_guard`;
+  const owner = new pg.Client({ connectionString: ownerUrl });
+  await owner.connect();
+  try {
+    const exists = await owner.query<{ ok: boolean }>(
+      `select exists(select 1 from pg_database where datname = $1) as ok`,
+      [decoyDb],
+    );
+    if (exists.rows[0]!.ok) {
+      await owner.query(
+        `select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()`,
+        [decoyDb],
+      );
+      await owner.query(`drop database ${quoteIdent(decoyDb)}`);
+    }
+  } finally {
+    await owner.end();
+  }
+});
+
 describe.skipIf(!ownerUrl || !seedUrl)('seed --reset guard', () => {
+  it('rechaza reset si provision apunta a otra BD (rama comparación aislada)', async () => {
+    const target = parseDatabaseTarget(ownerUrl!);
+    const decoyDb = `${target.database}_decoy_guard`;
+    const owner = new pg.Client({ connectionString: ownerUrl! });
+    await owner.connect();
+    try {
+      const exists = await owner.query<{ ok: boolean }>(
+        `select exists(select 1 from pg_database where datname = $1) as ok`,
+        [decoyDb],
+      );
+      if (!exists.rows[0]!.ok) await owner.query(`create database ${decoyDb}`);
+    } finally {
+      await owner.end();
+    }
+    const wrongProv = `postgres://${encodeURIComponent(target.user)}@${target.host}:${target.port}/${encodeURIComponent(decoyDb)}?sslmode=disable`;
+    const prev = process.env.DATABASE_PROVISION_URL;
+    process.env.DATABASE_PROVISION_URL = wrongProv;
+  try {
+    await expect(
+      assertSeedResetProvisionerTarget({
+        url: seedUrl!,
+        expectedSessionRole: 'fabsoft_seed_writer',
+        ephemeralMarker: marker!,
+        harnessRunId: runId!,
+        expectedDatabase: db,
+      }),
+    ).rejects.toThrow(/provision|distinto del seed|Base de datos no autorizada/i);
+  } finally {
+    process.env.DATABASE_PROVISION_URL = prev;
+  }
+  });
+
   it('rechaza reset si procedencia harness no coincide (sin TRUNCATE)', async () => {
     const cfg = {
       url: seedUrl!,

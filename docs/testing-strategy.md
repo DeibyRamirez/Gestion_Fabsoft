@@ -22,7 +22,7 @@ Objetivo de cobertura: **≥ 90 % líneas en `domain` y `application`**, ≥ 80 
 ## 2. Base de datos de pruebas
 
 - `docker compose up -d db-test` (Postgres 16, puerto **54329**, `tmpfs`).
-- Variables en `backend/.env.example`: `TEST_DATABASE_MIGRATION_URL` (rol propietario) y `TEST_DATABASE_URL` (rol `fabsoft_app`).
+- Variables en `backend/.env.example`: `TEST_DATABASE_MIGRATION_URL` (rol `fabsoft_migrator`, sin BYPASSRLS) y `TEST_DATABASE_URL` (rol `fabsoft_app`).
 - Migrar la BD de test: `pnpm db:migrate:test` (mismas migraciones que producción) y habilitar login: `DATABASE_MIGRATION_URL=$TEST_DATABASE_MIGRATION_URL DATABASE_URL=$TEST_DATABASE_URL pnpm db:roles:dev`.
 - Entre tests de integración/API: `resetDatabase()` (`backend/tests/helpers/db.ts`) trunca todas las tablas de `app` con el rol propietario; las consultas de la app usan `fabsoft_app` + contexto RLS (`withAppContext`).
 - Datos de preparación: `backend/tests/fixtures/factories.ts` (`@faker-js/faker`, semilla 42 por defecto).

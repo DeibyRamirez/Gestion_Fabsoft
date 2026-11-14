@@ -1,7 +1,7 @@
 /**
  * T-F0-05 — respaldo vitest (lint primario en eslint.f0-05.js).
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -16,6 +16,7 @@ const HELPER_FIXTURE_ALLOWLIST = new Set([
   'helpers/db.ts',
   'helpers/owner-bypass-detector.ts',
   'fixtures/factories.ts',
+  'misc/t-f0-05-glob-probe.ts',
 ]);
 
 const OWNER_SYSTEM_MODULE = /helpers\/owner-system(?:\.js|\.ts)?['"]/;
@@ -115,5 +116,28 @@ describe('F0 — arquitectura tests (sin bypass owner)', () => {
     }
     walk(testsRoot);
     expect(offenders).toEqual([]);
+  });
+
+  it('T-F0-05 archivo fuera del glob principal es detectable por ESLint', () => {
+    const misc = join(testsRoot, 'misc/t-f0-05-glob-probe.ts');
+    expect(existsSync(misc)).toBe(true);
+    expect(detectsOwnerBypassInTestSource(readFileSync(misc, 'utf8'))).toBe(true);
+  });
+
+  it('T-F0-05 globs ESLint existen y cubren tests/security', () => {
+    const backendRoot = fileURLToPath(new URL('../..', import.meta.url));
+    const globDirs = ['tests/security', 'tests/api', 'tests/integration'];
+    for (const rel of globDirs) {
+      expect(existsSync(join(backendRoot, rel)), rel).toBe(true);
+    }
+    const eslintConfig = readFileSync(join(backendRoot, 'eslint.f0-05.js'), 'utf8');
+    expect(eslintConfig).toMatch(/tests\/\{security,api,integration\}/);
+    const secDir = join(testsRoot, 'security');
+    const covered = collectTestFiles(secDir);
+    expect(covered.length).toBeGreaterThan(3);
+    const sample = covered.find((f) => f.includes('foundation-f0.test.ts'));
+    expect(sample).toBeTruthy();
+    const body = readFileSync(sample!, 'utf8');
+    expect(detectsOwnerBypassInTestSource(body)).toBe(false);
   });
 });

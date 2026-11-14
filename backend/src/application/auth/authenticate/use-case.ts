@@ -19,7 +19,11 @@ export class AuthenticateAccessToken {
     private readonly tokens: AccessTokenService,
   ) {}
 
-  async execute(token: string, requestId: string): Promise<AuthenticatedActor> {
+  async execute(
+    token: string,
+    requestId: string,
+    clientRequestId?: string,
+  ): Promise<AuthenticatedActor> {
     const claims = await this.tokens.verify(token);
     const user = await this.uow.run(requestId, ({ authenticate }) =>
       authenticate.loadUser(claims.userId),
@@ -33,6 +37,7 @@ export class AuthenticateAccessToken {
         role: user.role,
         clientId: user.clientId,
         requestId,
+        clientRequestId,
       },
       mustChangePassword: user.mustChangePassword,
     };
