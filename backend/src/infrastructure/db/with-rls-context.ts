@@ -18,9 +18,19 @@ const RETRYABLE = new Set(['40001', '40P01']);
 const BACKOFF_MS = [50, 100, 200];
 
 function params(ctx: RlsContext, timeoutMs: number): unknown[] {
+  const clientRequestId = ctx.clientRequestId ?? '';
   switch (ctx.actorType) {
     case 'user':
-      return ['user', ctx.role, ctx.userId, ctx.clientId, null, ctx.requestId, `${timeoutMs}`];
+      return [
+        'user',
+        ctx.role,
+        ctx.userId,
+        ctx.clientId,
+        null,
+        ctx.requestId,
+        clientRequestId,
+        `${timeoutMs}`,
+      ];
     case 'integration':
       return [
         'integration',
@@ -29,10 +39,11 @@ function params(ctx: RlsContext, timeoutMs: number): unknown[] {
         null,
         ctx.integrationId,
         ctx.requestId,
+        clientRequestId,
         `${timeoutMs}`,
       ];
     case 'system':
-      return ['system', 'system', null, null, null, ctx.requestId, `${timeoutMs}`];
+      return ['system', 'system', null, null, null, ctx.requestId, clientRequestId, `${timeoutMs}`];
   }
 }
 
@@ -42,7 +53,8 @@ const SET_CONTEXT = `select set_config('app.actor_type', $1, true),
        set_config('app.client_id', coalesce($4, ''), true),
        set_config('app.integration_id', coalesce($5, ''), true),
        set_config('app.request_id', $6, true),
-       set_config('statement_timeout', $7, true)`;
+       set_config('app.client_request_id', $7, true),
+       set_config('statement_timeout', $8, true)`;
 
 export function createWithRlsContext(pool: pg.Pool, statementTimeoutMs = 5000) {
   return async function withRlsContext<T>(ctx: RlsContext, fn: (tx: Tx) => Promise<T>): Promise<T> {

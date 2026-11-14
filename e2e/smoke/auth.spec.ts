@@ -1,21 +1,26 @@
+import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
+const adminState = path.join(process.cwd(), 'e2e/.auth/admin.json');
+const operatorState = path.join(process.cwd(), 'e2e/.auth/operator.json');
+
 test.describe('auth smoke', () => {
-  test('admin inicia sesión y llega a /dashboard', async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel('Email').fill('admin@fabsoft.test');
-    await page.getByLabel('Contraseña').fill('Admin.dev-2026!');
-    await page.getByRole('button', { name: 'Ingresar' }).click();
+  test('admin con sesión llega a /dashboard', async ({ browser }) => {
+    const context = await browser.newContext({ storageState: adminState });
+    const page = await context.newPage();
+    await page.goto('/dashboard');
     await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page.getByRole('heading', { name: 'Panel', level: 1 })).toBeVisible();
+    await context.storageState({ path: adminState });
+    await context.close();
   });
 
-  test('operador en /admin/users es redirigido a su inicio', async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel('Email').fill('operador@fabsoft.test');
-    await page.getByLabel('Contraseña').fill('Operador.dev-2026!');
-    await page.getByRole('button', { name: 'Ingresar' }).click();
-    await expect(page).toHaveURL(/\/dashboard/);
+  test('operador en /admin/users es redirigido a su inicio', async ({ browser }) => {
+    const context = await browser.newContext({ storageState: operatorState });
+    const page = await context.newPage();
     await page.goto('/admin/users');
     await expect(page).toHaveURL(/\/dashboard/);
+    await context.storageState({ path: operatorState });
+    await context.close();
   });
 });
