@@ -1,6 +1,6 @@
 import request from 'supertest';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { createFactories } from '../../fixtures/factories.js';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { createFactories, type Factories } from '../../fixtures/factories.js';
 import {
   assertDbTestsRequired,
   closeTestPools,
@@ -8,13 +8,17 @@ import {
   resetDatabase,
   withAppContext,
 } from '../../helpers/db.js';
-import { buildTestApp, closeTestApp } from '../../helpers/app.js';
+import { buildTestApp, closeTestApp, getTestAccessTokens } from '../../helpers/app.js';
 
 assertDbTestsRequired();
 
 /** T-RN14-03 — archivar cliente conserva suscripciones consultables. */
 describe.skipIf(!dbTestsConfigured())('T-RN14-03 archive client history', () => {
-  const factories = createFactories();
+  let factories: Factories;
+
+  beforeAll(async () => {
+    factories = createFactories({ tokens: await getTestAccessTokens() });
+  });
 
   beforeEach(async () => {
     factories.reseed();

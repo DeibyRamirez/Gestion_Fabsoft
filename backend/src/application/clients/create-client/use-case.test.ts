@@ -42,7 +42,11 @@ describe('CreateClient', () => {
 
   it('crea cliente y audita', async () => {
     const auditWrite = vi.fn();
-    const input: ClientCreateInput = { legalName: 'Acme', taxId: '900.123.456-7', status: 'active' };
+    const input: ClientCreateInput = {
+      legalName: 'Acme',
+      taxId: '900.123.456-7',
+      status: 'active',
+    };
     const uc = new CreateClient({
       run: async (_a, work) =>
         work({
@@ -77,7 +81,9 @@ describe('CreateClient', () => {
           userDetail: { findById: async () => null },
         }),
     });
-    await expect(uc.execute(admin, { legalName: 'Dup', taxId: '900123456-7', status: 'active' })).rejects.toMatchObject({
+    await expect(
+      uc.execute(admin, { legalName: 'Dup', taxId: '900123456-7', status: 'active' }),
+    ).rejects.toMatchObject({
       code: 'client_tax_id_taken',
       extensions: { existingClientId: 'other', archived: true },
     });

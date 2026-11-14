@@ -78,7 +78,9 @@ export function clientsRouter(
   });
 
   router.get('/clients/:id', ...readGuards, async (req, res) => {
-    res.json(toClientDto(await deps.getClient.execute(actorOf(res), IdSchema.parse(req.params.id))));
+    res.json(
+      toClientDto(await deps.getClient.execute(actorOf(res), IdSchema.parse(req.params.id))),
+    );
   });
 
   router.patch('/clients/:id', ...writeGuards, async (req, res) => {
@@ -100,10 +102,7 @@ export function clientsRouter(
   });
 
   router.post('/clients/:id/reactivate', ...adminGuards, async (req, res) => {
-    const client = await deps.reactivateClient.execute(
-      actorOf(res),
-      IdSchema.parse(req.params.id),
-    );
+    const client = await deps.reactivateClient.execute(actorOf(res), IdSchema.parse(req.params.id));
     res.json(toClientDto(client));
   });
 

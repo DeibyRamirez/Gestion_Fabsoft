@@ -1,19 +1,23 @@
 import request from 'supertest';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { createFactories } from '../../fixtures/factories.js';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { createFactories, type Factories } from '../../fixtures/factories.js';
 import {
   assertDbTestsRequired,
   closeTestPools,
   dbTestsConfigured,
   resetDatabase,
 } from '../../helpers/db.js';
-import { buildTestApp, closeTestApp } from '../../helpers/app.js';
+import { buildTestApp, closeTestApp, getTestAccessTokens } from '../../helpers/app.js';
 
 assertDbTestsRequired();
 
 /** T-RN01 — NIT duplicado normalizado (mismo valor que seed Andina `900.123.456-7`). */
 describe.skipIf(!dbTestsConfigured())('T-RN01 duplicate tax id', () => {
-  const factories = createFactories({ seed: 1 });
+  let factories: Factories;
+
+  beforeAll(async () => {
+    factories = createFactories({ tokens: await getTestAccessTokens() });
+  });
 
   beforeEach(async () => {
     factories.reseed();

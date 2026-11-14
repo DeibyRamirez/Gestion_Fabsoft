@@ -18,10 +18,7 @@ export default function NewClientPage() {
           <CardTitle className="text-lg">Datos del cliente</CardTitle>
         </CardHeader>
         <CardContent>
-          <ClientForm
-            token={token}
-            onCreated={(c) => router.push(`/clients/${c.id}`)}
-          />
+          <ClientForm token={token} onCreated={(c) => router.push(`/clients/${c.id}`)} />
         </CardContent>
       </Card>
     </div>

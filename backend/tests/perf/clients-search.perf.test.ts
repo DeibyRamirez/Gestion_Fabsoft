@@ -103,7 +103,7 @@ describe.skipIf(!dbTestsConfigured())('perf-smoke clients-search', () => {
       samplesQ.push(performance.now() - t0);
     }
 
-  const one = await request(app)
+    const one = await request(app)
       .get('/api/v1/clients?pageSize=1')
       .set('Authorization', `Bearer ${token}`);
     const taxId = one.body.data[0]?.taxId as string | undefined;

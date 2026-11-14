@@ -335,7 +335,12 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
       },
       save: async (id, p) => {
         const current = store.clientRows.get(id);
-        if (!current) return { ok: false, reason: 'client_tax_id_taken', conflict: { existingClientId: id, archived: false } };
+        if (!current)
+          return {
+            ok: false,
+            reason: 'client_tax_id_taken',
+            conflict: { existingClientId: id, archived: false },
+          };
         const next: ClientView = {
           ...current,
           ...(p.legalName !== undefined ? { legalName: p.legalName } : {}),

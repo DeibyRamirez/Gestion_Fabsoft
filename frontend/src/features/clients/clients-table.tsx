@@ -2,14 +2,7 @@
 
 import Link from 'next/link';
 import type { ClientDto, ClientPage } from '@fabsoft/shared';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/shared/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
 
 export function ClientsTable({ page }: { page: ClientPage }) {
   return (

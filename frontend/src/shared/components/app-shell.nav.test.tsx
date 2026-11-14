@@ -17,10 +17,10 @@ describe('AppShell navigation', () => {
         <div />
       </AppShell>,
     );
-    const pending = screen.getAllByText('Clientes · Próximamente');
+    const pending = screen.getAllByText('Suscripciones · Próximamente');
     expect(pending[0]).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getAllByRole('link', { name: 'Panel' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Usuarios' }).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('link', { name: /^Clientes$/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /^Clientes$/ }).length).toBeGreaterThan(0);
   });
 });

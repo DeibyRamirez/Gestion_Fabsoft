@@ -19,7 +19,11 @@ export class UpdateClient {
 
   async execute(actor: UserActor, id: string, input: ClientUpdateInput): Promise<ClientView> {
     requireRole(actor, 'admin', 'operator');
-    if (input.taxId !== undefined && input.taxId !== null && normalizeTaxId(input.taxId).length === 0) {
+    if (
+      input.taxId !== undefined &&
+      input.taxId !== null &&
+      normalizeTaxId(input.taxId).length === 0
+    ) {
       throw new ApplicationError('validation_error', 'Identificación fiscal inválida');
     }
     return this.uow.run(actor, async ({ clientUpdate, audit, userDetail }) => {
@@ -44,7 +48,10 @@ export class UpdateClient {
         action: 'client.updated',
         resourceType: 'client',
         resourceId: id,
-        changes: { before: clientAuditSnapshot(current), after: clientAuditSnapshot(outcome.client) },
+        changes: {
+          before: clientAuditSnapshot(current),
+          after: clientAuditSnapshot(outcome.client),
+        },
         requestId: actor.requestId,
       });
       return outcome.client;

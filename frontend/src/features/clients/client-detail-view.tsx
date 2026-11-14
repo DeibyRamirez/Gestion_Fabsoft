@@ -2,11 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  ClientArchiveSchema,
-  ClientUpdateSchema,
-  type ClientDto,
-} from '@fabsoft/shared';
+import { ClientArchiveSchema, ClientUpdateSchema, type ClientDto } from '@fabsoft/shared';
 import { ApiError, apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
 import { PageHeader } from '@/shared/components/page-header';

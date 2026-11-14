@@ -50,7 +50,9 @@ export class PgListClientsQuery implements ListClientsQuery {
     if (q.q) {
       const term = `%${q.q.replace(/[%_\\]/g, '\\$&')}%`;
       values.push(term);
-      where.push(`(c.legal_name ilike $${values.length} or coalesce(c.tax_id, '') ilike $${values.length})`);
+      where.push(
+        `(c.legal_name ilike $${values.length} or coalesce(c.tax_id, '') ilike $${values.length})`,
+      );
     }
     if (q.status.length) {
       values.push(q.status);
@@ -117,15 +119,7 @@ export class PgCreateClientRepository implements CreateClientRepository {
          values ($1, $2, $3, $4, $5, $6, $7, $7)
          returning id, legal_name, tax_id, status, email, phone, owner_user_id, archived_at, created_at, updated_at,
            null::uuid as owner_id, null::text as owner_full_name`,
-        [
-          u.legalName,
-          u.taxId,
-          u.email,
-          u.phone,
-          u.ownerUserId,
-          u.status,
-          u.createdBy,
-        ],
+        [u.legalName, u.taxId, u.email, u.phone, u.ownerUserId, u.status, u.createdBy],
       );
       const detail = await new PgGetClientQuery(this.tx).findById(rows[0]!.id);
       return { ok: true, client: detail ?? toClientView(rows[0]!) };
