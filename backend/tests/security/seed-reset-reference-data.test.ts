@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { parseDatabaseTarget } from '../../scripts/database-url.js';
+import { findOrphanCoreForeignKeys } from './seed-reset-fk-integrity.js';
 
 const backendRoot = fileURLToPath(new URL('../..', import.meta.url));
 const seedUrl = process.env.SEED_DATABASE_URL;
@@ -69,6 +70,8 @@ describe.skipIf(
       expect(settings.rowCount).toBeGreaterThan(0);
       const ints = await after.query<{ n: number }>(`select count(*)::int as n from app.integrations`);
       expect(ints.rows[0]!.n).toBe(integrationCount);
+      const orphans = await findOrphanCoreForeignKeys(after);
+      expect(orphans, `FK huérfanas: ${orphans.join('; ')}`).toEqual([]);
     } finally {
       await after.end();
     }

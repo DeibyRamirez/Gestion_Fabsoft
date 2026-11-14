@@ -169,4 +169,9 @@ describe('seed --reset CLI', () => {
     expect(truncAt).toBeGreaterThan(-1);
     expect(guardAt).toBeLessThan(truncAt);
   });
+
+  it('seed.ts no usa session_replication_role (rechazo PO F0)', () => {
+    const body = readFileSync(`${backendRoot}/scripts/seed.ts`, 'utf8');
+    expect(body).not.toMatch(/session_replication_role/i);
+  });
 });
