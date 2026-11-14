@@ -2,7 +2,12 @@
  * Redacción TS (B1) — paridad con app.audit_write en allowlist/recursión.
  */
 import { describe, expect, it } from 'vitest';
-import { redact } from '../../src/infrastructure/persistence/pg/shared/audit-redact.js';
+import {
+  AUDIT_REDACT_MAX_DEPTH,
+  normalizeAuditKeys,
+  prepareAuditChanges,
+  redact,
+} from '../../src/infrastructure/persistence/pg/shared/audit-redact.js';
 
 describe('audit-redact (TS)', () => {
   it('allowlist recursiva y secretos camelCase / jwt / private_key', () => {
@@ -31,5 +36,39 @@ describe('audit-redact (TS)', () => {
       unknown
     >;
     expect(out.credentials).toEqual({ pass: '[REDACTED]' });
+  });
+
+  it('normalizeAuditKeys: camelCase → snake_case anidado', () => {
+    const out = normalizeAuditKeys({
+      productType: 'own',
+      nested: { fullName: 'X', clientId: null },
+    }) as Record<string, unknown>;
+    expect(out.product_type).toBe('own');
+    expect(out.nested).toEqual({ full_name: 'X', client_id: null });
+  });
+
+  it('Date serializa a ISO, no {}', () => {
+    const d = new Date('2026-01-15T12:00:00.000Z');
+    const out = prepareAuditChanges({ after: { startDate: d } }) as {
+      after: { start_date: string };
+    };
+    expect(out.after.start_date).toBe('2026-01-15T12:00:00.000Z');
+  });
+
+  it('allowlist omite claves de arreglo no permitidas', () => {
+    const out = redact(
+      { cards: ['4111111111111111'], price_amount: 1 },
+      ['price_amount'],
+    ) as Record<string, unknown>;
+    expect(out.price_amount).toBe(1);
+    expect(out.cards).toBeUndefined();
+  });
+
+  it('profundidad máxima TS → error controlado', () => {
+    let cur: Record<string, unknown> = { v: 1 };
+    for (let i = 0; i < AUDIT_REDACT_MAX_DEPTH + 2; i++) {
+      cur = { n: cur };
+    }
+    expect(() => redact(cur)).toThrow(/profundidad máxima/);
   });
 });

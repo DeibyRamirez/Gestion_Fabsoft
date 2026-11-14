@@ -321,38 +321,24 @@ describe.skipIf(!ownerUrl || !appUrl)('app.audit_write', () => {
     }
   });
 
-  it('fabsoft_app LOGIN: deniega DML y TRUNCATE directo en audit_logs', async () => {
-    const client = new pg.Client({ connectionString: appUrl! });
-    await client.connect();
-    try {
-      for (const sql of [
-        `insert into app.audit_logs (actor_type, action, resource_type, resource_id)
-         values ('system','product.updated','product','x')`,
-        `update app.audit_logs set action = 'x' where false`,
-        `delete from app.audit_logs where false`,
-        `truncate app.audit_logs`,
-      ]) {
-        await expect(client.query(sql)).rejects.toBeTruthy();
-      }
-    } finally {
-      await client.end();
-    }
-  });
-
   for (const [label, url] of [
-    ['fabsoft_worker', process.env.WORKER_DATABASE_URL],
-    ['fabsoft_bootstrap', process.env.BOOTSTRAP_DATABASE_URL],
+    ['fabsoft_app LOGIN', appUrl],
+    ['fabsoft_worker LOGIN', process.env.WORKER_DATABASE_URL],
+    ['fabsoft_bootstrap LOGIN', process.env.BOOTSTRAP_DATABASE_URL],
   ] as const) {
-    it.skipIf(!url)(`${label} LOGIN: INSERT en audit_logs → 42501`, async () => {
+    it.skipIf(!url)(`${label}: DML y TRUNCATE en audit_logs → 42501`, async () => {
       const client = new pg.Client({ connectionString: url! });
       await client.connect();
       try {
-        await expect(
-          client.query(
-            `insert into app.audit_logs (actor_type, action, resource_type, resource_id)
-             values ('system','product.updated','product','x')`,
-          ),
-        ).rejects.toMatchObject({ code: '42501' });
+        for (const sql of [
+          `insert into app.audit_logs (actor_type, action, resource_type, resource_id)
+           values ('system','product.updated','product','x')`,
+          `update app.audit_logs set action = 'x' where false`,
+          `delete from app.audit_logs where false`,
+          `truncate app.audit_logs`,
+        ]) {
+          await expect(client.query(sql)).rejects.toMatchObject({ code: '42501' });
+        }
       } finally {
         await client.end();
       }
@@ -434,7 +420,7 @@ describe.skipIf(!ownerUrl || !appUrl)('app.audit_write', () => {
         [opUser],
       );
       const { rows } = await client.query<{ changes: { after?: Record<string, unknown> } }>(
-        `select app.audit_logs_reader_changes(changes, resource_type) as changes
+        `select app.audit_log_changes_for_reader(id) as changes
          from app.audit_logs where request_id = $1`,
         [reqAd],
       );
@@ -444,5 +430,65 @@ describe.skipIf(!ownerUrl || !appUrl)('app.audit_write', () => {
     } finally {
       await client.end();
     }
+  });
+
+  it('redacción con arreglos: supplier_cost_amount omitido antes de recorrer', async () => {
+    const subId = '00000000-0000-4000-8ff0-0000000000d1';
+    const clientId = '00000000-0000-4000-8ff0-0000000000d2';
+    const boot = new pg.Client({ connectionString: ownerUrl! });
+    await boot.connect();
+    try {
+      await boot.query(
+        `insert into app.clients (id, legal_name) values ($1,'Arr') on conflict do nothing`,
+        [clientId],
+      );
+      await boot.query(
+        `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle, price_amount, status)
+         values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1,'active') on conflict do nothing`,
+        [subId, clientId, productId],
+      );
+    } finally {
+      await boot.end();
+    }
+    const req = `req-arr-${Date.now()}`;
+    await withCtx(
+      { type: 'user', role: 'operator', userId: operatorId, requestId: req },
+      async (c) => {
+        await c.query(
+          `select app.audit_write('subscription.updated','subscription',$1::text,
+             jsonb_build_object('after', jsonb_build_object(
+               'cards', jsonb_build_array('4111111111111111'),
+               'supplier_cost_amount', jsonb_build_array(1,2))), null, null)`,
+          [subId],
+        );
+      },
+      true,
+    );
+    const db = new pg.Client({ connectionString: ownerUrl! });
+    await db.connect();
+    try {
+      const { rows } = await db.query<{ changes: { after?: Record<string, unknown> } }>(
+        `select changes from app.audit_logs where request_id = $1`,
+        [req],
+      );
+      expect(rows[0]!.changes?.after?.supplier_cost_amount).toBeUndefined();
+      expect(rows[0]!.changes?.after?.cards).toBeUndefined();
+    } finally {
+      await db.end();
+    }
+  });
+
+  it('profundidad máxima en redacción SQL → 22023', async () => {
+    let nested = `'{}'::jsonb`;
+    for (let i = 0; i < 70; i++) nested = `jsonb_build_object('l${i}', ${nested})`;
+    await expect(
+      withCtx({ type: 'user', role: 'admin', userId: adminId, requestId: `deep-${Date.now()}` }, (c) =>
+        c.query(
+          `select app.audit_write('product.updated','product',$1::text,
+             jsonb_build_object('after', ${nested}), null, null)`,
+          [productId],
+        ),
+      ),
+    ).rejects.toMatchObject({ code: '22023' });
   });
 });

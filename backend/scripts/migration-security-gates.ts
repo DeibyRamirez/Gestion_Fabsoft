@@ -158,39 +158,71 @@ export async function assertNoNoinheritSetPathToSensitive(databaseUrl: string): 
   }
 }
 
+async function assertDefinerRoleNoEscalation(
+  c: pg.Client,
+  role: string,
+  label: string,
+): Promise<void> {
+  const { rows } = await c.query<{
+    rolcanlogin: boolean;
+    rolinherit: boolean;
+    rolsuper: boolean;
+    rolbypassrls: boolean;
+    rolcreaterole: boolean;
+    rolcreatedb: boolean;
+  }>(
+    `select rolcanlogin, rolinherit, rolsuper, rolbypassrls, rolcreaterole, rolcreatedb
+     from pg_catalog.pg_roles where rolname = $1`,
+    [role],
+  );
+  const r = rows[0];
+  if (!r) throw new Error(`Gate ${label}: rol ${role} ausente`);
+  if (
+    r.rolcanlogin ||
+    r.rolinherit ||
+    r.rolsuper ||
+    r.rolbypassrls ||
+    r.rolcreaterole ||
+    r.rolcreatedb
+  ) {
+    throw new Error(
+      `Gate ${label}: atributos inválidos en ${role} (login=${r.rolcanlogin}, inherit=${r.rolinherit}, super=${r.rolsuper}, bypassrls=${r.rolbypassrls}, createrole=${r.rolcreaterole})`,
+    );
+  }
+}
+
+function searchPathStartsPgCatalog(cfg: string[] | null | undefined, fn: string): void {
+  const pathCfg = cfg?.find((e) => e.startsWith('search_path='));
+  if (!pathCfg || !pathCfg.includes('pg_catalog')) {
+    throw new Error(`Gate audit_definer: ${fn} sin search_path pg_catalog`);
+  }
+  const afterEq = pathCfg.split('=')[1] ?? '';
+  if (!afterEq.trim().toLowerCase().startsWith('pg_catalog')) {
+    throw new Error(`Gate audit_definer: ${fn} search_path debe iniciar en pg_catalog (${pathCfg})`);
+  }
+}
+
 export async function assertAuditDefinerRoleAttributes(databaseUrl: string): Promise<void> {
   const c = new pg.Client({ connectionString: normalizeDatabaseUrl(databaseUrl) });
   await c.connect();
   try {
-    const { rows } = await c.query<{
-      rolcanlogin: boolean;
-      rolinherit: boolean;
-      rolsuper: boolean;
-      rolbypassrls: boolean;
-    }>(
-      `select rolcanlogin, rolinherit, rolsuper, rolbypassrls
-       from pg_catalog.pg_roles where rolname = 'fabsoft_audit_definer'`,
-    );
-    const r = rows[0];
-    if (!r) throw new Error('Gate audit_definer: rol fabsoft_audit_definer ausente');
-    if (r.rolcanlogin || r.rolinherit || r.rolsuper || r.rolbypassrls) {
-      throw new Error(
-        `Gate audit_definer: atributos inválidos (login=${r.rolcanlogin}, inherit=${r.rolinherit}, super=${r.rolsuper}, bypassrls=${r.rolbypassrls})`,
-      );
-    }
-    const { rows: fn } = await c.query<{ cfg: string[] | null }>(
-      `select p.proconfig as cfg
+    await assertDefinerRoleNoEscalation(c, 'fabsoft_audit_definer', 'audit_definer');
+    await assertDefinerRoleNoEscalation(c, 'fabsoft_auth_definer', 'auth_definer');
+    const { rows: fns } = await c.query<{ fn: string; cfg: string[] | null; owner: string }>(
+      `select n.nspname::text || '.' || p.proname::text || '(' ||
+              pg_catalog.oidvectortypes(p.proargtypes) || ')' as fn,
+              p.proconfig as cfg,
+              pg_get_userbyid(p.proowner)::text as owner
        from pg_proc p
        join pg_namespace n on n.oid = p.pronamespace
-       where n.nspname = 'app' and p.proname = 'audit_write'`,
+       where n.nspname = 'app' and p.proname like 'audit_%'
+       order by 1`,
     );
-    const pathCfg = fn[0]?.cfg?.find((e) => e.startsWith('search_path='));
-    if (!pathCfg || !pathCfg.includes('pg_catalog')) {
-      throw new Error('Gate audit_definer: audit_write sin search_path pg_catalog');
-    }
-    const afterEq = pathCfg.split('=')[1] ?? '';
-    if (!afterEq.trim().toLowerCase().startsWith('pg_catalog')) {
-      throw new Error(`Gate audit_definer: search_path debe iniciar en pg_catalog (${pathCfg})`);
+    for (const row of fns) {
+      if (row.owner !== 'fabsoft_audit_definer') {
+        throw new Error(`Gate audit_definer: dueño inesperado ${row.fn}@${row.owner}`);
+      }
+      searchPathStartsPgCatalog(row.cfg, row.fn);
     }
   } finally {
     await c.end();

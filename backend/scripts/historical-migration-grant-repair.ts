@@ -92,11 +92,16 @@ export async function repairHistoricalMigrationGrants(owner: QueryFn): Promise<v
       `grant execute on function app.audit_write(text, text, text, jsonb, text, inet) to fabsoft_app`,
       `revoke execute on function app.audit_is_secret_key(text) from public, fabsoft_app`,
       `revoke execute on function app.audit_allowlist_keys(text) from public, fabsoft_app`,
-      `revoke execute on function app.audit_redact_jsonb(jsonb, text[], boolean) from public, fabsoft_app`,
-      `revoke execute on function app.audit_redact_jsonb_array(jsonb, text[], boolean, text) from public, fabsoft_app`,
+      `revoke execute on function app.audit_redact_jsonb(jsonb, text[], boolean, integer) from public, fabsoft_app`,
+      `revoke execute on function app.audit_redact_jsonb_array(jsonb, text[], boolean, text, integer) from public, fabsoft_app`,
       `revoke execute on function app.audit_prepare_changes(text, text, jsonb, boolean) from public, fabsoft_app`,
       `revoke execute on function app.audit_resource_exists(text, text) from public, fabsoft_app`,
       `revoke execute on function app.audit_resolve_client_id(text, text) from public, fabsoft_app`,
+      `revoke select on app.audit_logs from fabsoft_app, fabsoft_worker`,
+      `grant select (id, occurred_at, actor_type, actor_user_id, actor_integration_id, action, resource_type, resource_id, client_id, reason, request_id, client_request_id, ip) on app.audit_logs to fabsoft_app`,
+      `grant select (id, occurred_at, actor_type, actor_user_id, actor_integration_id, action, resource_type, resource_id, client_id, reason, request_id, client_request_id, ip) on app.audit_logs to fabsoft_worker`,
+      `revoke execute on function app.audit_log_changes_for_reader(bigint) from public`,
+      `grant execute on function app.audit_log_changes_for_reader(bigint) to fabsoft_app`,
     ];
     for (const sql of auditFnRepair) await run(owner, sql);
   }
@@ -179,11 +184,22 @@ export const DEFINER_FUNCTION_PRIVILEGE_CHECKS = [
       ...denyNonApp,
     ],
   },
+  {
+    fn: 'app.audit_log_changes_for_reader(bigint)',
+    roles: [
+      { role: 'public', execute: false },
+      { role: 'fabsoft_app', execute: true },
+      workerInheritsAppExecute,
+      { role: 'fabsoft_auth_definer', execute: false },
+      { role: 'fabsoft_bootstrap', execute: false },
+      ...denyNonApp,
+    ],
+  },
   ...[
     'app.audit_is_secret_key(text)',
     'app.audit_allowlist_keys(text)',
-    'app.audit_redact_jsonb(jsonb,text[],boolean)',
-    'app.audit_redact_jsonb_array(jsonb,text[],boolean,text)',
+    'app.audit_redact_jsonb(jsonb,text[],boolean,integer)',
+    'app.audit_redact_jsonb_array(jsonb,text[],boolean,text,integer)',
     'app.audit_prepare_changes(text,text,jsonb,boolean)',
     'app.audit_resolve_client_id(text,text)',
     'app.audit_resource_exists(text,text)',

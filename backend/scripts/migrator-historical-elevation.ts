@@ -254,13 +254,14 @@ export async function assignAuditWriteDefinerOwner(owner: QueryFn): Promise<void
   const auditFns = [
     'app.audit_is_secret_key(text)',
     'app.audit_allowlist_keys(text)',
-    'app.audit_redact_jsonb(jsonb, text[], boolean)',
-    'app.audit_redact_jsonb_array(jsonb, text[], boolean, text)',
+    'app.audit_redact_jsonb(jsonb, text[], boolean, integer)',
+    'app.audit_redact_jsonb_array(jsonb, text[], boolean, text, integer)',
     'app.audit_prepare_changes(text, text, jsonb, boolean)',
     'app.audit_resolve_client_id(text, text)',
     'app.audit_resource_exists(text, text)',
     'app.audit_write(text, text, text, jsonb, text, inet)',
     'app.audit_logs_reader_changes(jsonb, text)',
+    'app.audit_log_changes_for_reader(bigint)',
   ];
   for (const fn of auditFns) {
     await exec(owner, `alter function ${fn} owner to fabsoft_audit_definer`);

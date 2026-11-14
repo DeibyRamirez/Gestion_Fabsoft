@@ -95,6 +95,71 @@ describe.skipIf(!ownerUrl || !appUrl)('audit_write B3', () => {
     ).rejects.toMatchObject({ code: '42501' });
   });
 
+  it('B3d: integration con rol arbitrario → 42501', async () => {
+    const integrationId = '00000000-0000-4000-8ff0-00000000b305';
+    const boot = new pg.Client({ connectionString: ownerUrl! });
+    await boot.connect();
+    try {
+      await boot.query(
+        `insert into app.integrations (id, slug, name, status, scopes, manifest, manifest_version)
+         values ($1,'b3-int','B3 Int','active', array['clients:read']::text[], '{}'::jsonb, '1.0.0')
+         on conflict do nothing`,
+        [integrationId],
+      );
+    } finally {
+      await boot.end();
+    }
+    await expect(
+      withCtx(
+        {
+          actor_type: 'integration',
+          actor_role: 'admin',
+          integration_id: integrationId,
+          request_id: 'b3d',
+        },
+        (c) =>
+          c.query(`select app.audit_write('client.updated','client',$1::text)`, [clientA]),
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('B3e: operador no puede auditar app_setting → 42501', async () => {
+    const adminId = '00000000-0000-4000-8ff0-00000000b306';
+    const opId = '00000000-0000-4000-8ff0-00000000b307';
+    const boot = new pg.Client({ connectionString: ownerUrl! });
+    await boot.connect();
+    try {
+      await boot.query(
+        `insert into app.users (id, email, full_name, password_hash, role, client_id, status)
+         values ($1,'b3-admin@t.co','Adm','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','admin',null,'active'),
+                ($2,'b3-op@t.co','Op','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','operator',null,'active')
+         on conflict do nothing`,
+        [adminId, opId],
+      );
+      await boot.query(
+        `insert into app.app_settings (key, value, updated_by) values ('b3.setting','{"a":1}'::jsonb, $1)
+         on conflict do nothing`,
+        [adminId],
+      );
+    } finally {
+      await boot.end();
+    }
+    await expect(
+      withCtx(
+        {
+          actor_type: 'user',
+          actor_role: 'operator',
+          current_user_id: opId,
+          request_id: 'b3e',
+        },
+        (c) =>
+          c.query(`select app.audit_write('app_setting.updated','app_setting',$1::text)`, [
+            'b3.setting',
+          ]),
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+  });
+
   it('B3c: client no puede auditar product → 42501', async () => {
     await expect(
       withCtx(

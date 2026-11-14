@@ -4,7 +4,7 @@
 -- Escritura de auditoría vía app.audit_write() (SECURITY DEFINER, dueño dedicado).
 --
 -- Contrato:
---   * fabsoft_app ya NO tiene INSERT directo en audit_logs (sólo SELECT + audit_write).
+--   * fabsoft_app ya NO tiene INSERT directo en audit_logs (SELECT de metadatos; columna changes vía definer).
 --   * Actor, rol y request_id salen de GUCs app.* fijadas por el backend (SET LOCAL); los
 --     parámetros de la función NO autentican identidad frente a SQL arbitrario con SET.
 --   * Cambios allowlisted y redactados en la función; supplier_cost_amount sólo visible en
@@ -111,20 +111,24 @@ language sql immutable parallel safe security definer set search_path = pg_catal
   end;
 $$;
 
-create or replace function app.audit_redact_jsonb_array(p_val jsonb, p_allow text[], p_admin boolean, p_key text default null)
+create or replace function app.audit_redact_jsonb_array(
+  p_val jsonb, p_allow text[], p_admin boolean, p_key text default null, p_depth int default 0)
 returns jsonb
 language plpgsql immutable security definer set search_path = pg_catalog as $$
 declare i jsonb; out jsonb := '[]'::jsonb;
 begin
+  if p_depth > 64 then
+    raise exception 'audit_redact_jsonb: profundidad máxima excedida' using errcode = '22023';
+  end if;
   if p_val is null then return null; end if;
   if jsonb_typeof(p_val) <> 'array' then
     raise exception 'audit_redact_jsonb_array esperaba arreglo, obtuvo %', jsonb_typeof(p_val) using errcode = '22023';
   end if;
   for i in select value from jsonb_array_elements(p_val) loop
     if jsonb_typeof(i) = 'object' then
-      out := out || jsonb_build_array(app.audit_redact_jsonb(i, p_allow, p_admin));
+      out := out || jsonb_build_array(app.audit_redact_jsonb(i, p_allow, p_admin, p_depth + 1));
     elsif jsonb_typeof(i) = 'array' then
-      out := out || jsonb_build_array(app.audit_redact_jsonb_array(i, p_allow, p_admin, p_key));
+      out := out || jsonb_build_array(app.audit_redact_jsonb_array(i, p_allow, p_admin, p_key, p_depth + 1));
     elsif p_key is not null and app.audit_is_secret_key(p_key) then
       out := out || jsonb_build_array('[REDACTED]');
     elsif jsonb_typeof(i) = 'string' and (
@@ -138,10 +142,14 @@ begin
   return out;
 end $$;
 
-create or replace function app.audit_redact_jsonb(p_val jsonb, p_allow text[], p_admin boolean) returns jsonb
+create or replace function app.audit_redact_jsonb(
+  p_val jsonb, p_allow text[], p_admin boolean, p_depth int default 0) returns jsonb
 language plpgsql immutable security definer set search_path = pg_catalog as $$
 declare k text; out jsonb := '{}'::jsonb; v jsonb;
 begin
+  if p_depth > 64 then
+    raise exception 'audit_redact_jsonb: profundidad máxima excedida' using errcode = '22023';
+  end if;
   if p_val is null then return null; end if;
   if jsonb_typeof(p_val) <> 'object' then
     raise exception 'audit_redact_jsonb esperaba objeto, obtuvo %', jsonb_typeof(p_val) using errcode = '22023';
@@ -149,14 +157,14 @@ begin
   for k, v in select key, value from jsonb_each(p_val) loop
     if app.audit_is_secret_key(k) then
       out := out || jsonb_build_object(k, '[REDACTED]');
-    elsif jsonb_typeof(v) = 'object' then
-      out := out || jsonb_build_object(k, app.audit_redact_jsonb(v, p_allow, p_admin));
-    elsif jsonb_typeof(v) = 'array' then
-      out := out || jsonb_build_object(k, app.audit_redact_jsonb_array(v, p_allow, p_admin, k));
     elsif k = 'supplier_cost_amount' and not p_admin then
       continue;
     elsif p_allow is not null and cardinality(p_allow) > 0 and not (k = any (p_allow)) then
       continue;
+    elsif jsonb_typeof(v) = 'object' then
+      out := out || jsonb_build_object(k, app.audit_redact_jsonb(v, p_allow, p_admin, p_depth + 1));
+    elsif jsonb_typeof(v) = 'array' then
+      out := out || jsonb_build_object(k, app.audit_redact_jsonb_array(v, p_allow, p_admin, k, p_depth + 1));
     elsif jsonb_typeof(v) not in ('string','number','boolean','null') then
       continue;
     else
@@ -166,10 +174,10 @@ begin
   return out;
 end $$;
 
--- PG no admite RULE ON SELECT sobre tablas; lectura redactada vía función invoker (operador vs admin).
+-- Lectura de changes sin privilegio de columna (SECURITY DEFINER).
 create or replace function app.audit_logs_reader_changes(p_changes jsonb, p_resource_type text)
 returns jsonb
-language sql stable security definer set search_path = app, pg_catalog as $$
+language sql stable security definer set search_path = pg_catalog, app as $$
   select case
     when app.is_admin() or app.is_system() then p_changes
     when p_changes is null then null
@@ -181,6 +189,14 @@ language sql stable security definer set search_path = app, pg_catalog as $$
           then app.audit_redact_jsonb(p_changes -> 'after', app.audit_allowlist_keys(p_resource_type), false) end)
     else app.audit_redact_jsonb(p_changes, app.audit_allowlist_keys(p_resource_type), false)
   end;
+$$;
+
+create or replace function app.audit_log_changes_for_reader(p_audit_log_id bigint)
+returns jsonb
+language sql stable security definer set search_path = pg_catalog, app as $$
+  select app.audit_logs_reader_changes(al.changes, al.resource_type)
+  from app.audit_logs al
+  where al.id = p_audit_log_id;
 $$;
 
 create or replace function app.audit_prepare_changes(
@@ -313,6 +329,19 @@ begin
   if v_actor = 'user' and v_role not in ('admin', 'operator', 'client') then
     raise exception 'rol de usuario desconocido: %', v_role using errcode = '42501';
   end if;
+  if v_actor = 'integration' and v_role is distinct from 'integration' then
+    raise exception 'actor integration con rol inválido: %', v_role using errcode = '42501';
+  end if;
+
+  if v_actor = 'user' and v_role = 'operator' and p_resource_type in (
+      'user', 'integration', 'api_credential', 'app_setting', 'alert_rule') then
+    raise exception 'operator no puede auditar recurso %', p_resource_type using errcode = '42501';
+  end if;
+  if v_actor = 'integration' and p_resource_type not in (
+      'client', 'client_contact', 'client_note', 'subscription', 'subscription_period',
+      'renewal_request', 'notification') then
+    raise exception 'integration no puede auditar recurso %', p_resource_type using errcode = '42501';
+  end if;
 
   if v_actor = 'user' and v_role = 'client' then
     if not (p_resource_type in ('client','client_contact','client_note','subscription','subscription_period',
@@ -388,6 +417,18 @@ revoke all on function app.audit_write(text, text, text, jsonb, text, inet) from
 grant execute on function app.audit_write(text, text, text, jsonb, text, inet) to fabsoft_app;
 revoke all on function app.audit_logs_reader_changes(jsonb, text) from public;
 grant execute on function app.audit_logs_reader_changes(jsonb, text) to fabsoft_app;
+revoke all on function app.audit_log_changes_for_reader(bigint) from public;
+grant execute on function app.audit_log_changes_for_reader(bigint) to fabsoft_app;
+
+revoke select on app.audit_logs from fabsoft_app, fabsoft_worker;
+grant select (
+  id, occurred_at, actor_type, actor_user_id, actor_integration_id,
+  action, resource_type, resource_id, client_id, reason, request_id, client_request_id, ip
+) on app.audit_logs to fabsoft_app;
+grant select (
+  id, occurred_at, actor_type, actor_user_id, actor_integration_id,
+  action, resource_type, resource_id, client_id, reason, request_id, client_request_id, ip
+) on app.audit_logs to fabsoft_worker;
 
 select app.assert_rls_everywhere();
 
@@ -401,6 +442,7 @@ drop function if exists app.audit_redact_jsonb_array(jsonb, text[], boolean);
 drop function if exists app.audit_redact_jsonb(jsonb, text[], boolean);
 drop function if exists app.audit_is_secret_key(text);
 drop function if exists app.audit_allowlist_keys(text);
+drop function if exists app.audit_log_changes_for_reader(bigint);
 drop function if exists app.audit_logs_reader_changes(jsonb, text);
 drop index if exists audit_logs_idempotent_uq;
 alter table app.audit_logs drop column if exists client_request_id;
@@ -421,7 +463,7 @@ drop policy if exists clients_select_audit_definer on app.clients;
 drop policy if exists audit_logs_insert_audit_definer on app.audit_logs;
 drop policy if exists audit_logs_select_audit_definer on app.audit_logs;
 
-grant insert on app.audit_logs to fabsoft_app;
+grant insert, select on app.audit_logs to fabsoft_app;
 create policy audit_logs_insert on app.audit_logs for insert to fabsoft_app
   with check ((actor_type = 'user' and actor_user_id = app.ctx_user_id())
               or (actor_type = 'integration' and actor_integration_id = app.ctx_integration_id())

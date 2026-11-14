@@ -1,6 +1,6 @@
 import type { AuditEntry, AuditWriter } from '../../../../application/shared/ports.js';
 import type { Tx } from '../../../db/with-rls-context.js';
-import { redact } from './audit-redact.js';
+import { prepareAuditChanges } from './audit-redact.js';
 
 /**
  * Auditoría en la misma transacción que la mutación (RN-13).
@@ -10,7 +10,7 @@ export class PgAuditWriter implements AuditWriter {
   constructor(private readonly tx: Tx) {}
 
   async write(e: AuditEntry): Promise<void> {
-    const changes = e.changes ? (redact(e.changes) as Record<string, unknown>) : null;
+    const changes = e.changes ? (prepareAuditChanges(e.changes) as Record<string, unknown>) : null;
     await this.tx.query(
       `select app.audit_write($1::text, $2::text, $3::text, $4::jsonb, $5::text, $6::inet)`,
       [
