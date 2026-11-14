@@ -15,7 +15,8 @@ export function errorHandler(log: (entry: Record<string, unknown>) => void): Err
         err.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
       );
     }
-    if (err instanceof ApplicationError) return sendProblem(res, err.code, err.message);
+    if (err instanceof ApplicationError)
+      return sendProblem(res, err.code, err.message, undefined, err.extensions);
     if (err instanceof DomainError) return sendProblem(res, err.code, err.message, err.details);
     if (typeof err === 'object' && err !== null && (err as { code?: unknown }).code === '42501') {
       return sendProblem(res, 'forbidden', 'Operación no permitida');

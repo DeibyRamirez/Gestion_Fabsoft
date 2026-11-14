@@ -1,4 +1,5 @@
 export * from './auth.js';
+export * from './clients.js';
 export * from './constants.js';
 export * from './enums.js';
 export * from './health.js';

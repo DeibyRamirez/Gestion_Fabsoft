@@ -6,7 +6,9 @@ import type {
 } from '../../src/application/auth/ports.js';
 import type { AuditEntry } from '../../src/application/shared/ports.js';
 import type { UserView } from '../../src/application/users/shared/user-view.js';
+import type { ClientView } from '../../src/application/clients/shared/client-view.js';
 import type { ProductView } from '../../src/application/products/shared/product-view.js';
+import { normalizeTaxId } from '../../src/domain/clients/tax-id.js';
 import type { AuthScopeRepos, Infra, UserScopeRepos } from '../../src/composition/infra.js';
 import { Sha256RefreshTokenFactory } from '../../src/infrastructure/security/sha256-refresh-token-factory.js';
 import { JoseTokenService } from '../../src/infrastructure/security/jose-token-service.js';
@@ -44,6 +46,7 @@ export class MemoryStore {
     }
   >();
   clients = new Set<string>(['00000000-0000-4000-8000-00000000c001']);
+  clientRows = new Map<string, ClientView>();
   products = new Map<string, ProductView>();
 
   addUser(p: Partial<MemUser> & Pick<MemUser, 'email' | 'role'> & { password: string }): MemUser {
@@ -260,6 +263,131 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
         };
         store.products.set(product.id, product);
         return { ok: true, product };
+      },
+    },
+    clientsList: {
+      list: async (q) => {
+        const all = [...store.clientRows.values()].filter(
+          (c) =>
+            (!q.status.length || q.status.includes(c.status)) &&
+            (!q.taxId || (c.taxId && normalizeTaxId(c.taxId) === normalizeTaxId(q.taxId))),
+        );
+        return {
+          items: all.slice((q.page - 1) * q.pageSize, q.page * q.pageSize),
+          total: all.length,
+        };
+      },
+    },
+    clientDetail: {
+      findById: async (id) => store.clientRows.get(id) ?? null,
+    },
+    clientCreate: {
+      findByTaxIdNormalized: async (normalized) => {
+        for (const c of store.clientRows.values()) {
+          if (c.taxId && normalizeTaxId(c.taxId) === normalized) {
+            return { id: c.id, status: c.status };
+          }
+        }
+        return null;
+      },
+      insert: async (n) => {
+        if (n.taxId) {
+          const normalized = normalizeTaxId(n.taxId);
+          const dup = [...store.clientRows.values()].find(
+            (c) => c.taxId && normalizeTaxId(c.taxId) === normalized,
+          );
+          if (dup) {
+            return {
+              ok: false,
+              reason: 'client_tax_id_taken',
+              conflict: { existingClientId: dup.id, archived: dup.status === 'archived' },
+            };
+          }
+        }
+        const now = new Date();
+        const client: ClientView = {
+          id: randomUUID(),
+          legalName: n.legalName,
+          taxId: n.taxId,
+          status: n.status,
+          email: n.email,
+          phone: n.phone,
+          owner: null,
+          archivedAt: null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        store.clientRows.set(client.id, client);
+        store.clients.add(client.id);
+        return { ok: true, client };
+      },
+    },
+    clientUpdate: {
+      loadForUpdate: async (id) => store.clientRows.get(id) ?? null,
+      findByTaxIdNormalized: async (normalized, excludeId) => {
+        for (const c of store.clientRows.values()) {
+          if (c.id === excludeId) continue;
+          if (c.taxId && normalizeTaxId(c.taxId) === normalized) {
+            return { id: c.id, status: c.status };
+          }
+        }
+        return null;
+      },
+      save: async (id, p) => {
+        const current = store.clientRows.get(id);
+        if (!current)
+          return {
+            ok: false,
+            reason: 'client_tax_id_taken',
+            conflict: { existingClientId: id, archived: false },
+          };
+        const next: ClientView = {
+          ...current,
+          ...(p.legalName !== undefined ? { legalName: p.legalName } : {}),
+          ...(p.taxId !== undefined ? { taxId: p.taxId } : {}),
+          ...(p.email !== undefined ? { email: p.email } : {}),
+          ...(p.phone !== undefined ? { phone: p.phone } : {}),
+          ...(p.status !== undefined ? { status: p.status } : {}),
+          updatedAt: new Date(),
+        };
+        if (next.taxId) {
+          const normalized = normalizeTaxId(next.taxId);
+          const dup = [...store.clientRows.values()].find(
+            (c) => c.id !== id && c.taxId && normalizeTaxId(c.taxId) === normalized,
+          );
+          if (dup) {
+            return {
+              ok: false,
+              reason: 'client_tax_id_taken',
+              conflict: { existingClientId: dup.id, archived: dup.status === 'archived' },
+            };
+          }
+        }
+        store.clientRows.set(id, next);
+        return { ok: true, client: next };
+      },
+    },
+    clientArchive: {
+      loadForUpdate: async (id) => store.clientRows.get(id) ?? null,
+      archive: async (id, archivedAt) => {
+        const c = store.clientRows.get(id)!;
+        const next = { ...c, status: 'archived' as const, archivedAt, updatedAt: new Date() };
+        store.clientRows.set(id, next);
+        return next;
+      },
+    },
+    clientReactivate: {
+      loadForUpdate: async (id) => store.clientRows.get(id) ?? null,
+      reactivate: async (id) => {
+        const c = store.clientRows.get(id)!;
+        const next = {
+          ...c,
+          status: 'active' as const,
+          archivedAt: null,
+          updatedAt: new Date(),
+        };
+        store.clientRows.set(id, next);
+        return next;
       },
     },
     productUpdate: {

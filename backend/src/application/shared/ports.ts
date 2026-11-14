@@ -32,13 +32,17 @@ export type AuditAction =
   | 'user.password_reset'
   | 'product.created'
   | 'product.updated'
-  | 'product.deactivated';
+  | 'product.deactivated'
+  | 'client.created'
+  | 'client.updated'
+  | 'client.archived'
+  | 'client.reactivated';
 
 export interface AuditEntry {
   /** El actor real lo fija el contexto RLS en Postgres; este campo documenta la intención en capa app. */
   actor: { type: 'user'; userId: string } | { type: 'system' };
   action: AuditAction;
-  resourceType: 'user' | 'product';
+  resourceType: 'user' | 'product' | 'client';
   resourceId: string;
   changes?: { before?: Record<string, unknown>; after?: Record<string, unknown> };
   requestId: string;

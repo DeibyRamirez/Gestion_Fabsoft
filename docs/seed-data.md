@@ -38,7 +38,7 @@ El dominio `.test` es reservado: los correos nunca se entregan (y en dev `EMAIL_
 | Ferretería Los Andes | sin NIT | `inactive` | — | 0 |
 | Textiles Antiguos S.A.S. | `830.111.000-9` | `archived` | — | 0 |
 
-Además: dos `client_notes` en Andina y una en Clínica Norte. Para probar el duplicado (RN-01/`409 duplicate_tax_id`) intentar crear un cliente con NIT `900123456-7`.
+Además: dos `client_notes` en Andina y una en Clínica Norte. Para probar el duplicado (RN-01/`409 client_tax_id_taken`) intentar crear un cliente con NIT `900123456-7`.
 
 ## 4. Productos
 

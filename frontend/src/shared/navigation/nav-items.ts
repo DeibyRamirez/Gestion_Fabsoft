@@ -7,7 +7,7 @@ export type NavItem = {
 
 export const INTERNAL_MAIN_NAV: NavItem[] = [
   { href: '/dashboard', label: 'Panel', implemented: true },
-  { href: '/clients', label: 'Clientes', implemented: false },
+  { href: '/clients', label: 'Clientes', implemented: true },
   { href: '/subscriptions', label: 'Suscripciones', implemented: false },
   { href: '/renewal-requests', label: 'Solicitudes', implemented: false },
   { href: '/tasks', label: 'Tareas', implemented: false },

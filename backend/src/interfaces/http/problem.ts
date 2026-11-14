@@ -50,6 +50,7 @@ export function sendProblem(
   code: ProblemCode,
   detail?: string,
   errors?: ReadonlyArray<{ path: string; message: string }>,
+  extensions?: Record<string, unknown>,
 ): void {
   const status = STATUS_BY_CODE[code] ?? 500;
   res
@@ -63,5 +64,6 @@ export function sendProblem(
       requestId: String(res.locals['requestId'] ?? ''),
       ...(detail ? { detail } : {}),
       ...(errors?.length ? { errors } : {}),
+      ...(extensions ?? {}),
     });
 }
