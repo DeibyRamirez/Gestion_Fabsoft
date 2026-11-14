@@ -14,6 +14,21 @@ function quoteSqlIdent(ident: string): string {
   return `"${ident.replace(/"/g, '""')}"`;
 }
 
+/** pg puede devolver text[] como array JS o literal PostgreSQL. */
+function asStringArray(val: unknown): string[] {
+  if (Array.isArray(val)) return val.map(String);
+  if (typeof val === 'string') {
+    const t = val.trim();
+    if (t.startsWith('{') && t.endsWith('}')) {
+      const inner = t.slice(1, -1);
+      if (inner === '') return [];
+      return inner.split(',').map((s) => s.trim().replace(/^"(.*)"$/, '$1'));
+    }
+    return [t];
+  }
+  return [];
+}
+
 async function listAppCoreForeignKeys(client: pg.Client): Promise<FkMeta[]> {
   const { rows } = await client.query<FkMeta>(
     `select c.conrelid::regclass::text as src,
@@ -32,7 +47,11 @@ async function listAppCoreForeignKeys(client: pg.Client): Promise<FkMeta[]> {
      order by 1`,
     [['app.users', 'app.clients', 'app.products']],
   );
-  return rows;
+  return rows.map((r) => ({
+    ...r,
+    src_cols: asStringArray(r.src_cols),
+    dst_cols: asStringArray(r.dst_cols),
+  }));
 }
 
 /** Devuelve etiquetas legibles de violaciones (vacío = integridad OK). */
