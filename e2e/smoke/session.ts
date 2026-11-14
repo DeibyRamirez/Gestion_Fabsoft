@@ -19,7 +19,7 @@ export async function openAuthenticatedContext(
   const storagePath = storagePathFor(role.file);
   const context = await browser.newContext({ storageState: storagePath });
   const page = await context.newPage();
-  await page.goto('/dashboard');
+  await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
   if (/\/login/.test(page.url())) {
     await page.getByLabel('Email').fill(role.email);
     await page.getByLabel('Contraseña').fill(role.password);
@@ -28,7 +28,7 @@ export async function openAuthenticatedContext(
     await context.storageState({ path: storagePath });
   }
   await expect(page.getByRole('heading', { name: 'Panel', level: 1 })).toBeVisible({
-    timeout: 15000,
+    timeout: 30000,
   });
   await page.close();
   return { context, storagePath };

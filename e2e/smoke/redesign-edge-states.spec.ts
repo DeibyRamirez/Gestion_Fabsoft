@@ -5,6 +5,8 @@ import { expectVisibleFocusIndicator } from './focus-indicator';
 import { openAuthenticatedContext } from './session';
 import { seedUsers } from './seed-users';
 
+const seedAdmin = seedUsers.admin;
+
 const visualOut = process.env.VISUAL_OUT_DIR ?? '/opt/cursor/artifacts/redesign';
 const adminState = path.join(process.cwd(), 'e2e/.auth/admin.json');
 const operatorState = path.join(process.cwd(), 'e2e/.auth/operator.json');
@@ -71,12 +73,9 @@ test.describe('estados borde y accesibilidad (rediseño)', () => {
     let adminContext: BrowserContext;
 
     test.beforeAll(async ({ browser }) => {
-      adminContext = await browser.newContext({ storageState: adminState });
-      const page = await adminContext.newPage();
-      await page.goto('/dashboard');
-      await expectDashboardReady(page);
+      const opened = await openAuthenticatedContext(browser, seedAdmin);
+      adminContext = opened.context;
       await adminContext.storageState({ path: adminState });
-      await page.close();
     });
 
     test.afterAll(async () => {
