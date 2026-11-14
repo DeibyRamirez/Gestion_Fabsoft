@@ -190,7 +190,21 @@ $$;
 create or replace function app.audit_log_changes_for_reader(p_audit_log_id bigint)
 returns jsonb
 language sql stable security definer set search_path = pg_catalog, app as $$
-  select app.audit_logs_reader_changes(al.changes, al.resource_type)
+  select case
+    when app.is_admin()
+      or app.is_system()
+      or (
+        app.is_operator()
+        and al.resource_type = any (
+          array[
+            'client'::text, 'client_contact'::text, 'client_note'::text, 'product'::text,
+            'subscription'::text, 'subscription_period'::text, 'renewal_request'::text, 'task'::text
+          ]
+        )
+      )
+    then app.audit_logs_reader_changes(al.changes, al.resource_type)
+    else null
+  end
   from app.audit_logs al
   where al.id = p_audit_log_id;
 $$;
