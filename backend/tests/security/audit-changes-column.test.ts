@@ -75,7 +75,7 @@ describe.skipIf(!ownerUrl || !appUrl)('audit_logs.changes column privilege', () 
     await boot.connect();
     try {
       await boot.query(
-        `insert into app.clients (id, legal_name) values ($1,'C') on conflict do nothing`,
+        `insert into app.clients (id, legal_name) values ($1,'Col Test Client') on conflict do nothing`,
         [clientId],
       );
       await boot.query(
