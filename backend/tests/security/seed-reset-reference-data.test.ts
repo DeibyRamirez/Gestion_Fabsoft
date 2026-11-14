@@ -22,7 +22,7 @@ describe.skipIf(
     await client.connect();
     let beforeRules: { id: string; code: string }[] = [];
     let beforeSettings: { key: string; value: unknown }[] = [];
-  let integrationCount = 0;
+    let integrationCount = 0;
     try {
       const rules = await client.query<{ id: string; code: string }>(
         `select id::text, code from app.alert_rules order by code`,
@@ -32,7 +32,9 @@ describe.skipIf(
         `select key, value from app.app_settings order by key`,
       );
       beforeSettings = settings.rows;
-      const ints = await client.query<{ n: number }>(`select count(*)::int as n from app.integrations`);
+      const ints = await client.query<{ n: number }>(
+        `select count(*)::int as n from app.integrations`,
+      );
       integrationCount = ints.rows[0]!.n;
     } finally {
       await client.end();
@@ -68,7 +70,9 @@ describe.skipIf(
       );
       expect(settings.rows).toEqual(beforeSettings);
       expect(settings.rowCount).toBeGreaterThan(0);
-      const ints = await after.query<{ n: number }>(`select count(*)::int as n from app.integrations`);
+      const ints = await after.query<{ n: number }>(
+        `select count(*)::int as n from app.integrations`,
+      );
       expect(ints.rows[0]!.n).toBe(integrationCount);
       const orphans = await findOrphanCoreForeignKeys(after);
       expect(orphans, `FK huérfanas: ${orphans.join('; ')}`).toEqual([]);

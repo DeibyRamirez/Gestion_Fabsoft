@@ -91,7 +91,9 @@ describe('seed --reset CLI', () => {
       encoding: 'utf8',
     });
     expect(run.status).not.toBe(0);
-    expect(`${run.stderr}${run.stdout}`).toMatch(/procedencia|marcador|rechazado|no permitido|no coincide/i);
+    expect(`${run.stderr}${run.stdout}`).toMatch(
+      /procedencia|marcador|rechazado|no permitido|no coincide/i,
+    );
 
     const afterClient = new pg.Client({ connectionString: seedUrl! });
     await afterClient.connect();
@@ -105,61 +107,60 @@ describe('seed --reset CLI', () => {
     }
   });
 
-  it.skipIf(!seedUrl || !provUrl || !process.env.SEED_EPHEMERAL_MARKER || !process.env.SEED_HARNESS_RUN_ID)(
-    'rechaza reset con marcador válido si DATABASE_PROVISION_URL apunta a otra BD',
-    async () => {
-      const target = parseDatabaseTarget(provUrl!);
-      const wrongProv = `postgres://${encodeURIComponent(target.user)}@${target.host}:${target.port}/${encodeURIComponent(decoyDb)}?sslmode=disable`;
+  it.skipIf(
+    !seedUrl || !provUrl || !process.env.SEED_EPHEMERAL_MARKER || !process.env.SEED_HARNESS_RUN_ID,
+  )('rechaza reset con marcador válido si DATABASE_PROVISION_URL apunta a otra BD', async () => {
+    const target = parseDatabaseTarget(provUrl!);
+    const wrongProv = `postgres://${encodeURIComponent(target.user)}@${target.host}:${target.port}/${encodeURIComponent(decoyDb)}?sslmode=disable`;
 
-      const countRows = async (url: string, table: 'seed' | 'decoy'): Promise<number> => {
-        const client = new pg.Client({ connectionString: url });
-        await client.connect();
-        try {
-          if (table === 'seed') {
-            const { rows } = await client.query<{ n: number }>(
-              `select count(*)::int as n from app.tasks`,
-            );
-            return rows[0]!.n;
-          }
+    const countRows = async (url: string, table: 'seed' | 'decoy'): Promise<number> => {
+      const client = new pg.Client({ connectionString: url });
+      await client.connect();
+      try {
+        if (table === 'seed') {
           const { rows } = await client.query<{ n: number }>(
             `select count(*)::int as n from app.tasks`,
           );
           return rows[0]!.n;
-        } finally {
-          await client.end();
         }
-      };
+        const { rows } = await client.query<{ n: number }>(
+          `select count(*)::int as n from app.tasks`,
+        );
+        return rows[0]!.n;
+      } finally {
+        await client.end();
+      }
+    };
 
-      const beforeSeed = await countRows(seedUrl!, 'seed');
-      const beforeDecoy = await countRows(wrongProv, 'decoy');
+    const beforeSeed = await countRows(seedUrl!, 'seed');
+    const beforeDecoy = await countRows(wrongProv, 'decoy');
 
-      const run = spawnSync('pnpm', ['exec', 'tsx', 'scripts/seed.ts', '--reset'], {
-        cwd: backendRoot,
-        env: {
-          ...process.env,
-          APP_ENV: 'test',
-          SEED_DATABASE_URL: seedUrl,
-          SEED_ALLOWED_HOSTS: parseDatabaseTarget(seedUrl!).host,
-          SEED_ALLOWED_PORTS: seedPort,
-          SEED_ALLOWED_DATABASES: parseDatabaseTarget(seedUrl!).database,
-          SEED_FORBIDDEN_HOSTS: 'prod.example.com',
-          SEED_ALLOW_RESET: '1',
-          SEED_SESSION_ROLE: 'fabsoft_seed_writer',
-          SEED_EPHEMERAL_MARKER: process.env.SEED_EPHEMERAL_MARKER,
-          SEED_HARNESS_RUN_ID: process.env.SEED_HARNESS_RUN_ID,
-          DATABASE_PROVISION_URL: wrongProv,
-        },
-        encoding: 'utf8',
-      });
-      expect(run.status).not.toBe(0);
-      expect(`${run.stderr}${run.stdout}`).toMatch(
-        /provision|rechazado|distinto del seed|fail closed/i,
-      );
+    const run = spawnSync('pnpm', ['exec', 'tsx', 'scripts/seed.ts', '--reset'], {
+      cwd: backendRoot,
+      env: {
+        ...process.env,
+        APP_ENV: 'test',
+        SEED_DATABASE_URL: seedUrl,
+        SEED_ALLOWED_HOSTS: parseDatabaseTarget(seedUrl!).host,
+        SEED_ALLOWED_PORTS: seedPort,
+        SEED_ALLOWED_DATABASES: parseDatabaseTarget(seedUrl!).database,
+        SEED_FORBIDDEN_HOSTS: 'prod.example.com',
+        SEED_ALLOW_RESET: '1',
+        SEED_SESSION_ROLE: 'fabsoft_seed_writer',
+        SEED_EPHEMERAL_MARKER: process.env.SEED_EPHEMERAL_MARKER,
+        SEED_HARNESS_RUN_ID: process.env.SEED_HARNESS_RUN_ID,
+        DATABASE_PROVISION_URL: wrongProv,
+      },
+      encoding: 'utf8',
+    });
+    expect(run.status).not.toBe(0);
+    expect(`${run.stderr}${run.stdout}`).toMatch(
+      /provision|rechazado|distinto del seed|fail closed/i,
+    );
 
-      expect(await countRows(seedUrl!, 'seed')).toBe(beforeSeed);
-      expect(await countRows(wrongProv, 'decoy')).toBe(beforeDecoy);
-    },
-  );
+    expect(await countRows(seedUrl!, 'seed')).toBe(beforeSeed);
+    expect(await countRows(wrongProv, 'decoy')).toBe(beforeDecoy);
+  });
 
   it('seed.ts mantiene assertSeedResetProvisionerTarget antes de TRUNCATE', () => {
     const body = readFileSync(`${backendRoot}/scripts/seed.ts`, 'utf8');

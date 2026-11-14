@@ -15,7 +15,11 @@ import {
 import { normalizeDatabaseUrl, quoteIdent, redactDatabaseUrl } from './database-url.js';
 
 /** Tablas de referencia que --reset no trunca (solo desliga FKs hacia núcleo demo). */
-const PRESERVED_REFERENCE_TABLES = ['app.alert_rules', 'app.app_settings', 'app.integrations'] as const;
+const PRESERVED_REFERENCE_TABLES = [
+  'app.alert_rules',
+  'app.app_settings',
+  'app.integrations',
+] as const;
 const SEED_CORE_TABLES = ['app.users', 'app.clients', 'app.products'] as const;
 
 type PreservedFkRow = { conname: string; tbl: string; def: string };
