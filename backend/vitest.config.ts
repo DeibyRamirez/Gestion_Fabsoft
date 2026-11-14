@@ -76,7 +76,6 @@ export default defineConfig({
           include: ['tests/security/security-suite-idempotency.test.ts'],
           hookTimeout: 600_000,
           testTimeout: 600_000,
-          fileParallelism: false,
           pool: 'forks',
           poolOptions: { forks: { singleFork: true } },
         },

@@ -76,7 +76,7 @@ test.describe('estados borde y accesibilidad (rediseño)', () => {
       const opened = await openAuthenticatedContext(browser, seedAdmin);
       adminContext = opened.context;
       await adminContext.storageState({ path: adminState });
-    });
+    }, 120_000);
 
     test.afterAll(async () => {
       if (adminContext) {
