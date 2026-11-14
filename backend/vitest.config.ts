@@ -69,6 +69,15 @@ export default defineConfig({
           hookTimeout: 120_000,
         },
       },
+      {
+        extends: true,
+        test: {
+          name: 'security-idempotency',
+          include: ['tests/security/security-suite-idempotency.test.ts'],
+          hookTimeout: 120_000,
+          testTimeout: 600_000,
+        },
+      },
     ],
     coverage: {
       provider: 'v8',
