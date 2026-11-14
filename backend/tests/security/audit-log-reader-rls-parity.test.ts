@@ -186,7 +186,7 @@ describe.skipIf(!ownerUrl || !appUrl)('audit_log_changes_for_reader · parity au
         userRow: await write('user.updated', 'user', userAdmin, 'usr', {
           after: { email: 'reader-admin@t.co', full_name: 'Reader Admin' },
         }),
-        appSetting: await write('app_setting.updated', 'app_setting', 'reader.audit.key', 'set', {
+        appSetting: await write('app_setting.updated', 'app_setting', 'reader_audit_key', 'set', {
           after: { value: { x: 1 } },
         }),
         product: await write('product.updated', 'product', productId, 'prd', {
