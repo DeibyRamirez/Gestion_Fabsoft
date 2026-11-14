@@ -58,16 +58,16 @@ async function runProvisionerSeedReset(
   q: (sql: string, params?: unknown[]) => Promise<pg.QueryResult>,
 ): Promise<void> {
   await nullifyPreservedActorFks(q);
-  await q(
-    `truncate app.integration_clients, app.api_credentials, app.tasks, app.renewal_requests,
-      app.subscription_periods, app.subscriptions, app.client_notes, app.client_contacts,
-      app.refresh_tokens, app.idempotency_keys, app.notifications, app.audit_logs restart identity`,
-  );
   const dropped = await queryPreservedCoreFks(q);
   for (const { conname, tbl } of dropped) {
     await q(`alter table ${tbl} drop constraint ${quoteIdent(conname)}`);
   }
-  await q(`truncate app.users, app.clients, app.products restart identity`);
+  await q(
+    `truncate app.integration_clients, app.api_credentials, app.tasks, app.renewal_requests,
+      app.subscription_periods, app.subscriptions, app.client_notes, app.client_contacts,
+      app.refresh_tokens, app.idempotency_keys, app.notifications, app.audit_logs,
+      app.users, app.clients, app.products restart identity`,
+  );
   for (const { conname, tbl, def } of dropped) {
     await q(`alter table ${tbl} add constraint ${quoteIdent(conname)} ${def}`);
   }
