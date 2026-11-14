@@ -38,7 +38,7 @@ describe.skipIf(!ownerUrl || !appUrl)('audit_write B3', () => {
     await boot.connect();
     try {
       await boot.query(
-        `insert into app.clients (id, legal_name) values ($1,'A'),($2,'B') on conflict do nothing`,
+        `insert into app.clients (id, legal_name) values ($1,'Client A'),($2,'Client B') on conflict do nothing`,
         [clientA, clientB],
       );
     } finally {
