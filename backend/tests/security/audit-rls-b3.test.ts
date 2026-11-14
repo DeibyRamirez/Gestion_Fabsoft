@@ -24,6 +24,9 @@ async function withCtx<T>(
     const out = await fn(client);
     await client.query('rollback');
     return out;
+  } catch (e) {
+    await client.query('rollback').catch(() => undefined);
+    throw e;
   } finally {
     client.release();
   }
