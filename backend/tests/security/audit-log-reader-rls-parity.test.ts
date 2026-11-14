@@ -135,7 +135,7 @@ describe.skipIf(!ownerUrl || !appUrl)('audit_log_changes_for_reader · parity au
         [integrationId],
       );
       await boot.query(
-        `insert into app.app_settings (key, value) values ('reader.audit.key', '{"x":1}'::jsonb)
+        `insert into app.app_settings (key, value) values ('reader_audit_key', '{"x":1}'::jsonb)
          on conflict (key) do update set value = excluded.value`,
       );
     } finally {
