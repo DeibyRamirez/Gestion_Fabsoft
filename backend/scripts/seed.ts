@@ -289,9 +289,12 @@ try {
       await boot.query(
         `update app.clients set owner_user_id = null, created_by = null, updated_by = null`,
       );
-      await boot.query(`delete from app.users`);
-      await boot.query(`delete from app.clients`);
+      // TRUNCATE users falla si alert_rules conserva filas (FK); DELETE exige bypass tg_prevent_delete (sólo harness).
+      await boot.query(`set local session_replication_role = replica`);
       await boot.query(`delete from app.products`);
+      await boot.query(`delete from app.clients`);
+      await boot.query(`delete from app.users`);
+      await boot.query(`set local session_replication_role = origin`);
       await boot.query('commit');
     } finally {
       await boot.end();
