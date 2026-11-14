@@ -46,14 +46,14 @@ No reabrir. Resumen en [`docs/project-context.md`](docs/project-context.md) §4;
 - Idempotencia HTTP y contexto RLS por transacción. Escritor de auditoría Postgres presente; no hay API de lectura.
 - Frontend: grupos `(auth)`, `(internal)`, `(portal)`, `RoleGate`. Tailwind 4 + tokens (`docs/design.md`), shadcn/ui en `src/shared/ui`, `AppShell` (nav por rol) y `PortalShell`. Pantallas estilizadas: login, cambio de contraseña, panel, admin/usuarios, portal. `/dashboard` solo muestra el estado del API. `/portal` es un marcador (“pendiente” de datos).
 - CI en [`.github/workflows/ci.yml`](.github/workflows/ci.yml): lint, typecheck, tests, build y job de migraciones/RLS.
-- Contrato de todo el MVP escrito en [`docs/api/openapi.yaml`](docs/api/openapi.yaml). El servidor expone health, auth, users y products (catálogo).
+- Contrato de todo el MVP escrito en [`docs/api/openapi.yaml`](docs/api/openapi.yaml). El servidor expone health, auth, users, products (catálogo) y clients (CRUD base en rama HU-03).
 - Tests de auth, health, idempotencia, capas, contrato de repositorio y endurecimiento de seguridad.
 
 ## Especificado y ausente
 
 El esquema SQL y el OpenAPI ya describen estos módulos. No hay casos de uso, rutas ni pantallas de datos.
 
-- Clientes: alta, edición, archivo/reactivación, contactos, notas, NIT único, actividad.
+- Clientes: contactos, notas y actividad en API (subrecursos OpenAPI sin rutas aún). CRUD base en desarrollo en `cursor/hu03-clients-crud`.
 - Suscripciones: alta, activación, renovación con periodo inmutable, no renovada, cancelación, corrección de vencimiento, pago manual. Dominio (`LocalDate`, `Money`, máquina de estados) no existe; `backend/src/domain/` solo tiene usuarios y errores. RN-01…RN-07.
 - Solicitudes y tareas de renovación.
 - Alertas D30/D15/D7/D1/D0/POST1 y worker pg-boss (Resend). [`backend/src/interfaces/worker/README.md`](backend/src/interfaces/worker/README.md) lo deja fuera del corte actual. No están `pg-boss`, `pino`, `resend` ni `date-fns`.
@@ -92,3 +92,4 @@ No es la fuente de avance. Workspace objetivo `1600300000002171`, lista `1600300
 - 2026-11-13 — Ítem 6 PO (PR #16, HEAD 6e04046): gate `assertNoNoinheritSetPathToSensitive` + allowlist `seed_writer→fabsoft_app`; mutaciones SET→`fabsoft_audit_definer`/`fabsoft_auth_definer` en rojo; CI run 43507696836 verde; db-security 118 passed / 0 failed / 0 skipped.
 - 2026-11-14 — PO rechaza 8fe74da: seed --reset sin session_replication_role; null FKs en ref + drop/recreate FK preservadas + TRUNCATE users/clients/products; test integridad FK y gate replica en seed.ts.
 - 2026-11-14 — PR #16 ronda 3 reducida (P1.1+P1.2): normalizeAuditKeys + prepareAuditChanges, REVOKE SELECT changes + `audit_log_changes_for_reader`, tests HTTP/BD y 42501; CI run 43559099741 9/9 @ `a845ed8`; db-security vitest 141 pass (+2 idempotency).
+- 2026-11-14 — HU-03 clientes (rama `cursor/hu03-clients-crud`): CRUD API con normalización NIT sin DV, 409 `client_tax_id_taken` + `existingClientId`/`archived`, RBAC, auditoría `client.*`, pantallas `/clients` y tests unitarios/API/integración/e2e smoke.

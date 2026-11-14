@@ -5,6 +5,7 @@ export class ApplicationError extends Error {
   constructor(
     readonly code: ProblemCode,
     message: string,
+    readonly extensions?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'ApplicationError';

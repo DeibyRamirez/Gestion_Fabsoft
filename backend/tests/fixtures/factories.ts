@@ -23,8 +23,7 @@ export function formatColombianNit(baseDigits: string): string {
 }
 
 export function normalizeTaxIdDigits(taxId: string): string {
-  const digits = taxId.replace(/\D/g, '');
-  return digits.slice(0, -1) || digits;
+  return taxId.toUpperCase().replace(/[^0-9A-Z]/g, '');
 }
 
 export type FactoryClient = {
