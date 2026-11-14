@@ -150,7 +150,11 @@ begin
     if app.audit_is_secret_key(k) then
       out := out || jsonb_build_object(k, '[REDACTED]');
     elsif jsonb_typeof(v) = 'object' then
-      out := out || jsonb_build_object(k, app.audit_redact_jsonb(v, p_allow, p_admin));
+      out := out || jsonb_build_object(
+        k, app.audit_redact_jsonb(
+          v,
+          case when k = 'value' then null::text[] else p_allow end,
+          p_admin));
     elsif jsonb_typeof(v) = 'array' then
       out := out || jsonb_build_object(k, app.audit_redact_jsonb_array(v, p_allow, p_admin, k));
     elsif k = 'supplier_cost_amount' and not p_admin then

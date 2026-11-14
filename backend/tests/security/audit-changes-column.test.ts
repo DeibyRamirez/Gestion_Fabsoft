@@ -24,13 +24,13 @@ describe.skipIf(!ownerUrl || !appUrl)('audit_logs.changes column privilege', () 
       await c.query('begin');
       await c.query(
         `insert into app.users (id, email, full_name, password_hash, role, client_id)
-         values ($1,'col-admin@t.co','A','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','admin',null)
+         values ($1,'col-admin@t.co','Col Admin','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','admin',null)
          on conflict do nothing`,
         [adminId],
       );
       await c.query(
         `insert into app.users (id, email, full_name, password_hash, role, client_id, status)
-         values ($1,'col-op@t.co','O','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','operator',null,'active')
+         values ($1,'col-op@t.co','Col Operator','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','operator',null,'active')
          on conflict do nothing`,
         [operatorId],
       );
