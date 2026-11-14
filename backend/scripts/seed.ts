@@ -12,7 +12,66 @@ import {
   assertSeedResetProvisionerTarget,
   assertSeedSession,
 } from './guard.js';
-import { normalizeDatabaseUrl, redactDatabaseUrl } from './database-url.js';
+import { normalizeDatabaseUrl, quoteIdent, redactDatabaseUrl } from './database-url.js';
+
+/** Tablas de referencia que --reset no trunca (solo desliga FKs hacia núcleo demo). */
+const PRESERVED_REFERENCE_TABLES = [
+  'app.alert_rules',
+  'app.app_settings',
+  'app.integrations',
+] as const;
+const SEED_CORE_TABLES = ['app.users', 'app.clients', 'app.products'] as const;
+
+type PreservedFkRow = { conname: string; tbl: string; def: string };
+
+async function queryPreservedCoreFks(
+  q: (sql: string, params?: unknown[]) => Promise<pg.QueryResult>,
+): Promise<PreservedFkRow[]> {
+  const { rows } = (await q(
+    `select c.conname,
+            c.conrelid::regclass::text as tbl,
+            pg_catalog.pg_get_constraintdef(c.oid, true) as def
+     from pg_catalog.pg_constraint c
+     join pg_catalog.pg_class rel on rel.oid = c.conrelid
+     join pg_catalog.pg_namespace n on n.oid = rel.relnamespace
+     where n.nspname = 'app'
+       and c.contype = 'f'
+       and c.conrelid::regclass::text = any ($1::text[])
+       and c.confrelid::regclass::text = any ($2::text[])
+     order by 2, 1`,
+    [PRESERVED_REFERENCE_TABLES, SEED_CORE_TABLES],
+  )) as { rows: PreservedFkRow[] };
+  return rows;
+}
+
+async function nullifyPreservedActorFks(
+  q: (sql: string, params?: unknown[]) => Promise<pg.QueryResult>,
+): Promise<void> {
+  await q(
+    `update app.alert_rules set updated_by = null;
+     update app.app_settings set updated_by = null;
+     update app.integrations set created_by = null, updated_by = null`,
+  );
+}
+
+async function runProvisionerSeedReset(
+  q: (sql: string, params?: unknown[]) => Promise<pg.QueryResult>,
+): Promise<void> {
+  await nullifyPreservedActorFks(q);
+  const dropped = await queryPreservedCoreFks(q);
+  for (const { conname, tbl } of dropped) {
+    await q(`alter table ${tbl} drop constraint ${quoteIdent(conname)}`);
+  }
+  await q(
+    `truncate app.integration_clients, app.api_credentials, app.tasks, app.renewal_requests,
+      app.subscription_periods, app.subscriptions, app.client_notes, app.client_contacts,
+      app.refresh_tokens, app.idempotency_keys, app.notifications, app.audit_logs,
+      app.users, app.clients, app.products restart identity`,
+  );
+  for (const { conname, tbl, def } of dropped) {
+    await q(`alter table ${tbl} add constraint ${quoteIdent(conname)} ${def}`);
+  }
+}
 
 const seedConfig = assertSeedConfiguration();
 const reset = process.argv.includes('--reset');
@@ -276,12 +335,8 @@ try {
     await boot.connect();
     try {
       await boot.query('begin');
-      await boot.query(`truncate app.tasks, app.renewal_requests, app.subscription_periods, app.subscriptions, app.client_notes,
-        app.client_contacts, app.refresh_tokens, app.idempotency_keys, app.notifications, app.audit_logs restart identity cascade`);
-      await boot.query(
-        `update app.clients set owner_user_id = null, created_by = null, updated_by = null`,
-      );
-      await boot.query(`truncate app.users, app.clients, app.products cascade`);
+      const q = (sql: string, params?: unknown[]) => boot.query(sql, params);
+      await runProvisionerSeedReset(q);
       await boot.query('commit');
     } finally {
       await boot.end();

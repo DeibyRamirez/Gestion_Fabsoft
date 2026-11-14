@@ -1,6 +1,6 @@
 /**
  * Exporta pg_policies del schema app a JSON (fidelidad develop).
- * Uso: DATABASE_MIGRATION_URL=... tsx scripts/export-app-rls-policies-snapshot.ts > tests/security/fixtures/app-rls-policies-develop.snapshot.json
+ * Uso: DATABASE_MIGRATION_URL=... tsx scripts/export-app-rls-policies-snapshot.ts > tests/security/fixtures/app-rls-policies-76.snapshot.json
  */
 import pg from 'pg';
 import { normalizeDatabaseUrl } from './database-url.js';

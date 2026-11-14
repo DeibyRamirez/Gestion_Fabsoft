@@ -3,7 +3,8 @@
  *   0001: fabsoft_migrator (LOGIN directo)
  *   0002–0005: fabsoft_migrator con elevación efímera (stub roles + membresías/CREATE temporales;
  *             sólo BD desechable). Provisioner ejecuta elevate/teardown, no dbmate.
- * Migraciones nuevas (0006+): sólo migrator (lista dinámica).
+ * Migraciones 0006+: migrator con elevación futura mínima (SET audit_definer para ALTER OWNER);
+ *   sin membresías históricas abiertas — evita DDL en `app` sin USAGE efectivo tras 0005.
  */
 import { copyFile, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -27,13 +28,21 @@ import {
   grantHistoricalRoleSchemaCreate,
   repairMigratorSchemaPrivileges,
   revokeMigratorHistoricalElevation,
+  elevateMigratorForFutureMigrations,
+  revokeMigratorFutureElevation,
+  assignAuditWriteDefinerOwner,
 } from './migrator-historical-elevation.js';
 import {
   assertStrictNoPublicExecuteOnAppDefiners,
   repairHistoricalMigrationGrants,
 } from './historical-migration-grant-repair.js';
 import { assertNoFabsoftOwnerInApp } from './reconcile-owner-to-migrator.js';
-import { assertDefinerExecuteAllowlist } from './migration-security-gates.js';
+import {
+  assertAuditDefinerRoleAttributes,
+  assertDefinerExecuteAllowlist,
+  assertNoNoinheritSetPathToSensitive,
+  assertSecurityDefinerOwnersAllowlist,
+} from './migration-security-gates.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATOR = 'fabsoft_migrator';
@@ -194,7 +203,7 @@ function splitHistorical(files: string[]): {
       migrator.push(f);
     } else if (n >= 2 && n <= 5) {
       provisioner.push(f);
-    } else if (n > 5) {
+    } else if (n >= 6) {
       future.push(f);
     } else {
       provisioner.push(f);
@@ -281,9 +290,39 @@ try {
     }
   }
   if (future.length > 0) {
-    const dirF = join(tmpBase, 'future');
-    await copyFiles(future, dirF);
-    runDbmate(migratorUrl, dirF);
+    const pendingFuture = await pendingMigrationVersions(migratorUrl, future);
+    if (pendingFuture.length > 0) {
+      const ownerConn = provisionUrlForMigratorDb();
+      const owner = new pg.Client({ connectionString: ownerConn });
+      await owner.connect();
+      try {
+        const q = (sql: string, params?: unknown[]) => owner.query(sql, params);
+        await assertEphemeralDatabase(q);
+        await precreateStubRoles(q);
+        await repairMigratorSchemaPrivileges(q);
+        await elevateMigratorForFutureMigrations(q);
+        try {
+          for (const f of future) {
+            const still = await pendingMigrationVersions(migratorUrl, [f]);
+            if (still.length === 0) continue;
+            await repairMigratorSchemaPrivileges(q);
+            const dirF = join(tmpBase, `future-${f.replace(/\.sql$/, '')}`);
+            await mkdir(dirF, { recursive: true });
+            await copyFiles([f], dirF);
+            runDbmate(migratorUrl, dirF);
+            if (f === '0006_audit_write.sql') {
+              await assignAuditWriteDefinerOwner(q);
+            }
+          }
+        } finally {
+          await revokeMigratorFutureElevation(q);
+          await repairMigratorSchemaPrivileges(q);
+          await assertMigratorElevationClosed(q);
+        }
+      } finally {
+        await owner.end();
+      }
+    }
   }
 } finally {
   await rm(tmpBase, { recursive: true, force: true });
@@ -309,7 +348,10 @@ await assertInventory(migratorUrl, provisionUrlForMigratorDb(), migrationFiles);
 }
 
 await assertNoFabsoftOwnerInApp(migratorUrl, 'db:migrate fresh');
+await assertSecurityDefinerOwnersAllowlist(migratorUrl);
 await assertDefinerExecuteAllowlist(migratorUrl);
+await assertNoNoinheritSetPathToSensitive(migratorUrl);
+await assertAuditDefinerRoleAttributes(migratorUrl);
 
 const rlsClient = new pg.Client({ connectionString: migratorUrl });
 await rlsClient.connect();

@@ -1,6 +1,6 @@
 # Sprint1 · Foundation F0 — Aprovisionamiento y migraciones
 
-> Corte acordado Dev/Seguridad: migrator LOGIN **sin** superusuario ejecuta `0001`–`0005` en BD **desechable** (`0002`–`0005` con elevación efímera administrada por el provisioner); runtime (`fabsoft_app`) sin DDL ni escalación. No incluye `audit_write` ni cierre de HU-08.
+> Corte acordado Dev/Seguridad: migrator LOGIN **sin** superusuario ejecuta `0001`–`0005` en BD **desechable** (`0002`–`0005` con elevación efímera administrada por el provisioner); runtime (`fabsoft_app`) sin DDL ni escalación. `0006_audit_write.sql` introduce `app.audit_write` (dueño `fabsoft_audit_definer`); no cierra HU-08 (lectura/UI).
 
 ## URLs por capa
 
@@ -67,6 +67,8 @@ En SQL nuevo: **REVOKE/GRANT antes de ALTER OWNER**; si el dueño cambia, el pro
 | `0006+` (futuro) | `fabsoft_migrator` | `dbmate-staged-up.ts` (etapa future) |
 
 **Upgrade develop:** `fabsoft_owner` aplica `0001`–`0005`; **`db:reconcile:owner-to-migrator`** (o perfil `develop-historical-upgrade`); después `fabsoft_migrator` en `dbmate-staged-up` (inventario + gates, no ownership reconcile).
+
+**VPS / instalación existente (`0006+`):** con `DATABASE_MIGRATION_URL` apuntando a `fabsoft_migrator` (proviso tras `db:roles:dev` o `db:provision:ci`), ejecutar `pnpm db:migrate` una vez; validar `select app.assert_rls_everywhere();` y gate prosecdef. No aplicar `0006_audit_write.sql` conectado como `fabsoft_owner` en producción (el provisioner eleva sólo en BD efímera; el post-paso `assignAuditWriteDefinerOwner` exige harness).
 
 ## Seed endurecido
 

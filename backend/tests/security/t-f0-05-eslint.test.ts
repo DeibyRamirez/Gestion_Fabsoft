@@ -58,6 +58,11 @@ const fixtures = [
 ] as const;
 
 describe('T-F0-05 ESLint (mutaciones)', () => {
+  it('lint ROJO: misc fuera de glob con owner-system', () => {
+    const { status, out } = eslintOn('tests/misc/t-f0-05-glob-probe.ts');
+    expect(status, out).not.toBe(0);
+    expect(out).toMatch(/T-F0-05|owner-system/i);
+  });
   for (const fx of fixtures) {
     it(`lint ROJO: ${fx.label}`, () => {
       const { status, out } = eslintOn(fx.file);

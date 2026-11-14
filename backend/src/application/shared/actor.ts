@@ -7,4 +7,5 @@ export type UserActor = {
   role: Role;
   clientId: string | null;
   requestId: string;
+  clientRequestId?: string | undefined;
 };

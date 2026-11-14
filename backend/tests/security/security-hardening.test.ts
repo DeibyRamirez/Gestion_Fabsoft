@@ -1,12 +1,12 @@
 /**
  * Suite de endurecimiento (0003_security_hardening.sql, HT-03).
- * Requiere una BD con 0001-0003 aplicadas y TEST_DATABASE_MIGRATION_URL (rol propietario/superusuario
+ * Requiere una BD con 0001–0006 aplicadas y DATABASE_PROVISION_URL (elevación harness).
  * en la BD de tests). Las consultas de los actores se ejecutan con `SET LOCAL ROLE fabsoft_app`
  * y el mismo set_config que withRlsContext (ADR-004), dentro de transacciones que se revierten.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
-const url = process.env.TEST_DATABASE_MIGRATION_URL;
+const url = process.env.DATABASE_PROVISION_URL ?? process.env.TEST_DATABASE_MIGRATION_URL;
 // Sin BD de tests (p. ej. `pnpm test` local sin Postgres) la suite se omite en vez de romper el resto.
 // En CI TEST_DATABASE_MIGRATION_URL es obligatorio: definir REQUIRE_DB_TESTS=1 para que falle si falta.
 if (!url && process.env.REQUIRE_DB_TESTS === '1') throw new Error('TEST_DATABASE_MIGRATION_URL no definido');

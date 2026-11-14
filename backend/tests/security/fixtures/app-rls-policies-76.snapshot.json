@@ -1,6 +1,6 @@
 {
   "schema": "app",
-  "policyCount": 62,
+  "policyCount": 76,
   "policies": [
     {
       "table": "alert_rules",
@@ -22,6 +22,17 @@
       "with_check": null,
       "roles": [
         "fabsoft_app"
+      ]
+    },
+    {
+      "table": "alert_rules",
+      "polname": "alert_rules_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
       ]
     },
     {
@@ -92,22 +103,22 @@
     },
     {
       "table": "app_settings",
+      "polname": "app_settings_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
+      ]
+    },
+    {
+      "table": "app_settings",
       "polname": "app_settings_update",
       "cmd": "w",
       "permissive": true,
       "qual": "app.is_admin()",
       "with_check": "app.is_admin()",
-      "roles": [
-        "fabsoft_app"
-      ]
-    },
-    {
-      "table": "audit_logs",
-      "polname": "audit_logs_insert",
-      "cmd": "a",
-      "permissive": true,
-      "qual": null,
-      "with_check": "(((actor_type = 'user'::app.actor_type) AND (actor_user_id = app.ctx_user_id())) OR ((actor_type = 'integration'::app.actor_type) AND (actor_integration_id = app.ctx_integration_id())) OR ((actor_type = 'system'::app.actor_type) AND app.is_system()))",
       "roles": [
         "fabsoft_app"
       ]
@@ -135,6 +146,28 @@
       ]
     },
     {
+      "table": "audit_logs",
+      "polname": "audit_logs_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
+      ]
+    },
+    {
+      "table": "audit_logs",
+      "polname": "audit_logs_insert_audit_definer",
+      "cmd": "a",
+      "permissive": true,
+      "qual": null,
+      "with_check": "true",
+      "roles": [
+        "fabsoft_audit_definer"
+      ]
+    },
+    {
       "table": "client_contacts",
       "polname": "client_contacts_insert",
       "cmd": "a",
@@ -154,6 +187,17 @@
       "with_check": null,
       "roles": [
         "fabsoft_app"
+      ]
+    },
+    {
+      "table": "client_contacts",
+      "polname": "client_contacts_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
       ]
     },
     {
@@ -190,6 +234,17 @@
       ]
     },
     {
+      "table": "client_notes",
+      "polname": "client_notes_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
+      ]
+    },
+    {
       "table": "clients",
       "polname": "clients_insert",
       "cmd": "a",
@@ -209,6 +264,17 @@
       "with_check": null,
       "roles": [
         "fabsoft_app"
+      ]
+    },
+    {
+      "table": "clients",
+      "polname": "clients_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
       ]
     },
     {
@@ -334,6 +400,17 @@
     },
     {
       "table": "integrations",
+      "polname": "integrations_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
+      ]
+    },
+    {
+      "table": "integrations",
       "polname": "integrations_select_secure_view",
       "cmd": "r",
       "permissive": true,
@@ -378,6 +455,17 @@
     },
     {
       "table": "notifications",
+      "polname": "notifications_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
+      ]
+    },
+    {
+      "table": "notifications",
       "polname": "notifications_update",
       "cmd": "w",
       "permissive": true,
@@ -407,6 +495,17 @@
       "with_check": null,
       "roles": [
         "fabsoft_app"
+      ]
+    },
+    {
+      "table": "products",
+      "polname": "products_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
       ]
     },
     {
@@ -477,6 +576,17 @@
     },
     {
       "table": "renewal_requests",
+      "polname": "renewal_requests_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
+      ]
+    },
+    {
+      "table": "renewal_requests",
       "polname": "renewal_requests_update",
       "cmd": "w",
       "permissive": true,
@@ -506,6 +616,17 @@
       "with_check": null,
       "roles": [
         "fabsoft_app"
+      ]
+    },
+    {
+      "table": "subscription_periods",
+      "polname": "subscription_periods_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
       ]
     },
     {
@@ -550,6 +671,17 @@
       "with_check": null,
       "roles": [
         "fabsoft_app"
+      ]
+    },
+    {
+      "table": "subscriptions",
+      "polname": "subscriptions_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
       ]
     },
     {
@@ -609,6 +741,17 @@
     },
     {
       "table": "tasks",
+      "polname": "tasks_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
+      ]
+    },
+    {
+      "table": "tasks",
       "polname": "tasks_update",
       "cmd": "w",
       "permissive": true,
@@ -649,6 +792,17 @@
       "with_check": null,
       "roles": [
         "fabsoft_app"
+      ]
+    },
+    {
+      "table": "users",
+      "polname": "users_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
       ]
     },
     {
