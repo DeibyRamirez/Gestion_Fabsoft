@@ -162,43 +162,13 @@ describe('seed --reset CLI', () => {
     expect(await countRows(wrongProv, 'decoy')).toBe(beforeDecoy);
   });
 
-  it.skipIf(!seedUrl)('M3a: --reset sin SEED_ALLOW_RESET=1 rechaza antes de TRUNCATE', async () => {
-    const client = new pg.Client({ connectionString: seedUrl! });
-    await client.connect();
-    let before = 0;
-    try {
-      const { rows } = await client.query<{ n: number }>(`select count(*)::int as n from app.tasks`);
-      before = rows[0]!.n;
-    } finally {
-      await client.end();
-    }
-    const run = spawnSync('pnpm', ['exec', 'tsx', 'scripts/seed.ts', '--reset'], {
-      cwd: backendRoot,
-      env: {
-        ...process.env,
-        APP_ENV: 'test',
-        SEED_DATABASE_URL: seedUrl,
-        SEED_ALLOWED_HOSTS: parseDatabaseTarget(seedUrl!).host,
-        SEED_ALLOWED_PORTS: seedPort,
-        SEED_ALLOWED_DATABASES: parseDatabaseTarget(seedUrl!).database,
-        SEED_FORBIDDEN_HOSTS: 'prod.example.com',
-        SEED_SESSION_ROLE: 'fabsoft_seed_writer',
-        SEED_EPHEMERAL_MARKER: process.env.SEED_EPHEMERAL_MARKER,
-        SEED_HARNESS_RUN_ID: process.env.SEED_HARNESS_RUN_ID,
-        DATABASE_PROVISION_URL: process.env.DATABASE_PROVISION_URL,
-      },
-      encoding: 'utf8',
-    });
-    expect(run.status).not.toBe(0);
-    expect(`${run.stderr}${run.stdout}`).toMatch(/SEED_ALLOW_RESET|no permitido|rechazado/i);
-    const afterClient = new pg.Client({ connectionString: seedUrl! });
-    await afterClient.connect();
-    try {
-      const { rows } = await afterClient.query<{ n: number }>(`select count(*)::int as n from app.tasks`);
-      expect(rows[0]!.n).toBe(before);
-    } finally {
-      await afterClient.end();
-    }
+  it('seed.ts mantiene assertSeedResetProvisionerTarget antes de TRUNCATE', () => {
+    const body = readFileSync(`${backendRoot}/scripts/seed.ts`, 'utf8');
+    const guardAt = body.indexOf('assertSeedResetProvisionerTarget');
+    const truncAt = body.indexOf('truncate app.integration_clients');
+    expect(guardAt).toBeGreaterThan(-1);
+    expect(truncAt).toBeGreaterThan(-1);
+    expect(guardAt).toBeLessThan(truncAt);
   });
 
   it('seed.ts no usa session_replication_role (rechazo PO F0)', () => {

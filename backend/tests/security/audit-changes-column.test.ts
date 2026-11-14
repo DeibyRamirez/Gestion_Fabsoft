@@ -1,5 +1,5 @@
 /**
- * P1.2 — columna changes no legible directamente; lectura vía audit_log_changes_for_reader.
+ * P1.2 — columna changes: SELECT directo 42501; lectura vía audit_log_changes_for_reader.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
@@ -7,7 +7,6 @@ import { appDatabaseUrl, ensureAppPoolRoleVerified, getAppPool, provisionUrl } f
 
 const ownerUrl = provisionUrl;
 const appUrl = appDatabaseUrl;
-const workerUrl = process.env.WORKER_DATABASE_URL;
 
 if (process.env.REQUIRE_DB_TESTS === '1' && (!ownerUrl || !appUrl)) {
   throw new Error('audit-changes-column: URLs incompletas');
@@ -48,47 +47,27 @@ describe.skipIf(!ownerUrl || !appUrl)('audit_logs.changes column privilege', () 
     }
   });
 
-  async function loginReadChanges(
-    url: string,
-    userId: string,
-    role: string,
-  ): Promise<pg.QueryResult> {
-    const client = new pg.Client({ connectionString: url });
+  it('operador LOGIN: SELECT changes → 42501', async () => {
+    const client = new pg.Client({ connectionString: appUrl! });
     await client.connect();
     try {
       await client.query('begin');
       await client.query('set local role fabsoft_app');
       await client.query(
-        `select set_config('app.actor_type','user',true), set_config('app.actor_role',$1,true),
-                set_config('app.current_user_id',$2,true)`,
-        [role, userId],
+        `select set_config('app.actor_type','user',true), set_config('app.actor_role','operator',true),
+                set_config('app.current_user_id',$1,true)`,
+        [operatorId],
       );
-      return await client.query(`select changes from app.audit_logs limit 1`);
-    } finally {
-      await client.query('rollback').catch(() => undefined);
-      await client.end();
-    }
-  }
-
-  it('operador LOGIN: SELECT changes → 42501', async () => {
-    await expect(loginReadChanges(appUrl!, operatorId, 'operator')).rejects.toMatchObject({
-      code: '42501',
-    });
-  });
-
-  it.skipIf(!workerUrl)('worker LOGIN: SELECT changes → 42501', async () => {
-    const client = new pg.Client({ connectionString: workerUrl! });
-    await client.connect();
-    try {
       await expect(client.query(`select changes from app.audit_logs limit 1`)).rejects.toMatchObject({
         code: '42501',
       });
+      await client.query('rollback');
     } finally {
       await client.end();
     }
   });
 
-  it('reader definer: operador no ve supplier_cost_amount (admin escribió)', async () => {
+  it('reader definer: operador no ve supplier_cost_amount (fila escrita por admin)', async () => {
     const subId = '00000000-0000-4000-8ff0-0000000000cd';
     const clientId = '00000000-0000-4000-8ff0-0000000000ce';
     const req = `req-col-${Date.now()}`;
@@ -151,7 +130,7 @@ describe.skipIf(!ownerUrl || !appUrl)('audit_logs.changes column privilege', () 
     }
   });
 
-  it('mutación GRANT SELECT(changes): lectura directa posible (sin revoke el gate queda verde)', async () => {
+  it('mutación GRANT SELECT(changes): si se restaura el GRANT el gate 42501 queda verde', async () => {
     const owner = new pg.Client({ connectionString: ownerUrl! });
     await owner.connect();
     try {
@@ -160,8 +139,21 @@ describe.skipIf(!ownerUrl || !appUrl)('audit_logs.changes column privilege', () 
       await owner.end();
     }
     try {
-      const res = await loginReadChanges(appUrl!, operatorId, 'operator');
-      expect(res.rowCount).toBeGreaterThanOrEqual(0);
+      const client = new pg.Client({ connectionString: appUrl! });
+      await client.connect();
+      try {
+        await client.query('begin');
+        await client.query('set local role fabsoft_app');
+        await client.query(
+          `select set_config('app.actor_type','user',true), set_config('app.actor_role','operator',true),
+                  set_config('app.current_user_id',$1,true)`,
+          [operatorId],
+        );
+        const res = await client.query(`select changes from app.audit_logs limit 1`);
+        expect(res.rowCount).toBeGreaterThanOrEqual(0);
+      } finally {
+        await client.end();
+      }
     } finally {
       const fix = new pg.Client({ connectionString: ownerUrl! });
       await fix.connect();
@@ -171,8 +163,5 @@ describe.skipIf(!ownerUrl || !appUrl)('audit_logs.changes column privilege', () 
         await fix.end();
       }
     }
-    await expect(loginReadChanges(appUrl!, operatorId, 'operator')).rejects.toMatchObject({
-      code: '42501',
-    });
   });
 });

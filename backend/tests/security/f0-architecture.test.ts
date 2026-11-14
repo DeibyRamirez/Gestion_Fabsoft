@@ -16,6 +16,7 @@ const HELPER_FIXTURE_ALLOWLIST = new Set([
   'helpers/db.ts',
   'helpers/owner-bypass-detector.ts',
   'fixtures/factories.ts',
+  'misc/t-f0-05-glob-probe.ts',
 ]);
 
 const OWNER_SYSTEM_MODULE = /helpers\/owner-system(?:\.js|\.ts)?['"]/;
@@ -115,6 +116,12 @@ describe('F0 — arquitectura tests (sin bypass owner)', () => {
     }
     walk(testsRoot);
     expect(offenders).toEqual([]);
+  });
+
+  it('T-F0-05 archivo fuera del glob principal es detectable por ESLint', () => {
+    const misc = join(testsRoot, 'misc/t-f0-05-glob-probe.ts');
+    expect(existsSync(misc)).toBe(true);
+    expect(detectsOwnerBypassInTestSource(readFileSync(misc, 'utf8'))).toBe(true);
   });
 
   it('T-F0-05 globs ESLint existen y cubren tests/security', () => {

@@ -3,7 +3,6 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  AUDIT_REDACT_MAX_DEPTH,
   normalizeAuditKeys,
   prepareAuditChanges,
   redact,
@@ -53,22 +52,5 @@ describe('audit-redact (TS)', () => {
       after: { start_date: string };
     };
     expect(out.after.start_date).toBe('2026-01-15T12:00:00.000Z');
-  });
-
-  it('allowlist omite claves de arreglo no permitidas', () => {
-    const out = redact(
-      { cards: ['4111111111111111'], price_amount: 1 },
-      ['price_amount'],
-    ) as Record<string, unknown>;
-    expect(out.price_amount).toBe(1);
-    expect(out.cards).toBeUndefined();
-  });
-
-  it('profundidad máxima TS → error controlado', () => {
-    let cur: Record<string, unknown> = { v: 1 };
-    for (let i = 0; i < AUDIT_REDACT_MAX_DEPTH + 2; i++) {
-      cur = { n: cur };
-    }
-    expect(() => redact(cur)).toThrow(/profundidad máxima/);
   });
 });

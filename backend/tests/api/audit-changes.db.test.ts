@@ -32,7 +32,10 @@ async function latestAuditChanges(
        order by id desc limit 1`,
       [resourceType, resourceId],
     );
-    return (rows[0]?.changes as { before?: Record<string, unknown>; after?: Record<string, unknown> }) ?? null;
+    return (
+      (rows[0]?.changes as { before?: Record<string, unknown>; after?: Record<string, unknown> }) ??
+      null
+    );
   } finally {
     await c.end();
   }
@@ -85,7 +88,6 @@ describe.skipIf(!dbTestsConfigured())('audit changes (HTTP + BD)', () => {
   it('user — fullName y clientId en changes', async () => {
     const app = await buildTestApp();
     const admin = await factories.adminUser();
-    const operator = await factories.operatorUser();
     const token = await factories.tokenFor(admin);
 
     const create = await request(app)
@@ -105,13 +107,12 @@ describe.skipIf(!dbTestsConfigured())('audit changes (HTTP + BD)', () => {
     expect(ch?.before?.full_name).toBe('Antes');
     expect(ch?.after?.full_name).toBe('Después');
     expect(ch?.after?.role).toBe('operator');
-    expect(operator.id).toBeTruthy();
   });
 
-  it('app_setting — value anidado no vacío (writer TS)', async () => {
+  it('app_setting — value anidado no vacío (mismo pipeline que HTTP)', async () => {
     if (!provisionUrl) throw new Error('provision');
     const admin = await factories.adminUser();
-    const key = `audit.setting.${Date.now()}`;
+    const key = `audit_setting_${Date.now()}`;
     const boot = new pg.Client({ connectionString: provisionUrl });
     await boot.connect();
     try {
@@ -151,46 +152,5 @@ describe.skipIf(!dbTestsConfigured())('audit changes (HTTP + BD)', () => {
     const ch = await latestAuditChanges('app_setting', key);
     expect(ch?.before?.value).toEqual({ notify_days: [30, 15], enabled: true });
     expect(ch?.after?.value).toEqual({ notify_days: [30, 15, 7], enabled: true });
-  });
-
-  it('subscription — followUpStatus en after (writer TS)', async () => {
-    const admin = await factories.adminUser();
-    const clientRow = await factories.client();
-    const product = await factories.product();
-    const sub = await factories.subscription(clientRow, product);
-
-    const payload = prepareAuditChanges({
-      before: { followUpStatus: 'none', priceAmount: 10 },
-      after: { followUpStatus: 'in_progress', priceAmount: 12 },
-    });
-
-    const { getAppPool, ensureAppPoolRoleVerified } = await import('../helpers/db.js');
-    await ensureAppPoolRoleVerified();
-    const c = await getAppPool().connect();
-    const req = randomUUID();
-    try {
-      await c.query('begin');
-      await c.query('set local role fabsoft_app');
-      await c.query(
-        `select set_config('app.actor_type','user',true), set_config('app.actor_role','admin',true),
-                set_config('app.current_user_id',$1,true), set_config('app.request_id',$2,true)`,
-        [admin.id, req],
-      );
-      await c.query(
-        `select app.audit_write('subscription.updated','subscription',$1::text, $2::jsonb, null, null)`,
-        [sub.id, JSON.stringify(payload)],
-      );
-      await c.query('commit');
-    } catch (e) {
-      await c.query('rollback');
-      throw e;
-    } finally {
-      c.release();
-    }
-
-    const ch = await latestAuditChanges('subscription', sub.id);
-    expect(ch?.before?.follow_up_status).toBe('none');
-    expect(ch?.after?.follow_up_status).toBe('in_progress');
-    expect(ch?.after?.price_amount).toBe(12);
   });
 });

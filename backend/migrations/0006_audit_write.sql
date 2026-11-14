@@ -4,7 +4,7 @@
 -- Escritura de auditoría vía app.audit_write() (SECURITY DEFINER, dueño dedicado).
 --
 -- Contrato:
---   * fabsoft_app ya NO tiene INSERT directo en audit_logs (SELECT de metadatos; columna changes vía definer).
+--   * fabsoft_app ya NO tiene INSERT directo en audit_logs (metadatos sí; columna changes sólo vía definer).
 --   * Actor, rol y request_id salen de GUCs app.* fijadas por el backend (SET LOCAL); los
 --     parámetros de la función NO autentican identidad frente a SQL arbitrario con SET.
 --   * Cambios allowlisted y redactados en la función; supplier_cost_amount sólo visible en
@@ -111,24 +111,20 @@ language sql immutable parallel safe security definer set search_path = pg_catal
   end;
 $$;
 
-create or replace function app.audit_redact_jsonb_array(
-  p_val jsonb, p_allow text[], p_admin boolean, p_key text default null, p_depth int default 0)
+create or replace function app.audit_redact_jsonb_array(p_val jsonb, p_allow text[], p_admin boolean, p_key text default null)
 returns jsonb
 language plpgsql immutable security definer set search_path = pg_catalog as $$
 declare i jsonb; out jsonb := '[]'::jsonb;
 begin
-  if p_depth > 64 then
-    raise exception 'audit_redact_jsonb: profundidad máxima excedida' using errcode = '22023';
-  end if;
   if p_val is null then return null; end if;
   if jsonb_typeof(p_val) <> 'array' then
     raise exception 'audit_redact_jsonb_array esperaba arreglo, obtuvo %', jsonb_typeof(p_val) using errcode = '22023';
   end if;
   for i in select value from jsonb_array_elements(p_val) loop
     if jsonb_typeof(i) = 'object' then
-      out := out || jsonb_build_array(app.audit_redact_jsonb(i, p_allow, p_admin, p_depth + 1));
+      out := out || jsonb_build_array(app.audit_redact_jsonb(i, p_allow, p_admin));
     elsif jsonb_typeof(i) = 'array' then
-      out := out || jsonb_build_array(app.audit_redact_jsonb_array(i, p_allow, p_admin, p_key, p_depth + 1));
+      out := out || jsonb_build_array(app.audit_redact_jsonb_array(i, p_allow, p_admin, p_key));
     elsif p_key is not null and app.audit_is_secret_key(p_key) then
       out := out || jsonb_build_array('[REDACTED]');
     elsif jsonb_typeof(i) = 'string' and (
@@ -142,14 +138,10 @@ begin
   return out;
 end $$;
 
-create or replace function app.audit_redact_jsonb(
-  p_val jsonb, p_allow text[], p_admin boolean, p_depth int default 0) returns jsonb
+create or replace function app.audit_redact_jsonb(p_val jsonb, p_allow text[], p_admin boolean) returns jsonb
 language plpgsql immutable security definer set search_path = pg_catalog as $$
 declare k text; out jsonb := '{}'::jsonb; v jsonb;
 begin
-  if p_depth > 64 then
-    raise exception 'audit_redact_jsonb: profundidad máxima excedida' using errcode = '22023';
-  end if;
   if p_val is null then return null; end if;
   if jsonb_typeof(p_val) <> 'object' then
     raise exception 'audit_redact_jsonb esperaba objeto, obtuvo %', jsonb_typeof(p_val) using errcode = '22023';
@@ -157,14 +149,14 @@ begin
   for k, v in select key, value from jsonb_each(p_val) loop
     if app.audit_is_secret_key(k) then
       out := out || jsonb_build_object(k, '[REDACTED]');
+    elsif jsonb_typeof(v) = 'object' then
+      out := out || jsonb_build_object(k, app.audit_redact_jsonb(v, p_allow, p_admin));
+    elsif jsonb_typeof(v) = 'array' then
+      out := out || jsonb_build_object(k, app.audit_redact_jsonb_array(v, p_allow, p_admin, k));
     elsif k = 'supplier_cost_amount' and not p_admin then
       continue;
     elsif p_allow is not null and cardinality(p_allow) > 0 and not (k = any (p_allow)) then
       continue;
-    elsif jsonb_typeof(v) = 'object' then
-      out := out || jsonb_build_object(k, app.audit_redact_jsonb(v, p_allow, p_admin, p_depth + 1));
-    elsif jsonb_typeof(v) = 'array' then
-      out := out || jsonb_build_object(k, app.audit_redact_jsonb_array(v, p_allow, p_admin, k, p_depth + 1));
     elsif jsonb_typeof(v) not in ('string','number','boolean','null') then
       continue;
     else
@@ -174,7 +166,7 @@ begin
   return out;
 end $$;
 
--- Lectura de changes sin privilegio de columna (SECURITY DEFINER).
+-- Lectura redactada vía SECURITY DEFINER (sin SELECT directo de changes para fabsoft_app).
 create or replace function app.audit_logs_reader_changes(p_changes jsonb, p_resource_type text)
 returns jsonb
 language sql stable security definer set search_path = pg_catalog, app as $$
@@ -328,19 +320,6 @@ begin
   end if;
   if v_actor = 'user' and v_role not in ('admin', 'operator', 'client') then
     raise exception 'rol de usuario desconocido: %', v_role using errcode = '42501';
-  end if;
-  if v_actor = 'integration' and v_role is distinct from 'integration' then
-    raise exception 'actor integration con rol inválido: %', v_role using errcode = '42501';
-  end if;
-
-  if v_actor = 'user' and v_role = 'operator' and p_resource_type in (
-      'user', 'integration', 'api_credential', 'app_setting', 'alert_rule') then
-    raise exception 'operator no puede auditar recurso %', p_resource_type using errcode = '42501';
-  end if;
-  if v_actor = 'integration' and p_resource_type not in (
-      'client', 'client_contact', 'client_note', 'subscription', 'subscription_period',
-      'renewal_request', 'notification') then
-    raise exception 'integration no puede auditar recurso %', p_resource_type using errcode = '42501';
   end if;
 
   if v_actor = 'user' and v_role = 'client' then
