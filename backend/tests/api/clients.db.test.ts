@@ -107,6 +107,15 @@ describe.skipIf(!dbTestsConfigured())('Clients API (Postgres)', () => {
           .send({ legalName: 'Hack' })
       ).status,
     ).toBe(403);
+
+    const other = await factories.client();
+    const dupAsClient = await request(app)
+      .post('/api/v1/clients')
+      .set('Authorization', `Bearer ${clientToken}`)
+      .send({ legalName: 'Intento duplicado', taxId: other.taxId, status: 'active' });
+    expect(dupAsClient.status).toBe(403);
+    expect(dupAsClient.body.code).toBe('forbidden');
+    expect(dupAsClient.body.existingClientId).toBeUndefined();
   });
 
   it('T-HU03 — 409 client_tax_id_taken con existingClientId y archived', async () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { UpdateClient } from './use-case.js';
 import type { UserActor } from '../../shared/actor.js';
 import type { ClientView } from '../shared/client-view.js';

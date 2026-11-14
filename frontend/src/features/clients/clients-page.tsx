@@ -61,7 +61,7 @@ export function ClientsPage() {
             onChange={(e) => setTaxId(e.target.value)}
             aria-label="Buscar por NIT"
           />
-          <Button type="button" variant="secondary" onClick={reload}>
+          <Button type="button" variant="outline" onClick={reload}>
             Actualizar
           </Button>
         </CardContent>

@@ -1,7 +1,6 @@
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { createFactories } from '../../fixtures/factories.js';
-import { withOwnerSystemContext } from '../../helpers/owner-system.js';
 import {
   assertDbTestsRequired,
   closeTestPools,
@@ -19,11 +18,13 @@ describe.skipIf(!dbTestsConfigured())('T-RN01 duplicate tax id', () => {
   beforeEach(async () => {
     factories.reseed();
     await resetDatabase();
-    const andinaNit = '900.123.456-7';
-    const seed = await factories.client();
-    await withOwnerSystemContext(async (c) => {
-      await c.query(`update app.clients set tax_id = $1 where id = $2`, [andinaNit, seed.id]);
-    });
+    const app = await buildTestApp();
+    const admin = await factories.adminUser();
+    const token = await factories.tokenFor(admin);
+    await request(app)
+      .post('/api/v1/clients')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ legalName: 'Distribuidora Andina S.A.S.', taxId: '900.123.456-7', status: 'active' });
   });
 
   afterAll(async () => {

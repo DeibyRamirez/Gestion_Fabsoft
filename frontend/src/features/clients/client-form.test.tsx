@@ -7,8 +7,8 @@ const fetchMock = vi.fn();
 vi.mock('@/shared/api/client', () => ({
   apiFetch: (...args: unknown[]) => fetchMock(...args),
   ApiError: class ApiError extends Error {
-    problem?: { code?: string };
-    constructor(msg: string, problem?: { code?: string }) {
+    problem?: { code?: string } | undefined;
+    constructor(msg: string, problem?: { code?: string } | undefined) {
       super(msg);
       this.problem = problem;
     }

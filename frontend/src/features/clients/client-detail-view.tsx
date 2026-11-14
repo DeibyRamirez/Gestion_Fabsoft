@@ -154,7 +154,7 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
               Reactivar
             </Button>
           )}
-          <Button type="button" variant="secondary" onClick={() => router.push('/clients')}>
+          <Button type="button" variant="outline" onClick={() => router.push('/clients')}>
             Volver al listado
           </Button>
         </div>

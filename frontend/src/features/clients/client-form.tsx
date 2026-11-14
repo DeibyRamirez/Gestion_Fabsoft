@@ -24,12 +24,12 @@ export function ClientForm({ token, onCreated }: Props) {
     const form = e.currentTarget;
     const data = new FormData(form);
     const parsed = ClientCreateSchema.safeParse({
-      legalName: data.get('legalName'),
-      taxId: (data.get('taxId') as string) || null,
-      email: (data.get('email') as string) || null,
-      phone: (data.get('phone') as string) || null,
-      status: data.get('status'),
-    } satisfies Partial<ClientCreateInput>);
+      legalName: String(data.get('legalName') ?? ''),
+      taxId: String(data.get('taxId') ?? '').trim() || null,
+      email: String(data.get('email') ?? '').trim() || null,
+      phone: String(data.get('phone') ?? '').trim() || null,
+      status: String(data.get('status') ?? 'active') as ClientCreateInput['status'],
+    });
     if (!parsed.success) {
       setMessage(parsed.error.issues[0]?.message ?? 'Datos inválidos');
       return;
