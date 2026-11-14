@@ -16,6 +16,14 @@ import {
   PgUpdateUserRepository,
 } from '../infrastructure/persistence/pg/users/pg-users-repositories.js';
 import {
+  PgArchiveClientRepository,
+  PgCreateClientRepository,
+  PgGetClientQuery,
+  PgListClientsQuery,
+  PgReactivateClientRepository,
+  PgUpdateClientRepository,
+} from '../infrastructure/persistence/pg/clients/pg-clients-repositories.js';
+import {
   PgCreateProductRepository,
   PgGetProductQuery,
   PgListProductsQuery,
@@ -81,6 +89,12 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     productDetail: new PgGetProductQuery(tx),
     productCreate: new PgCreateProductRepository(tx),
     productUpdate: new PgUpdateProductRepository(tx),
+    clientsList: new PgListClientsQuery(tx),
+    clientDetail: new PgGetClientQuery(tx),
+    clientCreate: new PgCreateClientRepository(tx),
+    clientUpdate: new PgUpdateClientRepository(tx),
+    clientArchive: new PgArchiveClientRepository(tx),
+    clientReactivate: new PgReactivateClientRepository(tx),
     password: new PgChangePasswordRepository(tx),
     sessions: new PgSessionRevocationRepository(tx),
     idempotency: new PgIdempotencyRepository(tx),

@@ -14,6 +14,9 @@ export type ProductType = z.infer<typeof ProductTypeSchema>;
 export const ProductStatusSchema = z.enum(['active', 'inactive']);
 export type ProductStatus = z.infer<typeof ProductStatusSchema>;
 
+export const ClientStatusSchema = z.enum(['active', 'inactive', 'archived']);
+export type ClientStatus = z.infer<typeof ClientStatusSchema>;
+
 export const SubscriptionStatusSchema = z.enum([
   'pending_activation',
   'active',

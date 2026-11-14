@@ -1,0 +1,18 @@
+import { ArchiveClient } from '../../application/clients/archive-client/use-case.js';
+import { CreateClient } from '../../application/clients/create-client/use-case.js';
+import { GetClient } from '../../application/clients/get-client/use-case.js';
+import { ListClients } from '../../application/clients/list-clients/use-case.js';
+import { ReactivateClient } from '../../application/clients/reactivate-client/use-case.js';
+import { UpdateClient } from '../../application/clients/update-client/use-case.js';
+import type { Infra } from '../infra.js';
+
+export function clientsModule(infra: Infra) {
+  return {
+    listClients: new ListClients(infra.userUow),
+    getClient: new GetClient(infra.userUow),
+    createClient: new CreateClient(infra.userUow),
+    updateClient: new UpdateClient(infra.userUow),
+    archiveClient: new ArchiveClient(infra.userUow),
+    reactivateClient: new ReactivateClient(infra.userUow),
+  };
+}

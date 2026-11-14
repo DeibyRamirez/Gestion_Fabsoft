@@ -8,6 +8,7 @@ import type { AppDeps } from '../interfaces/http/app.js';
 import { sendProblem } from '../interfaces/http/problem.js';
 import type { Infra } from './infra.js';
 import { authModule } from './modules/auth.js';
+import { clientsModule } from './modules/clients.js';
 import { productsModule } from './modules/products.js';
 import { usersModule } from './modules/users.js';
 
@@ -39,6 +40,7 @@ export function buildContainer(env: Env, infra: Infra): AppDeps {
     ...authModule(infra),
     ...usersModule(infra),
     ...productsModule(infra),
+    ...clientsModule(infra),
     cookie: { secure: env.APP_ENV !== 'test', domain: env.COOKIE_DOMAIN || undefined },
     loginRateLimit: [limited(20, ip), limited(5, (req) => `${ip(req)}|${email(req)}`)],
     corsOrigins: env.CORS_ALLOWED_ORIGINS,
