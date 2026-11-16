@@ -37,14 +37,13 @@ if (sep === -1 || sep === process.argv.length - 1) {
 
 const [cmd, ...args] = process.argv.slice(sep + 1);
 
-function resolveCommand(name) {
-  if (name !== 'dbmate') return name;
-  const bin = process.platform === 'win32' ? 'dbmate.cmd' : 'dbmate';
-  return join(backendRoot, 'node_modules', '.bin', bin);
-}
-
-const executable = resolveCommand(cmd);
-const result = spawnSync(executable, args, {
+// dbmate se ejecuta con el Node actual sobre su CLI JS: portable (Windows rechaza .cmd sin shell, EINVAL).
+const isDbmate = cmd === 'dbmate';
+const executable = isDbmate ? process.execPath : cmd;
+const finalArgs = isDbmate
+  ? [join(backendRoot, 'node_modules', 'dbmate', 'dist', 'cli.js'), ...args]
+  : args;
+const result = spawnSync(executable, finalArgs, {
   stdio: 'inherit',
   env: process.env,
   shell: false,

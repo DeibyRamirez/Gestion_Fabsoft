@@ -134,10 +134,12 @@ async function reconcileMigratorOwnershipAndGrants(): Promise<void> {
 
 function runDbmate(databaseUrl: string, migrationsDir: string): void {
   const env = { ...process.env, DATABASE_MIGRATION_URL: databaseUrl };
-  const dbmateBin = join(ROOT, 'node_modules', '.bin', 'dbmate');
+  // CLI JS de dbmate v?a el Node actual: portable (Windows no ejecuta .bin/dbmate sin shell).
+  const dbmateCli = join(ROOT, 'node_modules', 'dbmate', 'dist', 'cli.js');
   const r = spawnSync(
-    dbmateBin,
+    process.execPath,
     [
+      dbmateCli,
       '--env',
       'DATABASE_MIGRATION_URL',
       '--migrations-dir',
@@ -150,7 +152,9 @@ function runDbmate(databaseUrl: string, migrationsDir: string): void {
     { cwd: ROOT, env, encoding: 'utf8' },
   );
   if (r.status !== 0) {
-    throw new Error(`dbmate up falló (${redactDatabaseUrl(databaseUrl)}): ${r.stderr || r.stdout}`);
+    throw new Error(
+      `dbmate up falló (${redactDatabaseUrl(databaseUrl)}): ${r.error?.message ?? r.stderr ?? r.stdout}`,
+    );
   }
 }
 

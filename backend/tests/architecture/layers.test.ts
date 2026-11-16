@@ -20,7 +20,7 @@ function files(dir: string): string[] {
 
 describe('reglas de capas', () => {
   for (const file of files(SRC)) {
-    const layer = relative(SRC, file).split('/')[0] ?? '';
+    const layer = relative(SRC, file).split(/[\\/]/)[0] ?? '';
     const forbidden = FORBIDDEN[layer];
     if (!forbidden) continue;
     it(`${relative(SRC, file)} respeta su capa`, () => {

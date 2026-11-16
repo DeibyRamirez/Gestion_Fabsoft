@@ -49,6 +49,8 @@ jobs:
       - run: pnpm test
       - run: pnpm test:coverage
       - run: pnpm --filter @fabsoft/backend check-coverage-paths
+        env:
+          COVERAGE_REQUIRED_PATHS: src/domain/subscriptions,src/application/subscriptions
       - uses: actions/upload-artifact@v4
         with:
           name: coverage

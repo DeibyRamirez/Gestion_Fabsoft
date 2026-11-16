@@ -624,7 +624,7 @@ paths:
           description: Página de eventos
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/AuditLogPage' }
+              schema: { $ref: '#/components/schemas/ClientActivityPage' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -3010,6 +3010,27 @@ components:
       required: [data, meta]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    ClientActivity:
+      type: object
+      required: [id, occurredAt, actor, action, resourceType, resourceId, summary]
+      properties:
+        id: { type: string }
+        occurredAt: { type: string, format: date-time }
+        actor:
+          type: [object, 'null']
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        action: { type: string }
+        resourceType: { type: string }
+        resourceId: { type: string }
+        summary: { type: string }
+    ClientActivityPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/ClientActivity' } }
         meta: { $ref: '#/components/schemas/PaginationMeta' }
     Settings:
       type: object

@@ -21,12 +21,25 @@ import type {
   IdGenerator,
   UnitOfWork,
 } from '../application/shared/ports.js';
+import type { ListAuditLogsRepos } from '../application/audit/list-audit-logs/ports.js';
 import type { ArchiveClientRepos } from '../application/clients/archive-client/ports.js';
 import type { CreateClientRepos } from '../application/clients/create-client/ports.js';
+import type { CreateClientContactRepos } from '../application/clients/create-client-contact/ports.js';
 import type { GetClientRepos } from '../application/clients/get-client/ports.js';
+import type { ListClientActivityRepos } from '../application/clients/list-client-activity/ports.js';
+import type { ListClientContactsRepos } from '../application/clients/list-client-contacts/ports.js';
 import type { ListClientsRepos } from '../application/clients/list-clients/ports.js';
 import type { ReactivateClientRepos } from '../application/clients/reactivate-client/ports.js';
+import type { UpdateClientContactRepos } from '../application/clients/update-client-contact/ports.js';
 import type { UpdateClientRepos } from '../application/clients/update-client/ports.js';
+import type { ActivateSubscriptionRepos } from '../application/subscriptions/activate-subscription/ports.js';
+import type { CancelSubscriptionRepos } from '../application/subscriptions/cancel-subscription/ports.js';
+import type { CreateSubscriptionRepos } from '../application/subscriptions/create-subscription/ports.js';
+import type { GetSubscriptionRepos } from '../application/subscriptions/get-subscription/ports.js';
+import type { ListSubscriptionPeriodsRepos } from '../application/subscriptions/list-subscription-periods/ports.js';
+import type { ListSubscriptionsRepos } from '../application/subscriptions/list-subscriptions/ports.js';
+import type { RenewSubscriptionRepos } from '../application/subscriptions/renew-subscription/ports.js';
+import type { UpdateSubscriptionRepos } from '../application/subscriptions/update-subscription/ports.js';
 import type { CreateProductRepos } from '../application/products/create-product/ports.js';
 import type { GetProductRepos } from '../application/products/get-product/ports.js';
 import type { ListProductsRepos } from '../application/products/list-products/ports.js';
@@ -55,6 +68,19 @@ export type UserScopeRepos = GetMeRepos &
   UpdateClientRepos &
   ArchiveClientRepos &
   ReactivateClientRepos &
+  ListClientContactsRepos &
+  CreateClientContactRepos &
+  UpdateClientContactRepos &
+  CreateSubscriptionRepos &
+  ListSubscriptionsRepos &
+  GetSubscriptionRepos &
+  ActivateSubscriptionRepos &
+  UpdateSubscriptionRepos &
+  CancelSubscriptionRepos &
+  RenewSubscriptionRepos &
+  ListSubscriptionPeriodsRepos &
+  ListAuditLogsRepos &
+  ListClientActivityRepos &
   ChangePasswordRepos & { idempotency: IdempotencyRepository };
 
 /** Repos disponibles en contexto system/auth. */

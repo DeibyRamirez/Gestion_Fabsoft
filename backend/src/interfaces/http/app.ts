@@ -9,17 +9,25 @@ import { idempotency } from './middlewares/idempotency.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { requestId } from './middlewares/request-id.js';
 import { sendProblem } from './problem.js';
+import { auditLogsRouter, type AuditLogsRouteDeps } from './routes/v1/audit-logs.js';
 import { authRouter, type AuthRouteDeps } from './routes/v1/auth.js';
+import { clientActivityRouter, type ClientActivityRouteDeps } from './routes/v1/client-activity.js';
 import { healthRouter, type HealthRouteDeps } from './routes/v1/health.js';
 import { clientsRouter, type ClientsRouteDeps } from './routes/v1/clients.js';
+import { clientContactsRouter, type ClientContactsRouteDeps } from './routes/v1/client-contacts.js';
 import { productsRouter, type ProductsRouteDeps } from './routes/v1/products.js';
+import { subscriptionsRouter, type SubscriptionsRouteDeps } from './routes/v1/subscriptions.js';
 import { usersRouter, type UsersRouteDeps } from './routes/v1/users.js';
 
 export type AppDeps = HealthRouteDeps &
   AuthRouteDeps &
   UsersRouteDeps &
   ProductsRouteDeps &
-  ClientsRouteDeps & {
+  ClientsRouteDeps &
+  ClientContactsRouteDeps &
+  SubscriptionsRouteDeps &
+  AuditLogsRouteDeps &
+  ClientActivityRouteDeps & {
     corsOrigins: string[];
     idempotencyService: IdempotencyService;
     log: (entry: Record<string, unknown>) => void;
@@ -62,6 +70,11 @@ export function createApp(deps: AppDeps): Express {
   app.use(API_VERSION_PREFIX, productsRouter(deps, guards, createProductIdempotency));
   const createClientIdempotency = idempotency(deps.idempotencyService);
   app.use(API_VERSION_PREFIX, clientsRouter(deps, guards, createClientIdempotency));
+  app.use(API_VERSION_PREFIX, clientContactsRouter(deps, guards));
+  app.use(API_VERSION_PREFIX, clientActivityRouter(deps, guards));
+  const createSubscriptionIdempotency = idempotency(deps.idempotencyService);
+  app.use(API_VERSION_PREFIX, subscriptionsRouter(deps, guards, createSubscriptionIdempotency));
+  app.use(API_VERSION_PREFIX, auditLogsRouter(deps, guards));
 
   app.use((_req, res) => sendProblem(res, 'not_found', 'Recurso no encontrado'));
   app.use(errorHandler(deps.log));

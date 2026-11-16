@@ -1,3 +1,4 @@
+export * from './audit.js';
 export * from './auth.js';
 export * from './clients.js';
 export * from './constants.js';
@@ -6,4 +7,5 @@ export * from './health.js';
 export * from './pagination.js';
 export * from './problem.js';
 export * from './products.js';
+export * from './subscriptions.js';
 export * from './users.js';

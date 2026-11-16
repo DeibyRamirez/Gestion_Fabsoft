@@ -82,3 +82,58 @@ export const ClientListQuerySchema = PageQuerySchema.extend({
   sort: z.enum(['legalName', '-legalName', 'createdAt', '-createdAt']).default('legalName'),
 });
 export type ClientListQuery = z.infer<typeof ClientListQuerySchema>;
+
+const contactEmail = z.string().trim().email();
+const contactPhone = z.string().trim().max(30);
+const contactRoleTitle = z.string().trim().max(100);
+const contactFullName = z.string().trim().min(2).max(150);
+
+export const ClientContactSchema = z.object({
+  id: z.string().uuid(),
+  clientId: z.string().uuid(),
+  fullName: z.string(),
+  email: z.string().email().nullable(),
+  phone: z.string().nullable(),
+  roleTitle: z.string().nullable(),
+  isPrimary: z.boolean(),
+  archivedAt: z.string().datetime().nullable(),
+});
+export type ClientContactDto = z.infer<typeof ClientContactSchema>;
+
+const reachable = (v: { email?: string | null | undefined; phone?: string | null | undefined }) =>
+  Boolean(v.email) || Boolean(v.phone);
+
+/** Requiere email o teléfono (constraint `client_contacts_reachable`). */
+export const ClientContactCreateSchema = z
+  .object({
+    fullName: contactFullName,
+    email: z.union([contactEmail, z.null()]).optional(),
+    phone: z.union([contactPhone, z.null()]).optional(),
+    roleTitle: z.union([contactRoleTitle, z.null()]).optional(),
+    isPrimary: z.boolean().default(false),
+  })
+  .strict()
+  .refine(reachable, { message: 'Se requiere email o teléfono', path: ['email'] });
+export type ClientContactCreateInput = z.infer<typeof ClientContactCreateSchema>;
+
+/** `archived` es la baja lógica (RN-14); desmarcar el único principal no se permite (RN-16). */
+export const ClientContactUpdateSchema = z
+  .object({
+    fullName: contactFullName.optional(),
+    email: z.union([contactEmail, z.null()]).optional(),
+    phone: z.union([contactPhone, z.null()]).optional(),
+    roleTitle: z.union([contactRoleTitle, z.null()]).optional(),
+    isPrimary: z.boolean().optional(),
+    archived: z.boolean().optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, { message: 'Se requiere al menos un campo' });
+export type ClientContactUpdateInput = z.infer<typeof ClientContactUpdateSchema>;
+
+export const ClientContactListQuerySchema = z.object({
+  includeArchived: z
+    .union([z.boolean(), z.enum(['true', 'false'])])
+    .default(false)
+    .transform((v) => v === true || v === 'true'),
+});
+export type ClientContactListQuery = z.infer<typeof ClientContactListQuerySchema>;

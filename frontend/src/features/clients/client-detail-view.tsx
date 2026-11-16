@@ -10,6 +10,8 @@ import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
+import { ActivityPanel } from './activity-panel';
+import { ContactsPanel } from './contacts-panel';
 
 export function ClientDetailView({ clientId }: { clientId: string }) {
   const { token, user } = useAuth();
@@ -139,6 +141,8 @@ export function ClientDetailView({ clientId }: { clientId: string }) {
           </form>
         </CardContent>
       </Card>
+      <ContactsPanel clientId={clientId} token={token} readOnly={client.status === 'archived'} />
+      <ActivityPanel clientId={clientId} token={token} />
       {isAdmin ? (
         <div className="flex gap-3">
           {client.status !== 'archived' ? (
