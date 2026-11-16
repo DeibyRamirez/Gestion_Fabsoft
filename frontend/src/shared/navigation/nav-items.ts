@@ -6,9 +6,9 @@ export type NavItem = {
 };
 
 export const INTERNAL_MAIN_NAV: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', implemented: true },
-  { href: '/clients', label: 'Clientes', implemented: false },
-  { href: '/subscriptions', label: 'Suscripciones', implemented: false },
+  { href: '/dashboard', label: 'Panel', implemented: true },
+  { href: '/clients', label: 'Clientes', implemented: true },
+  { href: '/subscriptions', label: 'Suscripciones', implemented: true },
   { href: '/renewal-requests', label: 'Solicitudes', implemented: false },
   { href: '/tasks', label: 'Tareas', implemented: false },
   { href: '/notifications', label: 'Alertas', implemented: false },
@@ -16,10 +16,10 @@ export const INTERNAL_MAIN_NAV: NavItem[] = [
 
 export const INTERNAL_ADMIN_NAV: NavItem[] = [
   { href: '/admin/users', label: 'Usuarios', implemented: true },
-  { href: '/admin/products', label: 'Productos', implemented: false },
+  { href: '/admin/products', label: 'Productos', implemented: true },
   { href: '/admin/integrations', label: 'Integraciones', implemented: false },
   { href: '/admin/alert-rules', label: 'Reglas de alerta', implemented: false },
-  { href: '/admin/audit', label: 'Auditoría', implemented: false },
+  { href: '/admin/audit', label: 'Auditoría', implemented: true },
   { href: '/admin/settings', label: 'Configuración', implemented: false },
 ];
 

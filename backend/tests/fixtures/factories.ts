@@ -3,7 +3,7 @@ import type { AccessTokenService } from '../../src/application/auth/ports.js';
 import { buildTokenService } from '../../src/composition/pg-infra.js';
 import { loadEnv } from '../../src/infrastructure/config/env.js';
 import { testEnvSource } from '../helpers/env.js';
-import { withOwnerSystemContext } from '../helpers/db.js';
+import { withOwnerSystemContext } from '../helpers/owner-system.js';
 
 const NIT_WEIGHTS = [3, 7, 13, 17, 19, 23, 29, 37, 41, 43, 47, 53, 59, 67, 71] as const;
 
@@ -23,8 +23,7 @@ export function formatColombianNit(baseDigits: string): string {
 }
 
 export function normalizeTaxIdDigits(taxId: string): string {
-  const digits = taxId.replace(/\D/g, '');
-  return digits.slice(0, -1) || digits;
+  return taxId.toUpperCase().replace(/[^0-9A-Z]/g, '');
 }
 
 export type FactoryClient = {

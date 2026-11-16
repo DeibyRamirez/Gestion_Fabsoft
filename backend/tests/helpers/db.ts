@@ -12,8 +12,13 @@ export function assertTestDatabaseUrl(url: string): void {
   }
 }
 
+/** URL de migración (fabsoft_migrator en CI tras provision); no usar como superusuario de tablas. */
 export const migrationUrl = process.env.TEST_DATABASE_MIGRATION_URL;
 export const appDatabaseUrl = process.env.TEST_DATABASE_URL;
+
+/** Rol propietario/provisioner para TRUNCATE y mutaciones de harness (no TEST_DATABASE_MIGRATION_URL). */
+export const provisionUrl =
+  process.env.DATABASE_PROVISION_URL ?? process.env.TEST_DATABASE_MIGRATION_URL;
 
 export function dbTestsConfigured(): boolean {
   return Boolean(migrationUrl && appDatabaseUrl);
@@ -57,9 +62,9 @@ let appPool: pg.Pool | undefined;
 let appPoolReady: Promise<void> | undefined;
 
 export function getOwnerPool(): pg.Pool {
-  if (!migrationUrl) throw new Error('TEST_DATABASE_MIGRATION_URL no definido');
-  assertTestDatabaseUrl(migrationUrl);
-  ownerPool ??= new pg.Pool({ connectionString: migrationUrl, max: 4 });
+  if (!provisionUrl) throw new Error('DATABASE_PROVISION_URL no definido');
+  assertTestDatabaseUrl(provisionUrl);
+  ownerPool ??= new pg.Pool({ connectionString: provisionUrl, max: 4 });
   return ownerPool;
 }
 
@@ -108,8 +113,8 @@ export async function resetDatabaseWithPool(url: string, pool: pg.Pool): Promise
 
 /** Trunca todas las tablas de `app` (excepto schema_migrations) con el rol propietario. */
 export async function resetDatabase(): Promise<void> {
-  if (!migrationUrl) throw new Error('TEST_DATABASE_MIGRATION_URL no definido');
-  await resetDatabaseWithPool(migrationUrl, getOwnerPool());
+  if (!provisionUrl) throw new Error('DATABASE_PROVISION_URL no definido');
+  await resetDatabaseWithPool(provisionUrl, getOwnerPool());
 }
 
 export type AppUserContext = {
@@ -135,27 +140,6 @@ export async function withAppContext<T>(
               set_config('app.current_user_id',$3,true), set_config('app.client_id',$4,true),
               set_config('app.integration_id','',true), set_config('app.request_id',$5,true)`,
       ['user', ctx.role, ctx.userId, ctx.clientId ?? '', ctx.requestId ?? 'test'],
-    );
-    const result = await fn(client);
-    await client.query('commit');
-    return result;
-  } catch (err) {
-    await client.query('rollback').catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
-/** Inserts de preparación con contexto `system` (triggers de pricing, etc.). */
-export async function withOwnerSystemContext<T>(
-  fn: (client: pg.PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await getOwnerPool().connect();
-  try {
-    await client.query('begin');
-    await client.query(
-      `select set_config('app.actor_type','system',true), set_config('app.actor_role','system',true)`,
     );
     const result = await fn(client);
     await client.query('commit');

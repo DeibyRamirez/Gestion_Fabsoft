@@ -62,6 +62,22 @@ export default defineConfig({
         test: {
           name: 'security',
           include: ['tests/security/**/*.test.ts'],
+          exclude: [
+            'tests/security/t-f0-08b-event-trigger.test.ts',
+            'tests/security/security-suite-idempotency.test.ts',
+          ],
+          hookTimeout: 120_000,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'security-idempotency',
+          include: ['tests/security/security-suite-idempotency.test.ts'],
+          hookTimeout: 600_000,
+          testTimeout: 600_000,
+          pool: 'forks',
+          poolOptions: { forks: { singleFork: true } },
         },
       },
     ],

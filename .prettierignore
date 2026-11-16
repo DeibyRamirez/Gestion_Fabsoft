@@ -9,3 +9,4 @@ backend/migrations
 qa
 backend/tests/security
 .github
+e2e/.auth

@@ -16,6 +16,29 @@ import {
   PgUpdateUserRepository,
 } from '../infrastructure/persistence/pg/users/pg-users-repositories.js';
 import {
+  PgArchiveClientRepository,
+  PgCreateClientRepository,
+  PgGetClientQuery,
+  PgListClientsQuery,
+  PgReactivateClientRepository,
+  PgUpdateClientRepository,
+} from '../infrastructure/persistence/pg/clients/pg-clients-repositories.js';
+import {
+  PgCreateClientContactRepository,
+  PgListClientContactsQuery,
+  PgUpdateClientContactRepository,
+} from '../infrastructure/persistence/pg/clients/pg-client-contact-repositories.js';
+import {
+  PgActivateSubscriptionRepository,
+  PgCancelSubscriptionRepository,
+  PgCreateSubscriptionRepository,
+  PgGetSubscriptionQuery,
+  PgListSubscriptionPeriodsQuery,
+  PgListSubscriptionsQuery,
+  PgRenewSubscriptionRepository,
+  PgUpdateSubscriptionRepository,
+} from '../infrastructure/persistence/pg/subscriptions/pg-subscriptions-repositories.js';
+import {
   PgCreateProductRepository,
   PgGetProductQuery,
   PgListProductsQuery,
@@ -25,6 +48,7 @@ import {
   PgIdempotencyReleaseRepository,
   PgIdempotencyRepository,
 } from '../infrastructure/persistence/pg/idempotency/pg-idempotency-repositories.js';
+import { PgAuditLogRepository } from '../infrastructure/persistence/pg/audit/pg-audit-log-repositories.js';
 import { PgIdempotencyPurgeRepository } from '../infrastructure/persistence/pg/maintenance/pg-idempotency-purge.js';
 import { CryptoIdGenerator, SystemClock } from '../infrastructure/clock/system-clock.js';
 import type { Env } from '../infrastructure/config/env.js';
@@ -81,6 +105,25 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     productDetail: new PgGetProductQuery(tx),
     productCreate: new PgCreateProductRepository(tx),
     productUpdate: new PgUpdateProductRepository(tx),
+    clientsList: new PgListClientsQuery(tx),
+    clientDetail: new PgGetClientQuery(tx),
+    clientCreate: new PgCreateClientRepository(tx),
+    clientUpdate: new PgUpdateClientRepository(tx),
+    clientArchive: new PgArchiveClientRepository(tx),
+    clientReactivate: new PgReactivateClientRepository(tx),
+    clientContactsList: new PgListClientContactsQuery(tx),
+    clientContactCreate: new PgCreateClientContactRepository(tx),
+    clientContactUpdate: new PgUpdateClientContactRepository(tx),
+    subscriptionCreate: new PgCreateSubscriptionRepository(tx),
+    subscriptionsList: new PgListSubscriptionsQuery(tx),
+    subscriptionDetail: new PgGetSubscriptionQuery(tx),
+    subscriptionActivate: new PgActivateSubscriptionRepository(tx),
+    subscriptionUpdate: new PgUpdateSubscriptionRepository(tx),
+    subscriptionCancel: new PgCancelSubscriptionRepository(tx),
+    subscriptionRenew: new PgRenewSubscriptionRepository(tx),
+    subscriptionPeriods: new PgListSubscriptionPeriodsQuery(tx),
+    auditLogs: new PgAuditLogRepository(tx),
+    clientActivity: new PgAuditLogRepository(tx),
     password: new PgChangePasswordRepository(tx),
     sessions: new PgSessionRevocationRepository(tx),
     idempotency: new PgIdempotencyRepository(tx),

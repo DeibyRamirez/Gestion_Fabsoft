@@ -1,0 +1,5 @@
+version: 2
+secret:
+  ignored-matches:
+    - name: CI disposable migrator password
+      match: ci_migrator

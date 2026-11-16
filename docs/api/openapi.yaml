@@ -374,7 +374,17 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
+        '409':
+          description: Identificación fiscal duplicada (`client_tax_id_taken`)
+          content:
+            application/problem+json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Problem'
+                  - type: object
+                    properties:
+                      existingClientId: { type: string, format: uuid }
+                      archived: { type: boolean }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
   /api/v1/clients/{id}:
     parameters:
@@ -382,8 +392,8 @@ paths:
     get:
       tags: [Clients]
       operationId: getClient
-      summary: Detalle de un cliente autorizado (con contactos y resumen)
-      description: Las integraciones reciben el cliente sin `summary`. Cliente fuera de alcance → `404` (no se revela su existencia).
+      summary: Detalle de un cliente autorizado
+      description: Cliente fuera de alcance → `404` (no se revela su existencia).
       x-roles: [admin, operator]
       security:
         - bearerAuth: []
@@ -393,7 +403,7 @@ paths:
           description: Cliente
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ClientDetail' }
+              schema: { $ref: '#/components/schemas/Client' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -418,7 +428,17 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
+        '409':
+          description: Identificación fiscal duplicada (`client_tax_id_taken`)
+          content:
+            application/problem+json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Problem'
+                  - type: object
+                    properties:
+                      existingClientId: { type: string, format: uuid }
+                      archived: { type: boolean }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
   /api/v1/clients/{id}/archive:
     parameters:
@@ -442,7 +462,11 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+        '422':
+          description: Transición inválida (`invalid_state_transition`)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   /api/v1/clients/{id}/reactivate:
     parameters:
       - $ref: '#/components/parameters/IdPath'
@@ -460,6 +484,11 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: Transición inválida (`invalid_state_transition`)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
   /api/v1/clients/{id}/contacts:
     parameters:
       - $ref: '#/components/parameters/IdPath'
@@ -595,7 +624,7 @@ paths:
           description: Página de eventos
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/AuditLogPage' }
+              schema: { $ref: '#/components/schemas/ClientActivityPage' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -2981,6 +3010,27 @@ components:
       required: [data, meta]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/AuditLog' } }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    ClientActivity:
+      type: object
+      required: [id, occurredAt, actor, action, resourceType, resourceId, summary]
+      properties:
+        id: { type: string }
+        occurredAt: { type: string, format: date-time }
+        actor:
+          type: [object, 'null']
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        action: { type: string }
+        resourceType: { type: string }
+        resourceId: { type: string }
+        summary: { type: string }
+    ClientActivityPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { type: array, items: { $ref: '#/components/schemas/ClientActivity' } }
         meta: { $ref: '#/components/schemas/PaginationMeta' }
     Settings:
       type: object

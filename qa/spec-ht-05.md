@@ -98,7 +98,7 @@ coverage: {
 - `@playwright/test`, solo Chromium, `retries: 1` en CI, `trace: 'on-first-retry'`, artefacto `playwright-report/`.
 - Contra **build local**: `webServer` levanta `pnpm --filter @fabsoft/backend start` (API, build) y `pnpm --filter @fabsoft/frontend start` (Next build) apuntando a la BD de test migrada + `db:seed` (`docs/seed-data.md`).
 - `smoke/auth.spec.ts` (real en HT-05): login admin ⇒ `/dashboard`; login operador ⇒ intentar `/admin/users` redirige a su inicio.
-- Un esqueleto por HU con `test.fixme` y el flujo descrito, que cada HU completa: `clients` (HU-03), `contacts` (HU-04), `products` (HU-05), `subscriptions` (HU-06), `renew` (HU-07), `audit` (HU-08).
+- Un esqueleto por HU con `test.fixme` y el flujo descrito, que cada HU completa: `clients` (HU-03), `contacts` (HU-04), `products` (HU-05), `subscriptions` (HU-06), `renew` (HU-07 — historial de periodos y renovación), `audit` (HU-08).
 - Sin snapshots visuales; selectores por rol/label accesible.
 
 ## 8. CI — jobs nuevos (`.github/workflows/ci.yml`)
