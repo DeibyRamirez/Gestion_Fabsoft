@@ -1,11 +1,10 @@
-import path from 'node:path';
 import { expect, test } from '@playwright/test';
-
-const adminState = path.join(process.cwd(), 'e2e/.auth/admin.json');
+import { openAuthenticatedContext } from './session';
+import { seedUsers } from './seed-users';
 
 test.describe('HU-06 — suscripciones', () => {
   test('admin navega al listado y al alta', async ({ browser }) => {
-    const context = await browser.newContext({ storageState: adminState });
+    const { context } = await openAuthenticatedContext(browser, seedUsers.admin);
     const page = await context.newPage();
 
     await page.goto('/subscriptions');
