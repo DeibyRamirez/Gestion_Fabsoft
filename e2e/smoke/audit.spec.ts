@@ -1,10 +1,11 @@
+import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { openAuthenticatedContext } from './session';
-import { seedUsers } from './seed-users';
+
+const adminState = path.join(process.cwd(), 'e2e/.auth/admin.json');
 
 test.describe('HU-08 — auditoría', () => {
   test('admin consulta un cambio sensible en audit-logs', async ({ browser }) => {
-    const { context } = await openAuthenticatedContext(browser, seedUsers.admin);
+    const context = await browser.newContext({ storageState: adminState });
     const page = await context.newPage();
     const name = `Producto auditoría ${Date.now()}`;
 
@@ -23,6 +24,7 @@ test.describe('HU-08 — auditoría', () => {
     await expect(page.getByText('product.created')).toBeVisible();
     await expect(page.getByText('Ver before/after')).toBeVisible();
 
+    await context.storageState({ path: adminState });
     await context.close();
   });
 });

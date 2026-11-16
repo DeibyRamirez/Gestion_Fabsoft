@@ -1,10 +1,11 @@
+import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { openAuthenticatedContext } from './session';
-import { seedUsers } from './seed-users';
+
+const adminState = path.join(process.cwd(), 'e2e/.auth/admin.json');
 
 test.describe('HU-06 — suscripciones', () => {
   test('admin navega al listado y al alta', async ({ browser }) => {
-    const { context } = await openAuthenticatedContext(browser, seedUsers.admin);
+    const context = await browser.newContext({ storageState: adminState });
     const page = await context.newPage();
 
     await page.goto('/subscriptions');
@@ -15,6 +16,7 @@ test.describe('HU-06 — suscripciones', () => {
     await expect(page.getByLabel('Cliente activo')).toBeVisible();
     await expect(page.getByLabel('Producto activo')).toBeVisible();
 
+    await context.storageState({ path: adminState });
     await context.close();
   });
 });

@@ -1,10 +1,11 @@
+import path from 'node:path';
 import { expect, test } from '@playwright/test';
-import { openAuthenticatedContext } from './session';
-import { seedUsers } from './seed-users';
+
+const adminState = path.join(process.cwd(), 'e2e/.auth/admin.json');
 
 test.describe('HU-04 — contactos', () => {
   test('admin agrega un contacto al cliente', async ({ browser }) => {
-    const { context } = await openAuthenticatedContext(browser, seedUsers.admin);
+    const context = await browser.newContext({ storageState: adminState });
     const page = await context.newPage();
     await page.goto('/clients');
     await page.getByRole('link', { name: 'Distribuidora Andina S.A.S.' }).click();
@@ -17,6 +18,7 @@ test.describe('HU-04 — contactos', () => {
 
     await expect(page.getByText('Contacto agregado.')).toBeVisible();
     await expect(page.getByText(email)).toBeVisible();
+    await context.storageState({ path: adminState });
     await context.close();
   });
 });
