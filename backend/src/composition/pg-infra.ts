@@ -1,4 +1,18 @@
 import { PgAuditWriter } from '../infrastructure/persistence/pg/shared/pg-audit-writer.js';
+import { PgAlertSchedulingRepository } from '../infrastructure/persistence/pg/alerts/pg-alert-scheduling-repository.js';
+import {
+  PgCloseTaskRepository,
+  PgCreateTaskRepository,
+  PgGetTaskQuery,
+  PgListTasksQuery,
+  PgTaskAutomationRepository,
+  PgUpdateTaskRepository,
+} from '../infrastructure/persistence/pg/tasks/pg-task-repositories.js';
+import { PgRenewalRequestAutomationRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-automation-repository.js';
+import { PgNotificationsRepository } from '../infrastructure/persistence/pg/notifications/pg-notifications-repositories.js';
+import { PgNotificationDispatchRepository } from '../infrastructure/persistence/pg/notifications/pg-notification-dispatch-repository.js';
+import { PgExpireSubscriptionsRepository } from '../infrastructure/persistence/pg/subscriptions/pg-expire-subscriptions-repository.js';
+import { PgMaintenanceRepository } from '../infrastructure/persistence/pg/maintenance/pg-maintenance-repository.js';
 import {
   PgAuthenticateRepository,
   PgChangePasswordRepository,
@@ -31,11 +45,15 @@ import {
 import {
   PgActivateSubscriptionRepository,
   PgCancelSubscriptionRepository,
+  PgCorrectExpirationRepository,
   PgCreateSubscriptionRepository,
   PgGetSubscriptionQuery,
   PgListSubscriptionPeriodsQuery,
   PgListSubscriptionsQuery,
+  PgMarkNotRenewedRepository,
   PgRenewSubscriptionRepository,
+  PgStartRenewalRepository,
+  PgUpdatePeriodPaymentRepository,
   PgUpdateSubscriptionRepository,
 } from '../infrastructure/persistence/pg/subscriptions/pg-subscriptions-repositories.js';
 import {
@@ -121,12 +139,27 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     subscriptionUpdate: new PgUpdateSubscriptionRepository(tx),
     subscriptionCancel: new PgCancelSubscriptionRepository(tx),
     subscriptionRenew: new PgRenewSubscriptionRepository(tx),
+    subscriptionStartRenewal: new PgStartRenewalRepository(tx),
+    subscriptionMarkNotRenewed: new PgMarkNotRenewedRepository(tx),
+    subscriptionCorrectExpiration: new PgCorrectExpirationRepository(tx),
+    subscriptionPeriodPayment: new PgUpdatePeriodPaymentRepository(tx),
     subscriptionPeriods: new PgListSubscriptionPeriodsQuery(tx),
     auditLogs: new PgAuditLogRepository(tx),
     clientActivity: new PgAuditLogRepository(tx),
+    tasksList: new PgListTasksQuery(tx),
+    taskDetail: new PgGetTaskQuery(tx),
+    taskCreate: new PgCreateTaskRepository(tx),
+    taskUpdate: new PgUpdateTaskRepository(tx),
+    taskClose: new PgCloseTaskRepository(tx),
+    tasksAutomation: new PgTaskAutomationRepository(tx),
+    renewalRequests: new PgRenewalRequestAutomationRepository(tx),
+    notificationsList: new PgNotificationsRepository(tx),
+    notificationsRead: new PgNotificationsRepository(tx),
+    notificationsRetry: new PgNotificationsRepository(tx),
     password: new PgChangePasswordRepository(tx),
     sessions: new PgSessionRevocationRepository(tx),
     idempotency: new PgIdempotencyRepository(tx),
+    alerts: new PgAlertSchedulingRepository(tx),
     audit: new PgAuditWriter(tx),
   }));
   const authUow = new PgSystemUnitOfWork<AuthScopeRepos>(withRls, (tx) => ({
@@ -139,7 +172,13 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
   }));
   const workerUow = new PgSystemUnitOfWork(
     withRls,
-    (tx) => ({ idempotency: new PgIdempotencyPurgeRepository(tx) }),
+    (tx) => ({
+      idempotency: new PgIdempotencyPurgeRepository(tx),
+      alerts: new PgAlertSchedulingRepository(tx),
+      notificationsDispatch: new PgNotificationDispatchRepository(tx),
+      subscriptionsExpire: new PgExpireSubscriptionsRepository(tx),
+      maintenance: new PgMaintenanceRepository(tx),
+    }),
     'worker',
   );
 

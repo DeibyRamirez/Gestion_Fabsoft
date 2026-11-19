@@ -15,8 +15,10 @@ import { clientActivityRouter, type ClientActivityRouteDeps } from './routes/v1/
 import { healthRouter, type HealthRouteDeps } from './routes/v1/health.js';
 import { clientsRouter, type ClientsRouteDeps } from './routes/v1/clients.js';
 import { clientContactsRouter, type ClientContactsRouteDeps } from './routes/v1/client-contacts.js';
+import { notificationsRouter, type NotificationsRouteDeps } from './routes/v1/notifications.js';
 import { productsRouter, type ProductsRouteDeps } from './routes/v1/products.js';
 import { subscriptionsRouter, type SubscriptionsRouteDeps } from './routes/v1/subscriptions.js';
+import { tasksRouter, type TasksRouteDeps } from './routes/v1/tasks.js';
 import { usersRouter, type UsersRouteDeps } from './routes/v1/users.js';
 
 export type AppDeps = HealthRouteDeps &
@@ -26,6 +28,8 @@ export type AppDeps = HealthRouteDeps &
   ClientsRouteDeps &
   ClientContactsRouteDeps &
   SubscriptionsRouteDeps &
+  TasksRouteDeps &
+  NotificationsRouteDeps &
   AuditLogsRouteDeps &
   ClientActivityRouteDeps & {
     corsOrigins: string[];
@@ -74,6 +78,9 @@ export function createApp(deps: AppDeps): Express {
   app.use(API_VERSION_PREFIX, clientActivityRouter(deps, guards));
   const createSubscriptionIdempotency = idempotency(deps.idempotencyService);
   app.use(API_VERSION_PREFIX, subscriptionsRouter(deps, guards, createSubscriptionIdempotency));
+  const createTaskIdempotency = idempotency(deps.idempotencyService);
+  app.use(API_VERSION_PREFIX, tasksRouter(deps, guards, createTaskIdempotency));
+  app.use(API_VERSION_PREFIX, notificationsRouter(deps, guards));
   app.use(API_VERSION_PREFIX, auditLogsRouter(deps, guards));
 
   app.use((_req, res) => sendProblem(res, 'not_found', 'Recurso no encontrado'));

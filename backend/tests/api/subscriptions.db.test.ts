@@ -358,4 +358,244 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
       .send({ version: 2, newPeriod: { priceAmount: '120000.00', supplierCostAmount: '10.00' } });
     expect(cost.status).toBe(403);
   });
+
+  it('T-HU09-02 — start-renewal: active→in_renewal, operador permitido y versión', async () => {
+    const app = await buildTestApp();
+    const client = await factories.client();
+    const product = await factories.product();
+    const operator = await factories.operatorUser();
+    const token = await factories.tokenFor(operator);
+
+    const created = await request(app)
+      .post('/api/v1/subscriptions')
+      .set('Authorization', `Bearer ${token}`)
+      .send(bodyFor(client.id, product.id));
+    const id = created.body.id as string;
+    await request(app)
+      .post(`/api/v1/subscriptions/${id}/activate`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 1 })
+      .expect(200);
+
+    const started = await request(app)
+      .post(`/api/v1/subscriptions/${id}/start-renewal`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 2 });
+    expect(started.status).toBe(200);
+    expectMatchesOperation(started, 'startSubscriptionRenewal');
+    expect(started.body.status).toBe('in_renewal');
+    expect(started.body.followUpStatus).toBe('in_progress');
+    expect(started.body.version).toBe(3);
+
+    const repeated = await request(app)
+      .post(`/api/v1/subscriptions/${id}/start-renewal`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 3 });
+    expect(repeated.status).toBe(422);
+    expect(repeated.body.code).toBe('invalid_state_transition');
+
+    const stale = await request(app)
+      .post(`/api/v1/subscriptions/${id}/start-renewal`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 2 });
+    expect(stale.status).toBe(409);
+    expect(stale.body.code).toBe('version_conflict');
+  });
+
+  it('T-HU09-02 — not-renewed vigente difiere el estado; expired lo aplica ya', async () => {
+    const app = await buildTestApp();
+    const client = await factories.client();
+    const product = await factories.product();
+    const operator = await factories.operatorUser();
+    const token = await factories.tokenFor(operator);
+
+    const created = await request(app)
+      .post('/api/v1/subscriptions')
+      .set('Authorization', `Bearer ${token}`)
+      .send(bodyFor(client.id, product.id));
+    const id = created.body.id as string;
+    await request(app)
+      .post(`/api/v1/subscriptions/${id}/activate`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 1 })
+      .expect(200);
+
+    const decision = 'El cliente no renovará';
+    const deferred = await request(app)
+      .post(`/api/v1/subscriptions/${id}/not-renewed`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 2, reason: decision });
+    expect(deferred.status).toBe(200);
+    expectMatchesOperation(deferred, 'markSubscriptionNotRenewed');
+    expect(deferred.body.status).toBe('active');
+    expect(deferred.body.followUpStatus).toBe('closed');
+    expect(deferred.body.currentPeriod.renewalOutcome).toBe('not_renewed');
+    expect(deferred.body.currentPeriod.outcomeReason).toBe(decision);
+
+    const expiredSub = await factories.subscription(client, product, {
+      status: 'expired',
+      startDate: '2026-10-01',
+    });
+    const immediate = await request(app)
+      .post(`/api/v1/subscriptions/${expiredSub.id}/not-renewed`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 1, reason: 'Fin de contrato' });
+    expect(immediate.status).toBe(200);
+    expect(immediate.body.status).toBe('not_renewed');
+    expect(immediate.body.followUpStatus).toBe('closed');
+    expect(immediate.body.currentPeriod.renewalOutcome).toBe('not_renewed');
+  });
+
+  it('T-HU09-02 — correct-expiration actualiza suscripción y periodo con motivo', async () => {
+    const app = await buildTestApp();
+    const client = await factories.client();
+    const product = await factories.product();
+    const operator = await factories.operatorUser();
+    const token = await factories.tokenFor(operator);
+
+    const created = await request(app)
+      .post('/api/v1/subscriptions')
+      .set('Authorization', `Bearer ${token}`)
+      .send(bodyFor(client.id, product.id));
+    const id = created.body.id as string;
+    await request(app)
+      .post(`/api/v1/subscriptions/${id}/activate`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 1 })
+      .expect(200);
+
+    const corrected = await request(app)
+      .post(`/api/v1/subscriptions/${id}/correct-expiration`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 2, newCurrentPeriodEnd: '2026-12-15', reason: 'Error de captura' });
+    expect(corrected.status).toBe(200);
+    expectMatchesOperation(corrected, 'correctSubscriptionExpiration');
+    expect(corrected.body.currentPeriodEnd).toBe('2026-12-15');
+    expect(corrected.body.currentPeriod.endDate).toBe('2026-12-15');
+    expect(corrected.body.currentPeriod.paymentStatus).toBe('pending');
+    expect(corrected.body.version).toBe(3);
+
+    const stale = await request(app)
+      .post(`/api/v1/subscriptions/${id}/correct-expiration`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 2, newCurrentPeriodEnd: '2026-12-20', reason: 'Otra fecha' });
+    expect(stale.status).toBe(409);
+    expect(stale.body.code).toBe('version_conflict');
+
+    const beforeStart = await request(app)
+      .post(`/api/v1/subscriptions/${id}/correct-expiration`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 3, newCurrentPeriodEnd: '2026-10-31', reason: 'Fecha inválida' });
+    expect(beforeStart.status).toBe(400);
+    expect(beforeStart.body.code).toBe('validation_error');
+  });
+
+  it('T-RN07 — el pago se cambia sólo por periodo y no altera la vigencia', async () => {
+    const app = await buildTestApp();
+    const client = await factories.client();
+    const product = await factories.product();
+    const operator = await factories.operatorUser();
+    const token = await factories.tokenFor(operator);
+
+    const created = await request(app)
+      .post('/api/v1/subscriptions')
+      .set('Authorization', `Bearer ${token}`)
+      .send(bodyFor(client.id, product.id));
+    const id = created.body.id as string;
+    const periodId = created.body.currentPeriod.id as string;
+    await request(app)
+      .post(`/api/v1/subscriptions/${id}/activate`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 1 })
+      .expect(200);
+
+    const paid = await request(app)
+      .patch(`/api/v1/subscriptions/${id}/periods/${periodId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ paymentStatus: 'received', contractReference: 'C-2026-11' });
+    expect(paid.status).toBe(200);
+    expectMatchesOperation(paid, 'updateSubscriptionPeriodPayment');
+    expect(paid.body.paymentStatus).toBe('received');
+    expect(paid.body.contractReference).toBe('C-2026-11');
+
+    const detail = await request(app)
+      .get(`/api/v1/subscriptions/${id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(detail.body.status).toBe('active');
+    expect(detail.body.currentPaymentStatus).toBe('received');
+
+    const history = await request(app)
+      .get(`/api/v1/subscriptions/${id}/periods`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(history.body.data[0].paymentStatus).toBe('received');
+
+    const expiredSub = await factories.subscription(client, product, {
+      status: 'expired',
+      startDate: '2026-10-01',
+    });
+    const expiredPeriods = await request(app)
+      .get(`/api/v1/subscriptions/${expiredSub.id}/periods`)
+      .set('Authorization', `Bearer ${token}`);
+    const expiredPaid = await request(app)
+      .patch(`/api/v1/subscriptions/${expiredSub.id}/periods/${expiredPeriods.body.data[0].id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ paymentStatus: 'received' });
+    expect(expiredPaid.status).toBe(200);
+    const expiredDetail = await request(app)
+      .get(`/api/v1/subscriptions/${expiredSub.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(expiredDetail.body.status).toBe('expired');
+    expect(expiredDetail.body.currentPaymentStatus).toBe('received');
+
+    const other = await request(app)
+      .post('/api/v1/subscriptions')
+      .set('Authorization', `Bearer ${token}`)
+      .send(bodyFor(client.id, product.id));
+    const wrongPeriod = await request(app)
+      .patch(`/api/v1/subscriptions/${id}/periods/${other.body.currentPeriod.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ paymentStatus: 'pending' });
+    expect(wrongPeriod.status).toBe(404);
+  });
+
+  it('T-RN03/RN04 — renovar conserva el periodo previo y vuelve a followUp none', async () => {
+    const app = await buildTestApp();
+    const client = await factories.client();
+    const product = await factories.product();
+    const operator = await factories.operatorUser();
+    const token = await factories.tokenFor(operator);
+
+    const created = await request(app)
+      .post('/api/v1/subscriptions')
+      .set('Authorization', `Bearer ${token}`)
+      .send(bodyFor(client.id, product.id, { priceAmount: '100000.00' }));
+    const id = created.body.id as string;
+    await request(app)
+      .post(`/api/v1/subscriptions/${id}/activate`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 1 })
+      .expect(200);
+    await request(app)
+      .post(`/api/v1/subscriptions/${id}/start-renewal`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 2 })
+      .expect(200);
+
+    const renewed = await request(app)
+      .post(`/api/v1/subscriptions/${id}/renew`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ version: 3, newPeriod: { priceAmount: '120000.00' } });
+    expect(renewed.status).toBe(200);
+    expect(renewed.body.followUpStatus).toBe('none');
+    expect(renewed.body.currentPeriod.priceAmount).toBe('120000.00');
+
+    const periods = await request(app)
+      .get(`/api/v1/subscriptions/${id}/periods`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(periods.body.data).toHaveLength(2);
+    expect(periods.body.data[1].priceAmount).toBe('100000.00');
+    expect(periods.body.data[1].renewalOutcome).toBe('renewed');
+    expect(periods.body.data[0].priceAmount).toBe('120000.00');
+    expect(periods.body.data[0].paymentStatus).toBe('pending');
+  });
 });

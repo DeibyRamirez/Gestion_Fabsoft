@@ -191,6 +191,34 @@ export const RenewInputSchema = z
   .strict();
 export type RenewInput = z.infer<typeof RenewInputSchema>;
 
+export const SubscriptionNotRenewedSchema = z
+  .object({
+    version: z.number().int().min(1),
+    reason: z.string().trim().min(3).max(1000),
+  })
+  .strict();
+export type SubscriptionNotRenewedInput = z.infer<typeof SubscriptionNotRenewedSchema>;
+
+export const CorrectExpirationInputSchema = z
+  .object({
+    version: z.number().int().min(1),
+    newCurrentPeriodEnd: isoDate,
+    reason: z.string().trim().min(3).max(1000),
+  })
+  .strict();
+export type CorrectExpirationInput = z.infer<typeof CorrectExpirationInputSchema>;
+
+export const PeriodPaymentUpdateSchema = z
+  .object({
+    paymentStatus: PaymentStatusSchema.optional(),
+    contractReference: z.string().trim().max(120).nullable().optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, {
+    message: 'Se requiere al menos un campo',
+  });
+export type PeriodPaymentUpdateInput = z.infer<typeof PeriodPaymentUpdateSchema>;
+
 export const SubscriptionPeriodListSchema = z.object({
   data: z.array(SubscriptionPeriodSchema),
 });

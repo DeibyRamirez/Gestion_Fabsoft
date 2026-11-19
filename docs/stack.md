@@ -65,7 +65,7 @@
 |---|---|---|
 | Supabase (PostgreSQL gestionado) | BD fase 1 (ADR-008). Sólo Postgres + Supavisor. | prod (y opcionalmente staging) |
 | PostgreSQL 16 en VPS | BD fase 2 | prod tras migración |
-| Resend | Correo transaccional de alertas | prod (`EMAIL_TRANSPORT=resend`); dev/test usan `log` |
+| Resend | Correo transaccional de alertas | prod (`CORREO_CANAL=resend`); dev/test usan `log` |
 
 ## 6. Excluido explícitamente
 

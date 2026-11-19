@@ -56,17 +56,31 @@ const sample = (over: Partial<SubscriptionView> = {}): SubscriptionView => ({
   ...over,
 });
 
+const clock = { now: () => new Date('2026-11-14T12:00:00Z') };
+
 function makeUc(current: SubscriptionView | null, updated: SubscriptionView | null) {
   const save = vi.fn(async () => updated);
   const auditWrite = vi.fn(async () => undefined);
-  const uc = new UpdateSubscription({
-    run: async (_a, work) =>
-      work({
-        subscriptionUpdate: { loadForUpdate: async () => current, save },
-        audit: { write: auditWrite },
-      }),
-  });
-  return { uc, save, auditWrite };
+  const cancelPendingWithoutException = vi.fn(async () => 1);
+  const scheduleForPeriod = vi.fn(async () => 1);
+  const uc = new UpdateSubscription(
+    {
+      run: async (_a, work) =>
+        work({
+          subscriptionUpdate: { loadForUpdate: async () => current, save },
+          alerts: {
+            scheduleForPeriod,
+            cancelPendingForPeriod: async () => 0,
+            cancelPendingWithoutException,
+            cancelAllPending: async () => 0,
+            reconcile: async () => ({ scannedSubscriptions: 0, scheduled: 0, cancelled: 0 }),
+          },
+          audit: { write: auditWrite },
+        }),
+    },
+    clock,
+  );
+  return { uc, save, auditWrite, cancelPendingWithoutException, scheduleForPeriod };
 }
 
 describe('UpdateSubscription', () => {
@@ -156,5 +170,23 @@ describe('UpdateSubscription', () => {
       }),
       'a',
     );
+  });
+
+  it('isRenewable=false cancela pendientes sin excepción', async () => {
+    const { uc, cancelPendingWithoutException } = makeUc(
+      sample(),
+      sample({ isRenewable: false, version: 2 }),
+    );
+    await uc.execute(admin, 'sub-1', { version: 1, isRenewable: false });
+    expect(cancelPendingWithoutException).toHaveBeenCalledWith('sub-1', 'not_renewable');
+  });
+
+  it('isRenewable=true reprograma el periodo', async () => {
+    const { uc, scheduleForPeriod } = makeUc(
+      sample({ isRenewable: false }),
+      sample({ isRenewable: true, version: 2 }),
+    );
+    await uc.execute(admin, 'sub-1', { version: 1, isRenewable: true });
+    expect(scheduleForPeriod).toHaveBeenCalledWith('sub-1', '2026-11-14');
   });
 });

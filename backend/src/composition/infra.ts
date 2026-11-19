@@ -15,6 +15,13 @@ import type {
 } from '../application/auth/ports.js';
 import type { RefreshSessionRepos } from '../application/auth/refresh-session/ports.js';
 import type { IdempotencyPurgeRepository } from '../application/maintenance/purge-idempotency-keys/ports.js';
+import type { MaintenanceRepos } from '../application/maintenance/cleanup/ports.js';
+import type { AlertSchedulingRepos } from '../application/alerts/shared/alert-scheduling.js';
+import type { ListNotificationsRepos } from '../application/notifications/list-notifications/ports.js';
+import type { MarkNotificationReadRepos } from '../application/notifications/mark-notification-read/ports.js';
+import type { RetryNotificationRepos } from '../application/notifications/retry-notification/ports.js';
+import type { NotificationDispatchRepos } from '../application/notifications/dispatch-notifications/ports.js';
+import type { ExpireSubscriptionsRepos } from '../application/subscriptions/expire-subscriptions/ports.js';
 import type {
   AuthUnitOfWork,
   Clock,
@@ -39,7 +46,18 @@ import type { GetSubscriptionRepos } from '../application/subscriptions/get-subs
 import type { ListSubscriptionPeriodsRepos } from '../application/subscriptions/list-subscription-periods/ports.js';
 import type { ListSubscriptionsRepos } from '../application/subscriptions/list-subscriptions/ports.js';
 import type { RenewSubscriptionRepos } from '../application/subscriptions/renew-subscription/ports.js';
+import type { StartRenewalRepos } from '../application/subscriptions/start-renewal/ports.js';
+import type { MarkNotRenewedRepos } from '../application/subscriptions/mark-not-renewed/ports.js';
+import type { CorrectExpirationRepos } from '../application/subscriptions/correct-expiration/ports.js';
+import type { UpdatePeriodPaymentRepos } from '../application/subscriptions/update-period-payment/ports.js';
 import type { UpdateSubscriptionRepos } from '../application/subscriptions/update-subscription/ports.js';
+import type { ListTasksRepos } from '../application/tasks/list-tasks/ports.js';
+import type { GetTaskRepos } from '../application/tasks/get-task/ports.js';
+import type { CreateTaskRepos } from '../application/tasks/create-task/ports.js';
+import type { UpdateTaskRepos } from '../application/tasks/update-task/ports.js';
+import type { CloseTaskRepos } from '../application/tasks/close-task/ports.js';
+import type { TaskAutomationRepos } from '../application/tasks/shared/task-automation.js';
+import type { RenewalRequestAutomationRepos } from '../application/renewal-requests/shared/renewal-request-automation.js';
 import type { CreateProductRepos } from '../application/products/create-product/ports.js';
 import type { GetProductRepos } from '../application/products/get-product/ports.js';
 import type { ListProductsRepos } from '../application/products/list-products/ports.js';
@@ -78,10 +96,25 @@ export type UserScopeRepos = GetMeRepos &
   UpdateSubscriptionRepos &
   CancelSubscriptionRepos &
   RenewSubscriptionRepos &
+  StartRenewalRepos &
+  MarkNotRenewedRepos &
+  CorrectExpirationRepos &
+  UpdatePeriodPaymentRepos &
   ListSubscriptionPeriodsRepos &
   ListAuditLogsRepos &
   ListClientActivityRepos &
-  ChangePasswordRepos & { idempotency: IdempotencyRepository };
+  ListTasksRepos &
+  GetTaskRepos &
+  CreateTaskRepos &
+  UpdateTaskRepos &
+  CloseTaskRepos &
+  TaskAutomationRepos &
+  RenewalRequestAutomationRepos &
+  ListNotificationsRepos &
+  MarkNotificationReadRepos &
+  RetryNotificationRepos &
+  ChangePasswordRepos &
+  AlertSchedulingRepos & { idempotency: IdempotencyRepository };
 
 /** Repos disponibles en contexto system/auth. */
 export type AuthScopeRepos = LoginRepos &
@@ -89,11 +122,17 @@ export type AuthScopeRepos = LoginRepos &
   LogoutRepos &
   AuthenticateRepos & { idempotencyRelease: IdempotencyReleaseRepository };
 
+/** Repos de jobs: purgas, expiración, dispatch y reconciliación. */
+export type WorkerScopeRepos = { idempotency: IdempotencyPurgeRepository } & AlertSchedulingRepos &
+  NotificationDispatchRepos &
+  ExpireSubscriptionsRepos &
+  MaintenanceRepos;
+
 /** Todo lo que los módulos necesitan; Pg en producción, memoria en tests (DIP). */
 export interface Infra {
   userUow: UnitOfWork<UserScopeRepos>;
   authUow: AuthUnitOfWork<AuthScopeRepos>;
-  workerUow: AuthUnitOfWork<{ idempotency: IdempotencyPurgeRepository }>;
+  workerUow: AuthUnitOfWork<WorkerScopeRepos>;
   hasher: PasswordHasher;
   tokens: AccessTokenService;
   refreshTokens: RefreshTokenFactory;

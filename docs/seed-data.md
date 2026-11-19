@@ -26,7 +26,7 @@ pnpm db:seed --reset       # **Única operación elevada:** TRUNCATE vía `DATAB
 | `portal@cafetal.test` | `client` | Café El Cafetal Ltda. | `Cliente.dev-2026!` | `true` (prueba del cambio obligatorio) |
 | `inactivo@fabsoft.test` | `operator` (`status=disabled`) | — | `Inactivo.dev-2026!` | `false` |
 
-El dominio `.test` es reservado: los correos nunca se entregan (y en dev `EMAIL_TRANSPORT=log`).
+El dominio `.test` es reservado: los correos nunca se entregan (y en dev `CORREO_CANAL=log`).
 
 ## 3. Clientes
 
@@ -76,7 +76,7 @@ Notas:
 ## 6. Tareas, notificaciones y auditoría
 
 - `tasks`: las generadas por las reglas para S1 (`send_proposal`), S2 (`contact_client`), S6 (`review_expired`), más una tarea manual completada en S8.
-- `notifications`: tras `alerts.reconcile`, pendientes las futuras de S1…S5 y S8; en dev con `EMAIL_TRANSPORT=log` el worker las marca `sent` y escribe el correo en el log.
+- `notifications`: tras `alerts.reconcile`, pendientes las futuras de S1…S5 y S8; en dev con `CORREO_CANAL=log` el worker las marca `sent` y escribe el correo en el log.
 - `audit_logs`: el seed escribe una entrada `seed.executed` con `actor_type='system'`; los registros sembrados no generan auditoría individual.
 
 ## 7. Integración de prueba

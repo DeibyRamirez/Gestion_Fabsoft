@@ -22,7 +22,7 @@
 - **Fecha programada:** `scheduled_for = (current_period_end − offset_days) a las 08:00 America/Bogota` (13:00 UTC).
 - **Destinatarios** (pregunta funcional 8 pendiente; regla inicial): responsable de la suscripción (`subscriptions.owner_user_id`) → si es nulo, responsable del cliente (`clients.owner_user_id`) → si es nulo, todos los admins activos. Sólo usuarios internos activos.
 - Las tareas automáticas se asignan al mismo destinatario principal, con `due_date = fecha de la alerta + 2 días` (y nunca posterior al vencimiento para reglas previas).
-- **Email:** habilitado por regla (`channels`) y globalmente por `EMAIL_TRANSPORT=resend`. Con `EMAIL_TRANSPORT=log` (dev/test) el envío se escribe en log y se marca `sent`.
+- **Email:** habilitado por regla (`channels`) y globalmente por `CORREO_CANAL=resend`. Con `CORREO_CANAL=log` (dev/test) el envío se escribe en log y se marca `sent`.
 
 ## 3. Programación (scheduling)
 
@@ -35,16 +35,17 @@ sequenceDiagram
   participant R as Resend
   UC->>DB: crea/renueva/corrige suscripción (tx)
   UC->>DB: INSERT notifications ... ON CONFLICT (dedupe_key) DO NOTHING (misma tx)
+  UC->>DB: INSERT tasks automáticas de reglas creates_task (misma tx)
   Note over Q,W: cron * * * * * notifications.dispatch
   W->>DB: SELECT ... FOR UPDATE SKIP LOCKED (due, pending)
-  W->>DB: in_app → status=sent (+ tarea de la regla)
+  W->>DB: in_app → status=sent
   W->>DB: email → attempts+1, locked_until=now()+2min (commit)
   W->>R: POST /emails (Idempotency-Key = dedupe_key)
   R-->>W: 200 id / error
   W->>DB: sent (provider_message_id) | pending + next_attempt_at | failed
 ```
 
-1. **En línea (misma transacción del caso de uso):** al crear, activar, renovar o corregir una suscripción se insertan las notificaciones del periodo vigente para todas las reglas activas aplicables cuya fecha programada sea **≥ hoy** (no se generan alertas retroactivas de anticipaciones ya pasadas; la regla más próxima no vencida sí).
+1. **En línea (misma transacción del caso de uso):** al crear, activar, renovar o corregir una suscripción se insertan las notificaciones del periodo vigente para todas las reglas activas aplicables cuya fecha programada sea **≥ hoy** (no se generan alertas retroactivas de anticipaciones ya pasadas; la regla más próxima no vencida sí). En la misma transacción se crean las tareas automáticas de las reglas con `creates_task` (`dedupe_key = alert:<subscription_id>:<rule_code>:<period_end>`), asignadas al destinatario principal.
 2. **Reconciliación (`alerts.reconcile`, diaria 00:10 Bogotá y tras cambiar reglas):** recorre suscripciones `active`/`in_renewal`/`expired` y:
    - inserta las faltantes (`ON CONFLICT DO NOTHING`);
    - cancela pendientes cuyo `period_end` ≠ `current_period_end`, cuya regla está inactiva o cambió de `offset_days`, o cuya suscripción ya no es elegible (RN-10).
@@ -116,7 +117,7 @@ stateDiagram-v2
 
 - Plantillas en `infrastructure/email/templates/` (texto + HTML simple), en español, con: cliente, producto, fecha de vencimiento (formato `d 'de' MMMM 'de' yyyy`), días restantes, regla, enlace a `FRONTEND_URL/subscriptions/<id>`.
 - Sin precio ni costo en el correo (minimizar datos sensibles en buzones).
-- Remitente `EMAIL_FROM` en dominio verificado en Resend.
+- Remitente `CORREO_DESDE` en dominio verificado en Resend.
 
 ## 9. Observabilidad
 

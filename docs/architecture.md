@@ -169,7 +169,7 @@ export function subscriptionsModule(infra: Infra) {
 | Repositorios/consultas por caso de uso | `Pg*Repository` / `Pg*Query` | SQL explícito, columnas explícitas. |
 | `DatabaseConnectionProvider` | `SupabasePoolerProvider` · `DirectPostgresProvider` | **Único punto que cambia** al migrar a VPS (más variables de entorno). |
 | `JobQueue` (`enqueue(name, payload, {tx})`, `schedule`) | `PgBossJobQueue` | Envío transaccional usando la misma conexión (`db` de pg-boss). |
-| `EmailSender` | `ResendEmailSender` · `LogEmailSender` | Selección `EMAIL_TRANSPORT`. |
+| `EmailSender` | `ResendEmailSender` · `LogEmailSender` | Selección `CORREO_CANAL`. |
 | `TokenService` | `JoseTokenService` | EdDSA + JWKS. |
 | `PasswordHasher` | `Argon2PasswordHasher` | argon2id. |
 | `ApiKeyHasher` | `HmacApiKeyHasher` | HMAC-SHA256 + pepper. |

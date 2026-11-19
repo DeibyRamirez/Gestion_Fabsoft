@@ -17,6 +17,9 @@ test.describe('HU-07 — historial de periodos', () => {
 
     await expect(page.getByRole('heading', { name: 'Historial de periodos' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Renovar' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'No renovar' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Corregir vencimiento' })).toBeVisible();
+    await expect(page.getByLabel(/Pago del periodo/).first()).toBeVisible();
 
     await context.storageState({ path: adminState });
     await context.close();

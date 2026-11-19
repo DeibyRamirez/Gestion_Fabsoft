@@ -12,6 +12,7 @@ import type { ClientView } from '../../src/application/clients/shared/client-vie
 import type { ClientContactView } from '../../src/application/clients/shared/client-contact-view.js';
 import type { NewSubscriptionRecord } from '../../src/application/subscriptions/create-subscription/ports.js';
 import type { SubscriptionView } from '../../src/application/subscriptions/shared/subscription-view.js';
+import type { SubscriptionPeriodView } from '../../src/application/subscriptions/shared/subscription-view.js';
 import type { RenewSubscriptionParams } from '../../src/application/subscriptions/renew-subscription/ports.js';
 import type { SubscriptionPatch } from '../../src/application/subscriptions/update-subscription/ports.js';
 import { ApplicationError } from '../../src/application/shared/application-error.js';
@@ -107,6 +108,13 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
     return u ? view(u) : null;
   };
   const audit = { write: async (e: AuditEntry) => void store.audit.push(e) };
+  const alerts = {
+    scheduleForPeriod: async () => 0,
+    cancelPendingForPeriod: async () => 0,
+    cancelPendingWithoutException: async () => 0,
+    cancelAllPending: async () => 0,
+    reconcile: async () => ({ scannedSubscriptions: 0, scheduled: 0, cancelled: 0 }),
+  };
 
   const auditLogs = (): AuditLogView[] =>
     store.audit.map((e, i) => ({
@@ -119,7 +127,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
       resourceId: e.resourceId,
       clientId: null,
       changes: (e.changes as Record<string, unknown> | undefined) ?? null,
-      reason: null,
+      reason: e.reason ?? null,
       requestId: e.requestId,
     }));
 
@@ -163,6 +171,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
   });
   const userRepos: UserScopeRepos = {
     audit,
+    alerts,
     auditLogs: {
       list: async (query: AuditLogListQuery) => {
         const filtered = auditLogs().filter(
@@ -658,6 +667,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
           ...s,
           currentPeriodEnd: p.endDate,
           status: 'active',
+          followUpStatus: 'none',
           currentPeriod: {
             id: randomUUID(),
             periodNumber: (s.currentPeriod?.periodNumber ?? 0) + 1,
@@ -680,11 +690,118 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
         return next;
       },
     },
+    subscriptionStartRenewal: {
+      loadForUpdate: async (id) => store.subscriptions.get(id) ?? null,
+      startRenewal: async (id, expectedVersion) => {
+        const s = store.subscriptions.get(id);
+        if (!s || s.version !== expectedVersion) return null;
+        const next: SubscriptionView = {
+          ...s,
+          status: 'in_renewal',
+          followUpStatus: 'in_progress',
+          version: s.version + 1,
+          updatedAt: new Date(),
+        };
+        store.subscriptions.set(id, next);
+        return next;
+      },
+    },
+    subscriptionMarkNotRenewed: {
+      loadForUpdate: async (id) => store.subscriptions.get(id) ?? null,
+      markNotRenewed: async (id, expectedVersion, p) => {
+        const s = store.subscriptions.get(id);
+        if (!s || s.version !== expectedVersion || !s.currentPeriod) return null;
+        const next: SubscriptionView = {
+          ...s,
+          status: p.immediateStatus ?? s.status,
+          followUpStatus: 'closed',
+          currentPeriod: {
+            ...s.currentPeriod,
+            renewalOutcome: 'not_renewed',
+            outcomeReason: p.reason,
+            confirmedAt: p.confirmedAt,
+          },
+          version: s.version + 1,
+          updatedAt: new Date(),
+        };
+        store.subscriptions.set(id, next);
+        return next;
+      },
+    },
+    subscriptionCorrectExpiration: {
+      loadForUpdate: async (id) => store.subscriptions.get(id) ?? null,
+      correctExpiration: async (id, expectedVersion, p) => {
+        const s = store.subscriptions.get(id);
+        if (!s || s.version !== expectedVersion || !s.currentPeriod) return null;
+        const next: SubscriptionView = {
+          ...s,
+          currentPeriodEnd: p.newCurrentPeriodEnd,
+          currentPeriod: { ...s.currentPeriod, endDate: p.newCurrentPeriodEnd },
+          version: s.version + 1,
+          updatedAt: new Date(),
+        };
+        store.subscriptions.set(id, next);
+        return next;
+      },
+    },
+    subscriptionPeriodPayment: {
+      loadPeriodForUpdate: async (subscriptionId, periodId) => {
+        const s = store.subscriptions.get(subscriptionId);
+        return s?.currentPeriod?.id === periodId ? s.currentPeriod : null;
+      },
+      updatePayment: async (subscriptionId, periodId, p) => {
+        const s = store.subscriptions.get(subscriptionId);
+        if (!s?.currentPeriod || s.currentPeriod.id !== periodId) return null;
+        const period: SubscriptionPeriodView = {
+          ...s.currentPeriod,
+          ...(p.paymentStatus !== undefined ? { paymentStatus: p.paymentStatus } : {}),
+          ...(p.contractReference !== undefined ? { contractReference: p.contractReference } : {}),
+        };
+        store.subscriptions.set(subscriptionId, { ...s, currentPeriod: period });
+        return period;
+      },
+    },
     subscriptionPeriods: {
       list: async (subscriptionId) => {
         const s = store.subscriptions.get(subscriptionId);
         return s?.currentPeriod ? [s.currentPeriod] : [];
       },
+    },
+    tasksList: { list: async () => ({ items: [], total: 0 }) },
+    taskDetail: { findById: async () => null },
+    taskCreate: {
+      insert: async () => {
+        throw new Error('taskCreate no implementado en memoria');
+      },
+    },
+    taskUpdate: {
+      loadForUpdate: async () => null,
+      save: async () => null,
+    },
+    taskClose: {
+      loadForUpdate: async () => null,
+      close: async () => null,
+    },
+    tasksAutomation: {
+      completeAutoTasksForSubscription: async () => 0,
+      cancelPendingAutoTasksForPeriod: async () => 0,
+      annotateInProgressAutoTasksForPeriod: async () => 0,
+      cancelOpenAutoTasksForSubscription: async () => 0,
+      cancelOpenTasksForSubscription: async () => 0,
+    },
+    renewalRequests: {
+      resolveOpenForSubscription: async () => 0,
+    },
+    notificationsList: {
+      list: async () => ({ items: [], total: 0, unreadCount: 0 }),
+    },
+    notificationsRead: {
+      findById: async () => null,
+      markRead: async () => false,
+    },
+    notificationsRetry: {
+      loadForRetry: async () => null,
+      restart: async () => null,
     },
     productUpdate: {
       loadForUpdate: async (id) => store.products.get(id) ?? null,
@@ -725,7 +842,24 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
     store,
     userUow: { run: (_actor, work) => work(userRepos) },
     authUow: { run: (_rid, work) => work(authRepos) },
-    workerUow: { run: (_rid, work) => work({ idempotency: { purgeExpired: async () => 0 } }) },
+    workerUow: {
+      run: (_rid, work) =>
+        work({
+          idempotency: { purgeExpired: async () => 0 },
+          alerts,
+          notificationsDispatch: {
+            claimDue: async () => ({ items: [], cancelled: 0 }),
+            markSent: async () => false,
+            markFailure: async () => false,
+          },
+          subscriptionsExpire: {
+            expire: async () => ({ expired: 0, notRenewed: 0 }),
+          },
+          maintenance: {
+            cleanup: async () => ({ idempotencyKeys: 0, refreshTokens: 0 }),
+          },
+        }),
+    },
     hasher: fakeHasher,
     tokens,
     refreshTokens: new Sha256RefreshTokenFactory(),

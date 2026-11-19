@@ -1,13 +1,16 @@
 import type { FollowUpStatus } from '@fabsoft/shared';
+import type { AlertSchedulingRepos } from '../../alerts/shared/alert-scheduling.js';
+import { toBogotaLocalDate } from '../../../domain/subscriptions/bogota-date.js';
 import type { UserActor } from '../../shared/actor.js';
 import { ApplicationError } from '../../shared/application-error.js';
 import { requireRole } from '../../shared/authorizer.js';
-import type { AuditWriter, UnitOfWork } from '../../shared/ports.js';
+import type { AuditWriter, Clock, UnitOfWork } from '../../shared/ports.js';
 import { subscriptionAuditSnapshot } from '../shared/subscription-audit.js';
 import type { SubscriptionView } from '../shared/subscription-view.js';
 import type { UpdateSubscriptionRepos } from './ports.js';
 
-type UpdateSubscriptionUow = UpdateSubscriptionRepos & { audit: AuditWriter };
+type UpdateSubscriptionUow = UpdateSubscriptionRepos &
+  AlertSchedulingRepos & { audit: AuditWriter };
 
 export interface UpdateSubscriptionInput {
   version: number;
@@ -29,7 +32,10 @@ function hasPricingChange(input: UpdateSubscriptionInput): boolean {
 
 /** PATCH de campos no estructurales; precio/costo sólo admin y con motivo (bloqueo optimista). */
 export class UpdateSubscription {
-  constructor(private readonly uow: UnitOfWork<UpdateSubscriptionUow>) {}
+  constructor(
+    private readonly uow: UnitOfWork<UpdateSubscriptionUow>,
+    private readonly clock: Clock,
+  ) {}
 
   async execute(
     actor: UserActor,
@@ -47,7 +53,7 @@ export class UpdateSubscription {
       );
     }
 
-    return this.uow.run(actor, async ({ subscriptionUpdate, audit }) => {
+    return this.uow.run(actor, async ({ subscriptionUpdate, alerts, audit }) => {
       const current = await subscriptionUpdate.loadForUpdate(id);
       if (!current) throw new ApplicationError('not_found', 'Suscripción no encontrada');
       if (current.version !== input.version) {
@@ -77,6 +83,12 @@ export class UpdateSubscription {
         actor.userId,
       );
       if (!updated) throw new ApplicationError('version_conflict', 'La suscripción fue modificada');
+
+      if (input.isRenewable === false) {
+        await alerts.cancelPendingWithoutException(id, 'not_renewable');
+      } else if (input.isRenewable === true) {
+        await alerts.scheduleForPeriod(id, toBogotaLocalDate(this.clock.now()));
+      }
 
       await audit.write({
         actor: { type: 'user', userId: actor.userId },

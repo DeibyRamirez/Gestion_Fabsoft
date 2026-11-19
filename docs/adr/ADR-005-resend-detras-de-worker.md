@@ -23,7 +23,7 @@ Las alertas (30/15/7/1/0/post) deben ser idempotentes, registrar estado (pendien
 4. **Idempotencia doble:** `notifications.dedupe_key` único (`exp:<subscription_id>:<rule_code>:<period_end>:<channel>:<recipient>`) y la misma clave como cabecera `Idempotency-Key` de Resend (ventana de 24 h del proveedor) para cubrir el caso "Resend aceptó pero el worker murió antes de marcar `sent`".
 5. **Reintentos:** máximo 5 intentos con backoff 1 min, 5 min, 30 min, 2 h, 6 h (±20 % jitter). Errores 4xx no recuperables (salvo 429) ⇒ `failed` inmediato. Tras el último intento ⇒ `failed`, visible en UI y reintentable manualmente (`POST /api/v1/notifications/{id}/retry`).
 6. **Límite de tasa:** el adaptador `ResendEmailSender` usa un limitador de ventana (token bucket en proceso) configurado por `RESEND_MAX_RPS` (por defecto 2) y respeta `Retry-After` ante 429.
-7. **Adaptadores:** puerto `EmailSender` con implementaciones `ResendEmailSender` (prod) y `LogEmailSender` (dev/test, escribe en el log). Selección por `EMAIL_TRANSPORT=resend|log`.
+7. **Adaptadores:** puerto `EmailSender` con implementaciones `ResendEmailSender` (prod) y `LogEmailSender` (dev/test, escribe en el log). Selección por `CORREO_CANAL=resend|log`.
 8. El worker usa una conexión de **sesión** (`WORKER_DATABASE_URL`: puerto 5432 del pooler de Supabase en modo sesión o conexión directa; en VPS, conexión directa), porque pg-boss mantiene conexiones y bloqueos de larga duración.
 
 ## Alternativas consideradas

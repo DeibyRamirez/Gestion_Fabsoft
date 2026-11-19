@@ -1,4 +1,6 @@
 import type { SubscriptionCancelInput } from '@fabsoft/shared';
+import type { AlertSchedulingRepos } from '../../alerts/shared/alert-scheduling.js';
+import type { TaskAutomationRepos } from '../../tasks/shared/task-automation.js';
 import { assertTransition } from '../../../domain/subscriptions/subscription-status.js';
 import type { UserActor } from '../../shared/actor.js';
 import { ApplicationError } from '../../shared/application-error.js';
@@ -8,7 +10,9 @@ import { subscriptionAuditSnapshot } from '../shared/subscription-audit.js';
 import type { SubscriptionView } from '../shared/subscription-view.js';
 import type { CancelSubscriptionRepos } from './ports.js';
 
-type CancelSubscriptionUow = CancelSubscriptionRepos & { audit: AuditWriter };
+type CancelSubscriptionUow = CancelSubscriptionRepos &
+  AlertSchedulingRepos &
+  TaskAutomationRepos & { audit: AuditWriter };
 
 /** Cancelación terminal: sólo admin (matriz de permisos). */
 export class CancelSubscription {
@@ -23,7 +27,7 @@ export class CancelSubscription {
     input: SubscriptionCancelInput,
   ): Promise<SubscriptionView> {
     requireRole(actor, 'admin');
-    return this.uow.run(actor, async ({ subscriptionCancel, audit }) => {
+    return this.uow.run(actor, async ({ subscriptionCancel, alerts, tasksAutomation, audit }) => {
       const current = await subscriptionCancel.loadForUpdate(id);
       if (!current) throw new ApplicationError('not_found', 'Suscripción no encontrada');
       if (current.version !== input.version) {
@@ -39,6 +43,12 @@ export class CancelSubscription {
         actor.userId,
       );
       if (!updated) throw new ApplicationError('version_conflict', 'La suscripción fue modificada');
+      await alerts.cancelAllPending(id, 'subscription_cancelled');
+      await tasksAutomation.cancelOpenTasksForSubscription(
+        id,
+        'Suscripción cancelada',
+        actor.userId,
+      );
       await audit.write({
         actor: { type: 'user', userId: actor.userId },
         action: 'subscription.cancelled',

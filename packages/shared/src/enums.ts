@@ -48,3 +48,37 @@ export type FollowUpStatus = z.infer<typeof FollowUpStatusSchema>;
 
 export const RenewalOutcomeSchema = z.enum(['pending', 'renewed', 'not_renewed']);
 export type RenewalOutcome = z.infer<typeof RenewalOutcomeSchema>;
+
+export const RenewalRequestStatusSchema = z.enum(['pending_review', 'in_progress', 'resolved']);
+export type RenewalRequestStatus = z.infer<typeof RenewalRequestStatusSchema>;
+
+export const RenewalRequestResolutionSchema = z.enum(['renewed', 'not_renewed', 'other']);
+export type RenewalRequestResolution = z.infer<typeof RenewalRequestResolutionSchema>;
+
+export const TaskTypeSchema = z.enum([
+  'contact_client',
+  'send_proposal',
+  'confirm_terms',
+  'verify_payment',
+  'confirm_renewal',
+  'record_non_renewal',
+  'review_renewal_request',
+  'review_expired',
+  'other',
+]);
+export type TaskType = z.infer<typeof TaskTypeSchema>;
+
+export const TaskPrioritySchema = z.enum(['low', 'medium', 'high', 'urgent']);
+export type TaskPriority = z.infer<typeof TaskPrioritySchema>;
+
+export const TaskStatusSchema = z.enum(['pending', 'in_progress', 'completed', 'cancelled']);
+export type TaskStatus = z.infer<typeof TaskStatusSchema>;
+
+export const NotificationTypeSchema = z.enum(['expiration_alert', 'renewal_request_created']);
+export type NotificationType = z.infer<typeof NotificationTypeSchema>;
+
+export const NotificationChannelSchema = z.enum(['in_app', 'email']);
+export type NotificationChannel = z.infer<typeof NotificationChannelSchema>;
+
+export const NotificationStatusSchema = z.enum(['pending', 'sent', 'failed', 'cancelled']);
+export type NotificationStatus = z.infer<typeof NotificationStatusSchema>;

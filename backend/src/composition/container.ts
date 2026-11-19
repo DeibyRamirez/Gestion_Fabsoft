@@ -7,12 +7,15 @@ import { StaticAppInfo } from '../infrastructure/config/static-app-info.js';
 import type { AppDeps } from '../interfaces/http/app.js';
 import { sendProblem } from '../interfaces/http/problem.js';
 import type { Infra } from './infra.js';
+import { alertsModule } from './modules/alerts.js';
 import { auditModule } from './modules/audit.js';
 import { authModule } from './modules/auth.js';
 import { clientContactsModule } from './modules/client-contacts.js';
 import { clientsModule } from './modules/clients.js';
+import { notificationsModule } from './modules/notifications.js';
 import { productsModule } from './modules/products.js';
 import { subscriptionsModule } from './modules/subscriptions.js';
+import { tasksModule } from './modules/tasks.js';
 import { usersModule } from './modules/users.js';
 
 const log = (entry: Record<string, unknown>) => console.log(JSON.stringify(entry));
@@ -46,6 +49,9 @@ export function buildContainer(env: Env, infra: Infra): AppDeps {
     ...clientsModule(infra),
     ...clientContactsModule(infra),
     ...subscriptionsModule(infra),
+    ...tasksModule(infra),
+    ...notificationsModule(infra),
+    ...alertsModule(infra),
     ...auditModule(infra),
     cookie: { secure: env.APP_ENV !== 'test', domain: env.COOKIE_DOMAIN || undefined },
     loginRateLimit: [limited(20, ip), limited(5, (req) => `${ip(req)}|${email(req)}`)],

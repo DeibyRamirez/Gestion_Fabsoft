@@ -6,7 +6,7 @@
 
 | Entorno | Propósito | BD | Email | Datos |
 |---|---|---|---|---|
-| **dev** (local) | Desarrollo | `postgres:16` en docker-compose (`localhost:54320`) | `EMAIL_TRANSPORT=log` | Seed demo (`docs/seed-data.md`) |
+| **dev** (local) | Desarrollo | `postgres:16` en docker-compose (`localhost:54320`) | `CORREO_CANAL=log` | Seed demo (`docs/seed-data.md`) |
 | **test** (CI y local) | Tests automatizados | `postgres:16` efímero (`localhost:54329`, `tmpfs`) | `log` / fakes | Fábricas por test |
 | **staging** (recomendado) | Validación previa a release, ensayo de migración | Proyecto Supabase separado (fase 1) / BD separada en VPS (fase 2) | Resend con dominio de pruebas y lista blanca de destinatarios | Seed demo, nunca datos reales |
 | **prod** | Operación | Supabase (fase 1) → VPS (fase 2) | Resend (dominio verificado) | Reales |
@@ -37,10 +37,10 @@ Cada entorno tiene sus **propios** secretos, claves JWT, pepper y proyecto/BD. N
 | `CORS_ALLOWED_ORIGINS` | api | `https://app.fabsoft.example` |
 | `COOKIE_DOMAIN` | api | `api.fabsoft.example` (host-only si se omite) |
 | `BUSINESS_TIMEZONE` | api, worker | `America/Bogota` (fijo) |
-| `EMAIL_TRANSPORT` | worker | `resend` \| `log` |
+| `CORREO_CANAL` | worker | `log` \| `resend` |
 | `RESEND_API_KEY` | worker | Sólo worker |
 | `RESEND_MAX_RPS` | worker | `2` |
-| `EMAIL_FROM` | worker | `FabSoft <alertas@fabsoft.example>` |
+| `CORREO_DESDE` | worker | `FabSoft <alertas@fabsoft.example>` |
 | `FRONTEND_URL` | worker | Enlaces en correos |
 | `LOG_LEVEL` | api, worker | `info` |
 | `MAINTENANCE_MODE` | api | `false` (true ⇒ 503 en escrituras) |
@@ -148,6 +148,12 @@ Las migraciones crean `fabsoft_app`, `fabsoft_worker` (0003), `fabsoft_secure_vi
    ```
    `fabsoft_worker` no tiene BYPASSRLS ni CREATE en la BD; sólo es propietario del esquema `pgboss`.
 3. Componer `WORKER_DATABASE_URL` en el gestor y montarla **sólo** en el contenedor del worker. La API usa `DATABASE_URL` con `fabsoft_app` (mismo procedimiento con su propio secreto). `env.ts` rechaza un `WORKER_DATABASE_URL` que no use `fabsoft_worker`.
+4. Instalar las tablas de pg-boss con el rol propietario **una vez por base** antes de arrancar el worker (pg-boss no puede crear el esquema si el worker no tiene `CREATE ON DATABASE`):
+   ```bash
+   DATABASE_PROVISION_URL=postgres://fabsoft_owner:...@host:5432/fabsoft \
+     pnpm --filter @fabsoft/backend db:pgboss:install
+   ```
+   El script crea las tablas en `pgboss`, las reasigna a `fabsoft_worker` y concede DML a `fabsoft_app`.
 
 **Supabase (fase 1):**
 - Ejecutar el `ALTER ROLE` desde el SQL Editor o con `psql` usando la conexión directa del rol `postgres` (no el pooler en modo transacción).

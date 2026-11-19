@@ -64,6 +64,25 @@ export function resolveSubscription(input: SubscriptionCreationInput): ResolvedS
   };
 }
 
+/**
+ * Corrige el fin del periodo vigente (Flujo E): nunca anterior al inicio del
+ * periodo y con la misma convención de fecha inclusiva (RN-03).
+ */
+export function resolveExpirationCorrection(
+  currentPeriodStart: LocalDate,
+  newCurrentPeriodEnd: LocalDate,
+): LocalDate {
+  const endDate = assertLocalDate(newCurrentPeriodEnd);
+  if (compareLocalDate(endDate, currentPeriodStart) < 0) {
+    throw new DomainError(
+      'validation_error',
+      'newCurrentPeriodEnd debe ser >= el inicio del periodo vigente',
+      [{ path: 'newCurrentPeriodEnd', message: endDate }],
+    );
+  }
+  return endDate;
+}
+
 export interface RenewalInput {
   currentPeriodEnd: LocalDate;
   currentBillingCycle: BillingCycle;

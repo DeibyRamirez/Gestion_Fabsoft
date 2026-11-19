@@ -49,17 +49,30 @@ const sample = (over: Partial<SubscriptionView> = {}): SubscriptionView => ({
   ...over,
 });
 
+const clock = { now: () => new Date('2026-11-14T12:00:00Z') };
+
 function makeUc(current: SubscriptionView | null, updated: SubscriptionView | null) {
   const activate = vi.fn(async () => updated);
   const auditWrite = vi.fn(async () => undefined);
-  const uc = new ActivateSubscription({
-    run: async (_a, work) =>
-      work({
-        subscriptionActivate: { loadForUpdate: async () => current, activate },
-        audit: { write: auditWrite },
-      }),
-  });
-  return { uc, activate, auditWrite };
+  const scheduleForPeriod = vi.fn(async () => 1);
+  const uc = new ActivateSubscription(
+    {
+      run: async (_a, work) =>
+        work({
+          subscriptionActivate: { loadForUpdate: async () => current, activate },
+          alerts: {
+            scheduleForPeriod,
+            cancelPendingForPeriod: async () => 0,
+            cancelPendingWithoutException: async () => 0,
+            cancelAllPending: async () => 0,
+            reconcile: async () => ({ scannedSubscriptions: 0, scheduled: 0, cancelled: 0 }),
+          },
+          audit: { write: auditWrite },
+        }),
+    },
+    clock,
+  );
+  return { uc, activate, auditWrite, scheduleForPeriod };
 }
 
 describe('ActivateSubscription', () => {
@@ -86,9 +99,13 @@ describe('ActivateSubscription', () => {
   });
 
   it('activa y audita', async () => {
-    const { uc, activate, auditWrite } = makeUc(sample(), sample({ status: 'active', version: 2 }));
+    const { uc, activate, auditWrite, scheduleForPeriod } = makeUc(
+      sample(),
+      sample({ status: 'active', version: 2 }),
+    );
     const result = await uc.execute(admin, 'sub-1', 1);
     expect(activate).toHaveBeenCalledWith('sub-1', 1, 'a');
+    expect(scheduleForPeriod).toHaveBeenCalledWith('sub-1', '2026-11-14');
     expect(result.status).toBe('active');
     expect(auditWrite).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'subscription.activated' }),

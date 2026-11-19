@@ -58,7 +58,7 @@ Pagos en línea/Wompi (ADR-003) · GraphQL (ADR-002) · microservicios, Kubernet
 ## 6. Supuestos adoptados (preguntas abiertas de las fuentes)
 
 1. Destinatarios de alertas: responsable de la suscripción → responsable del cliente → todos los admins.
-2. Email habilitado por regla (`alert_rules.channels`) y globalmente por `EMAIL_TRANSPORT=resend`; D0 sólo in-app.
+2. Email habilitado por regla (`alert_rules.channels`) y globalmente por `CORREO_CANAL=resend`; D0 sólo in-app.
 3. Pagos: sólo estado manual por periodo (`not_tracked` / `pending` / `received`), sin conciliación.
 4. Contratos: sólo referencia textual; sin almacenamiento de archivos.
 5. Moneda única COP (CHECK en BD).

@@ -1,8 +1,11 @@
 import {
+  CorrectExpirationInputSchema,
+  PeriodPaymentUpdateSchema,
   RenewInputSchema,
   SubscriptionCancelSchema,
   SubscriptionCreateSchema,
   SubscriptionListQuerySchema,
+  SubscriptionNotRenewedSchema,
   SubscriptionUpdateSchema,
   SubscriptionVersionSchema,
   type SubscriptionDetailDto,
@@ -14,12 +17,16 @@ import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
 import type { ActivateSubscription } from '../../../../application/subscriptions/activate-subscription/use-case.js';
 import type { CancelSubscription } from '../../../../application/subscriptions/cancel-subscription/use-case.js';
+import type { CorrectExpiration } from '../../../../application/subscriptions/correct-expiration/use-case.js';
 import type { CreateSubscription } from '../../../../application/subscriptions/create-subscription/use-case.js';
 import type { GetSubscription } from '../../../../application/subscriptions/get-subscription/use-case.js';
 import type { ListSubscriptionPeriods } from '../../../../application/subscriptions/list-subscription-periods/use-case.js';
 import type { ListSubscriptions } from '../../../../application/subscriptions/list-subscriptions/use-case.js';
+import type { MarkNotRenewed } from '../../../../application/subscriptions/mark-not-renewed/use-case.js';
 import type { RenewSubscription } from '../../../../application/subscriptions/renew-subscription/use-case.js';
+import type { StartRenewal } from '../../../../application/subscriptions/start-renewal/use-case.js';
 import type { SubscriptionView } from '../../../../application/subscriptions/shared/subscription-view.js';
+import type { UpdatePeriodPayment } from '../../../../application/subscriptions/update-period-payment/use-case.js';
 import type { UpdateSubscription } from '../../../../application/subscriptions/update-subscription/use-case.js';
 import { toBogotaLocalDate } from '../../../../domain/subscriptions/bogota-date.js';
 import { actorOf, requireRole } from '../../middlewares/authenticate.js';
@@ -32,6 +39,10 @@ export interface SubscriptionsRouteDeps {
   updateSubscription: UpdateSubscription;
   cancelSubscription: CancelSubscription;
   renewSubscription: RenewSubscription;
+  startSubscriptionRenewal: StartRenewal;
+  markSubscriptionNotRenewed: MarkNotRenewed;
+  correctSubscriptionExpiration: CorrectExpiration;
+  updateSubscriptionPeriodPayment: UpdatePeriodPayment;
   listSubscriptionPeriods: ListSubscriptionPeriods;
 }
 
@@ -159,6 +170,16 @@ export function subscriptionsRouter(
     res.json(toSubscriptionDetailDto(updated, toBogotaLocalDate(new Date())));
   });
 
+  router.post('/subscriptions/:id/start-renewal', ...writeGuards, async (req, res) => {
+    const { version } = SubscriptionVersionSchema.parse(req.body);
+    const updated = await deps.startSubscriptionRenewal.execute(
+      actorOf(res),
+      IdSchema.parse(req.params.id),
+      version,
+    );
+    res.json(toSubscriptionDetailDto(updated, toBogotaLocalDate(new Date())));
+  });
+
   router.patch('/subscriptions/:id', ...writeGuards, async (req, res) => {
     const input = SubscriptionUpdateSchema.parse(req.body);
     const { priceAmount, supplierCostAmount, ...rest } = input;
@@ -188,12 +209,43 @@ export function subscriptionsRouter(
     res.json(toSubscriptionDetailDto(updated, toBogotaLocalDate(new Date())));
   });
 
+  router.post('/subscriptions/:id/not-renewed', ...writeGuards, async (req, res) => {
+    const input = SubscriptionNotRenewedSchema.parse(req.body);
+    const updated = await deps.markSubscriptionNotRenewed.execute(
+      actorOf(res),
+      IdSchema.parse(req.params.id),
+      input,
+    );
+    res.json(toSubscriptionDetailDto(updated, toBogotaLocalDate(new Date())));
+  });
+
+  router.post('/subscriptions/:id/correct-expiration', ...writeGuards, async (req, res) => {
+    const input = CorrectExpirationInputSchema.parse(req.body);
+    const updated = await deps.correctSubscriptionExpiration.execute(
+      actorOf(res),
+      IdSchema.parse(req.params.id),
+      input,
+    );
+    res.json(toSubscriptionDetailDto(updated, toBogotaLocalDate(new Date())));
+  });
+
   router.get('/subscriptions/:id/periods', ...readGuards, async (req, res) => {
     const periods = await deps.listSubscriptionPeriods.execute(
       actorOf(res),
       IdSchema.parse(req.params.id),
     );
     res.json({ data: periods.map(toSubscriptionPeriodDto) });
+  });
+
+  router.patch('/subscriptions/:id/periods/:periodId', ...writeGuards, async (req, res) => {
+    const input = PeriodPaymentUpdateSchema.parse(req.body);
+    const period = await deps.updateSubscriptionPeriodPayment.execute(
+      actorOf(res),
+      IdSchema.parse(req.params.id),
+      IdSchema.parse(req.params.periodId),
+      input,
+    );
+    res.json(toSubscriptionPeriodDto(period));
   });
 
   router.post('/subscriptions/:id/renew', ...writeGuards, createIdempotency, async (req, res) => {

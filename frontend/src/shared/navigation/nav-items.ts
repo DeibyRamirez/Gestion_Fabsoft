@@ -10,8 +10,8 @@ export const INTERNAL_MAIN_NAV: NavItem[] = [
   { href: '/clients', label: 'Clientes', implemented: true },
   { href: '/subscriptions', label: 'Suscripciones', implemented: true },
   { href: '/renewal-requests', label: 'Solicitudes', implemented: false },
-  { href: '/tasks', label: 'Tareas', implemented: false },
-  { href: '/notifications', label: 'Alertas', implemented: false },
+  { href: '/tasks', label: 'Tareas', implemented: true },
+  { href: '/notifications', label: 'Alertas', implemented: true },
 ];
 
 export const INTERNAL_ADMIN_NAV: NavItem[] = [
