@@ -3,7 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArchiveIcon, RotateCcwIcon } from 'lucide-react';
-import { ClientArchiveSchema, ClientUpdateSchema, type ClientDto } from '@fabsoft/shared';
+import {
+  ClientArchiveSchema,
+  ClientUpdateSchema,
+  type ClientDto,
+  type ClientOwnerCandidate,
+  type ClientOwnerCandidateList,
+} from '@fabsoft/shared';
 import { ApiError, apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
 import { PromptDialog, minChars } from '@/shared/components/action-dialog';
@@ -23,6 +29,7 @@ import { nativeSelectClassName } from '@/shared/ui/native-select';
 import { StatusBadge } from '@/shared/ui/status-badge';
 import { useToast } from '@/shared/ui/toast';
 import { ActivityPanel } from './activity-panel';
+import { ClientRelatedPanels } from './client-related-panels';
 import { ContactsPanel } from './contacts-panel';
 
 export function ClientDetailView({
@@ -35,6 +42,7 @@ export function ClientDetailView({
   const { token, user } = useAuth();
   const router = useRouter();
   const [client, setClient] = useState<ClientDto | null>(null);
+  const [owners, setOwners] = useState<ClientOwnerCandidate[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const toast = useToast();
@@ -45,6 +53,13 @@ export function ClientDetailView({
     apiFetch<ClientDto>(`/clients/${clientId}`, { token })
       .then((c) => alive && setClient(c))
       .catch(() => alive && setMessage('Cliente no encontrado.'));
+    apiFetch<ClientOwnerCandidateList>('/clients/assignable-owners', { token })
+      .then((result) => {
+        if (alive) setOwners(result.data);
+      })
+      .catch(() => {
+        if (alive) setOwners([]);
+      });
     return () => {
       alive = false;
     };
@@ -59,6 +74,7 @@ export function ClientDetailView({
       taxId: (data.get('taxId') as string) || null,
       email: (data.get('email') as string) || null,
       phone: (data.get('phone') as string) || null,
+      ownerUserId: (data.get('ownerUserId') as string) || null,
       status: data.get('status'),
     });
     if (!parsed.success) return setMessage('Datos inválidos');
@@ -236,6 +252,26 @@ export function ClientDetailView({
                   <option value="inactivo">Inactivo</option>
                 </select>
               </FormField>
+              <FormField
+                label="Responsable interno"
+                htmlFor="ownerUserId"
+                className="md:col-span-2"
+              >
+                <select
+                  id="ownerUserId"
+                  name="ownerUserId"
+                  defaultValue={client.owner?.id ?? ''}
+                  disabled={client.status === 'archivado'}
+                  className={nativeSelectClassName}
+                >
+                  <option value="">Sin responsable</option>
+                  {owners.map((owner) => (
+                    <option key={owner.id} value={owner.id}>
+                      {owner.fullName}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
               <FormField label="Email" htmlFor="email" className="md:col-span-2">
                 <Input id="email" name="email" type="email" defaultValue={client.email ?? ''} />
               </FormField>
@@ -270,6 +306,8 @@ export function ClientDetailView({
           <ActivityPanel clientId={clientId} token={token} />
         </div>
       </div>
+
+      <ClientRelatedPanels clientId={clientId} token={token} client={client} />
 
       <PromptDialog
         open={archiveOpen}

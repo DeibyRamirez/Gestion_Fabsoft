@@ -37,6 +37,7 @@ import { nativeSelectClassName } from '@/shared/ui/native-select';
 import { StatusBadge, UrgencyBadge } from '@/shared/ui/status-badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
 import { useToast } from '@/shared/ui/toast';
+import { SubscriptionSettingsCard } from './subscription-settings-card';
 
 const TERMINAL = ['cancelada', 'no_renovada'];
 const RENEWABLE = ['activa', 'en_renovacion', 'vencida'];
@@ -400,6 +401,14 @@ export function SubscriptionDetailView({ subscriptionId }: { subscriptionId: str
             ) : null}
           </div>
         </BentoCard>
+
+        <SubscriptionSettingsCard
+          subscription={subscription}
+          token={token}
+          isAdmin={isAdmin}
+          onSaved={reload}
+          className="lg:col-span-12"
+        />
       </div>
 
       <PromptDialog

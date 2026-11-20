@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ClientStatusSchema } from './enums.js';
+import { ClientStatusSchema, UserRoleSchema } from './enums.js';
 import { PageQuerySchema, PaginationMetaSchema } from './pagination.js';
 
 const legalName = z.string().trim().min(2).max(200);
@@ -10,6 +10,18 @@ export const ClientOwnerRefSchema = z.object({
   fullName: z.string(),
 });
 export type ClientOwnerRef = z.infer<typeof ClientOwnerRefSchema>;
+
+export const ClientOwnerCandidateSchema = z.object({
+  id: z.string().uuid(),
+  fullName: z.string(),
+  role: UserRoleSchema,
+});
+export type ClientOwnerCandidate = z.infer<typeof ClientOwnerCandidateSchema>;
+
+export const ClientOwnerCandidateListSchema = z.object({
+  data: z.array(ClientOwnerCandidateSchema),
+});
+export type ClientOwnerCandidateList = z.infer<typeof ClientOwnerCandidateListSchema>;
 
 export const ClientSchema = z.object({
   id: z.string().uuid(),

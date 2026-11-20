@@ -7,7 +7,7 @@ import { BentoCard } from '@/shared/components/bento';
 import { PageHeader } from '@/shared/components/page-header';
 
 export default function NewSubscriptionRoute() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const router = useRouter();
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
@@ -16,7 +16,11 @@ export default function NewSubscriptionRoute() {
         description="Sólo se muestran clientes activos y productos activos."
       />
       <BentoCard>
-        <SubscriptionForm token={token} onCreated={(s) => router.push(`/subscriptions/${s.id}`)} />
+        <SubscriptionForm
+          token={token}
+          isAdmin={user?.role === 'admin'}
+          onCreated={(s) => router.push(`/subscriptions/${s.id}`)}
+        />
       </BentoCard>
     </div>
   );

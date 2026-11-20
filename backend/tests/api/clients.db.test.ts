@@ -218,4 +218,65 @@ describe.skipIf(!dbTestsConfigured())('Clients API (Postgres)', () => {
     expect(b.status).toBe(201);
     expect(b.body.id).toBe(a.body.id);
   });
+
+  it('T-HU16 — exporta el listado filtrado de clientes a CSV UTF-8', async () => {
+    const app = await buildTestApp();
+    const admin = await factories.adminUser();
+    const token = await factories.tokenFor(admin);
+
+    await request(app)
+      .post('/api/v1/clients')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ legalName: 'Cliente Exportable S.A.S.', taxId: '900777888-1' })
+      .expect(201);
+
+    const res = await request(app)
+      .get('/api/v1/clients/export?q=Exportable')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+    expect(res.headers['content-disposition']).toContain('attachment');
+    expect(res.text.startsWith('\uFEFF')).toBe(true);
+    expect(res.text).toContain('"Razón social"');
+    expect(res.text).toContain('Cliente Exportable S.A.S.');
+  });
+
+  it('T-HU03 — lista responsables internos asignables para admin/operator', async () => {
+    const app = await buildTestApp();
+    const admin = await factories.adminUser();
+    const operator = await factories.operatorUser();
+    const clientRow = await factories.client();
+    const clientUser = await factories.clientUser(clientRow);
+    const adminToken = await factories.tokenFor(admin);
+    const operatorToken = await factories.tokenFor(operator);
+    const clientToken = await factories.tokenFor(clientUser);
+
+    const adminRes = await request(app)
+      .get('/api/v1/clients/assignable-owners')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(adminRes.status).toBe(200);
+    expectMatchesOperation(adminRes, 'listClientOwnerCandidates');
+    expect(adminRes.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: admin.id, role: 'admin' }),
+        expect.objectContaining({ id: operator.id, role: 'operator' }),
+      ]),
+    );
+
+    expect(
+      (
+        await request(app)
+          .get('/api/v1/clients/assignable-owners')
+          .set('Authorization', `Bearer ${operatorToken}`)
+      ).status,
+    ).toBe(200);
+
+    expect(
+      (
+        await request(app)
+          .get('/api/v1/clients/assignable-owners')
+          .set('Authorization', `Bearer ${clientToken}`)
+      ).status,
+    ).toBe(403);
+  });
 });

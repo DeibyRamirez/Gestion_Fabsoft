@@ -191,7 +191,12 @@ describe('RenewSubscription', () => {
       'Renovación confirmada',
       'o',
     );
-    expect(resolveOpenForSubscription).toHaveBeenCalledWith('sub-1', 'Renovación confirmada', 'o');
+    expect(resolveOpenForSubscription).toHaveBeenCalledWith(
+      'sub-1',
+      'renovada',
+      'Renovación confirmada',
+      'o',
+    );
     expect(scheduleForPeriod).toHaveBeenCalledWith('sub-1', '2026-11-14');
     expect(auditWrite).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'subscription.renewed' }),

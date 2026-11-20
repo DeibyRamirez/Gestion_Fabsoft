@@ -20,6 +20,7 @@ import type { ActivateSubscription } from '../../../../application/subscriptions
 import type { CancelSubscription } from '../../../../application/subscriptions/cancel-subscription/use-case.js';
 import type { CorrectExpiration } from '../../../../application/subscriptions/correct-expiration/use-case.js';
 import type { CreateSubscription } from '../../../../application/subscriptions/create-subscription/use-case.js';
+import type { ExportSubscriptionsCsv } from '../../../../application/subscriptions/export-subscriptions-csv/use-case.js';
 import type { GetSubscription } from '../../../../application/subscriptions/get-subscription/use-case.js';
 import type { ListSubscriptionPeriods } from '../../../../application/subscriptions/list-subscription-periods/use-case.js';
 import type { ListSubscriptions } from '../../../../application/subscriptions/list-subscriptions/use-case.js';
@@ -35,6 +36,7 @@ import { actorOf, requireRole } from '../../middlewares/authenticate.js';
 
 export interface SubscriptionsRouteDeps {
   listSubscriptions: ListSubscriptions;
+  exportSubscriptionsCsv: ExportSubscriptionsCsv;
   getSubscription: GetSubscription;
   createSubscription: CreateSubscription;
   activateSubscription: ActivateSubscription;
@@ -185,6 +187,14 @@ export function subscriptionsRouter(
       },
     };
     res.json(body);
+  });
+
+  router.get('/subscriptions/export', ...readGuards, async (req, res) => {
+    const query = SubscriptionListQuerySchema.parse(req.query);
+    const result = await deps.exportSubscriptionsCsv.execute(actorOf(res), query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(result.csv);
   });
 
   router.get('/subscriptions/:id', ...readGuards, async (req, res) => {

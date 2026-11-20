@@ -4,6 +4,7 @@ import {
   PgListAlertRulesQuery,
   PgUpdateAlertRuleRepository,
 } from '../infrastructure/persistence/pg/alerts/pg-alert-rules-repositories.js';
+import { PgAlertEmailTemplateRepository } from '../infrastructure/persistence/pg/alerts/pg-alert-email-template-repository.js';
 import {
   PgCloseTaskRepository,
   PgCreateTaskRepository,
@@ -14,6 +15,7 @@ import {
 } from '../infrastructure/persistence/pg/tasks/pg-task-repositories.js';
 import { PgRenewalRequestAutomationRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-automation-repository.js';
 import { PgListRenewalRequestsQuery } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-list-repository.js';
+import { PgRenewalRequestMutationRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-mutation-repository.js';
 import { PgRenewalRequestCreateRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-create-repository.js';
 import { PgRenewalRequestProcessRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-process-repository.js';
 import { PgIntegrationsRepository } from '../infrastructure/persistence/pg/integrations/pg-integrations-repository.js';
@@ -59,6 +61,7 @@ import {
   PgListClientContactsQuery,
   PgUpdateClientContactRepository,
 } from '../infrastructure/persistence/pg/clients/pg-client-contact-repositories.js';
+import { PgClientOwnerCandidatesQuery } from '../infrastructure/persistence/pg/clients/pg-client-owner-candidates.js';
 import {
   PgActivateSubscriptionRepository,
   PgCancelSubscriptionRepository,
@@ -149,6 +152,7 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     clientArchive: new PgArchiveClientRepository(tx),
     clientReactivate: new PgReactivateClientRepository(tx),
     clientContactsList: new PgListClientContactsQuery(tx),
+    clientOwnerCandidates: new PgClientOwnerCandidatesQuery(tx),
     clientContactCreate: new PgCreateClientContactRepository(tx),
     clientContactUpdate: new PgUpdateClientContactRepository(tx),
     subscriptionCreate: new PgCreateSubscriptionRepository(tx),
@@ -174,6 +178,8 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     renewalRequests: new PgRenewalRequestAutomationRepository(tx),
     renewalRequestsList: new PgListRenewalRequestsQuery(tx),
     renewalRequestDetail: new PgListRenewalRequestsQuery(tx),
+    renewalRequestUpdate: new PgRenewalRequestMutationRepository(tx),
+    renewalRequestResolve: new PgRenewalRequestMutationRepository(tx),
     renewalRequestCreate: new PgRenewalRequestCreateRepository(tx),
     portalMe: new PgPortalMeQuery(tx),
     portalSubscriptions: new PgPortalSubscriptionsQuery(tx),
@@ -202,6 +208,7 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     alerts: new PgAlertSchedulingRepository(tx),
     alertRulesList: new PgListAlertRulesQuery(tx),
     alertRuleUpdate: new PgUpdateAlertRuleRepository(tx),
+    alertEmailTemplate: new PgAlertEmailTemplateRepository(tx),
     audit: new PgAuditWriter(tx),
   }));
   const authUow = new PgSystemUnitOfWork<AuthScopeRepos>(withRls, (tx) => ({
@@ -227,6 +234,7 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
       idempotency: new PgIdempotencyPurgeRepository(tx),
       alerts: new PgAlertSchedulingRepository(tx),
       notificationsDispatch: new PgNotificationDispatchRepository(tx),
+      alertEmailTemplate: new PgAlertEmailTemplateRepository(tx),
       subscriptionsExpire: new PgExpireSubscriptionsRepository(tx),
       maintenance: new PgMaintenanceRepository(tx),
       renewalRequestProcess: new PgRenewalRequestProcessRepository(tx),

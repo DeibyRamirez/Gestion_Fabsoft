@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
+  ALERT_EMAIL_TEMPLATE_PLACEHOLDERS,
+  AlertEmailTemplateSchema,
   AlertRuleUpdateSchema,
+  DEFAULT_ALERT_EMAIL_TEMPLATE,
+  type AlertEmailTemplate,
   type AlertRuleDto,
   type AlertRuleList,
   type NotificationChannel,
@@ -20,6 +24,7 @@ import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
 import { nativeSelectClassName } from '@/shared/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
+import { Textarea } from '@/shared/ui/textarea';
 
 const CHANNEL_LABELS = NOTIFICATION_CHANNEL_LABELS;
 
@@ -36,8 +41,12 @@ export function AlertRulesPage() {
   const { token } = useAuth();
   const [rules, setRules] = useState<AlertRuleDto[]>([]);
   const [draft, setDraft] = useState<AlertRuleDto | null>(null);
+  const [template, setTemplate] = useState<AlertEmailTemplate>({
+    ...DEFAULT_ALERT_EMAIL_TEMPLATE,
+  });
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [templatePending, setTemplatePending] = useState(false);
   const [version, setVersion] = useState(0);
   const reload = useCallback(() => setVersion((value) => value + 1), []);
 
@@ -54,6 +63,43 @@ export function AlertRulesPage() {
       alive = false;
     };
   }, [token, version]);
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch<AlertEmailTemplate>('/alert-rules/email-template', { token })
+      .then((result) => {
+        if (alive) setTemplate(result);
+      })
+      .catch(() => {
+        if (alive) setMessage('No se pudo cargar la plantilla de correo.');
+      });
+    return () => {
+      alive = false;
+    };
+  }, [token]);
+
+  async function saveTemplate() {
+    const parsed = AlertEmailTemplateSchema.safeParse(template);
+    if (!parsed.success) {
+      setMessage(parsed.error.issues[0]?.message ?? 'Plantilla inválida');
+      return;
+    }
+    setTemplatePending(true);
+    setMessage(null);
+    try {
+      const updated = await apiFetch<AlertEmailTemplate>('/alert-rules/email-template', {
+        method: 'PATCH',
+        token,
+        body: JSON.stringify(parsed.data),
+      });
+      setTemplate(updated);
+      setMessage('Plantilla actualizada. Se usará en los próximos envíos.');
+    } catch (err) {
+      setMessage(err instanceof ApiError ? err.message : 'No se pudo guardar la plantilla.');
+    } finally {
+      setTemplatePending(false);
+    }
+  }
 
   function startEdit(rule: AlertRuleDto) {
     setDraft({ ...rule, channels: [...rule.channels] });
@@ -109,7 +155,7 @@ export function AlertRulesPage() {
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
       <PageHeader
         title="Reglas de alerta"
-        description="Umbrales globales que usa el worker para programar alertas y tareas. La plantilla de correo es fija."
+        description="Umbrales globales que usa el worker para programar alertas y tareas. La plantilla de correo es editable."
       />
 
       {message ? (
@@ -117,6 +163,47 @@ export function AlertRulesPage() {
           {message}
         </div>
       ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Plantilla de correo</CardTitle>
+          <CardDescription>
+            Asunto y cuerpo de los correos de vencimiento. Usa placeholders entre llaves dobles.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="alert-email-subject">Asunto</Label>
+            <Input
+              id="alert-email-subject"
+              value={template.subject}
+              maxLength={200}
+              onChange={(e) => setTemplate({ ...template, subject: e.target.value })}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="alert-email-body">Cuerpo</Label>
+            <Textarea
+              id="alert-email-body"
+              value={template.body}
+              rows={8}
+              maxLength={5000}
+              onChange={(e) => setTemplate({ ...template, body: e.target.value })}
+            />
+          </div>
+          <p className="text-xs text-fg-muted">
+            Placeholders disponibles:{' '}
+            {ALERT_EMAIL_TEMPLATE_PLACEHOLDERS.map((placeholder) => `{{${placeholder}}}`).join(
+              ', ',
+            )}
+          </p>
+          <div>
+            <Button type="button" onClick={() => void saveTemplate()} disabled={templatePending}>
+              {templatePending ? 'Guardando…' : 'Guardar plantilla'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

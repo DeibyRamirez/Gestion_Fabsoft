@@ -56,6 +56,7 @@ function makeUc(current: SubscriptionView | null, updated: SubscriptionView | nu
   const auditWrite = vi.fn(async () => undefined);
   const cancelAllPending = vi.fn(async () => 1);
   const cancelOpenTasksForSubscription = vi.fn(async () => 1);
+  const resolveOpenForSubscription = vi.fn(async () => 1);
   const uc = new CancelSubscription(
     {
       run: async (_a, work) =>
@@ -75,12 +76,20 @@ function makeUc(current: SubscriptionView | null, updated: SubscriptionView | nu
             cancelOpenAutoTasksForSubscription: async () => 0,
             cancelOpenTasksForSubscription,
           },
+          renewalRequests: { resolveOpenForSubscription },
           audit: { write: auditWrite },
         }),
     },
     clock,
   );
-  return { uc, cancel, auditWrite, cancelAllPending, cancelOpenTasksForSubscription };
+  return {
+    uc,
+    cancel,
+    auditWrite,
+    cancelAllPending,
+    cancelOpenTasksForSubscription,
+    resolveOpenForSubscription,
+  };
 }
 
 describe('CancelSubscription', () => {
@@ -113,10 +122,14 @@ describe('CancelSubscription', () => {
   });
 
   it('cancela con fecha del reloj y audita', async () => {
-    const { uc, cancel, auditWrite, cancelAllPending, cancelOpenTasksForSubscription } = makeUc(
-      sample(),
-      sample({ status: 'cancelada', version: 2, cancellationReason: 'motivo' }),
-    );
+    const {
+      uc,
+      cancel,
+      auditWrite,
+      cancelAllPending,
+      cancelOpenTasksForSubscription,
+      resolveOpenForSubscription,
+    } = makeUc(sample(), sample({ status: 'cancelada', version: 2, cancellationReason: 'motivo' }));
     const result = await uc.execute(admin, 'sub-1', { version: 1, reason: 'motivo' });
     expect(cancel).toHaveBeenCalledWith(
       'sub-1',
@@ -128,6 +141,12 @@ describe('CancelSubscription', () => {
     expect(cancelAllPending).toHaveBeenCalledWith('sub-1', 'subscription_cancelled');
     expect(cancelOpenTasksForSubscription).toHaveBeenCalledWith(
       'sub-1',
+      'Suscripción cancelada',
+      'a',
+    );
+    expect(resolveOpenForSubscription).toHaveBeenCalledWith(
+      'sub-1',
+      'otra',
       'Suscripción cancelada',
       'a',
     );

@@ -61,6 +61,31 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
     expect(res.body.currentPeriod.priceAmount).toBe('100000.00');
   });
 
+  it('T-HU16 — exporta el listado filtrado de suscripciones a CSV UTF-8', async () => {
+    const app = await buildTestApp();
+    const client = await factories.client();
+    const product = await factories.product();
+    const operator = await factories.operatorUser();
+    const token = await factories.tokenFor(operator);
+
+    await request(app)
+      .post('/api/v1/subscriptions')
+      .set('Authorization', `Bearer ${token}`)
+      .send(bodyFor(client.id, product.id))
+      .expect(201);
+
+    const res = await request(app)
+      .get(`/api/v1/subscriptions/export?clientId=${client.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+    expect(res.headers['content-disposition']).toContain('attachment');
+    expect(res.text.startsWith('\uFEFF')).toBe(true);
+    expect(res.text).toContain('"Cliente"');
+    expect(res.text).toContain(client.legalName);
+    expect(res.text).toContain(product.name);
+  });
+
   it('T-HU06 — cliente archivado y producto inactivo ⇒ 422', async () => {
     const app = await buildTestApp();
     const admin = await factories.adminUser();

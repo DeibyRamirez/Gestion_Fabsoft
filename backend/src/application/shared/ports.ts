@@ -60,6 +60,7 @@ export type AuditAction =
   | 'task.completed'
   | 'task.cancelled'
   | 'alert_rule.updated'
+  | 'app_setting.updated'
   | 'notification.retried'
   | 'integration.created'
   | 'integration.updated'

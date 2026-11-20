@@ -37,6 +37,9 @@ export class DispatchNotifications {
       failed: 0,
       cancelled: claimed.cancelled,
     };
+    const emailTemplate = await this.uow.run(requestId, ({ alertEmailTemplate }) =>
+      alertEmailTemplate.get(),
+    );
 
     for (const item of claimed.items) {
       if (item.channel === 'in_app') {
@@ -49,7 +52,7 @@ export class DispatchNotifications {
 
       const attempt = item.attempts + 1;
       try {
-        const message = buildEmail(item, this.frontendUrl);
+        const message = buildEmail(item, this.frontendUrl, emailTemplate);
         const sent = await this.emailSender.send(message);
         const marked = await this.uow.run(requestId, ({ notificationsDispatch }) =>
           notificationsDispatch.markSent(

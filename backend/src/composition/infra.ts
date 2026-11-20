@@ -17,6 +17,7 @@ import type { RefreshSessionRepos } from '../application/auth/refresh-session/po
 import type { IdempotencyPurgeRepository } from '../application/maintenance/purge-idempotency-keys/ports.js';
 import type { MaintenanceRepos } from '../application/maintenance/cleanup/ports.js';
 import type { AlertSchedulingRepos } from '../application/alerts/shared/alert-scheduling.js';
+import type { AlertEmailTemplateRepos } from '../application/alerts/shared/email-template.js';
 import type { ListAlertRulesRepos } from '../application/alerts/list-alert-rules/ports.js';
 import type { UpdateAlertRuleRepos } from '../application/alerts/update-alert-rule/ports.js';
 import type { GetDashboardSummaryRepos } from '../application/dashboard/get-dashboard-summary/ports.js';
@@ -24,6 +25,8 @@ import type {
   GetRenewalRequestQuery,
   ListRenewalRequestsRepos,
 } from '../application/renewal-requests/list-renewal-requests/ports.js';
+import type { UpdateRenewalRequestRepos } from '../application/renewal-requests/update-renewal-request/ports.js';
+import type { ResolveRenewalRequestRepos } from '../application/renewal-requests/resolve-renewal-request/ports.js';
 import type {
   ApiKeyAuthRepository,
   CredentialQuery,
@@ -68,6 +71,7 @@ import type { CreateClientContactRepos } from '../application/clients/create-cli
 import type { GetClientRepos } from '../application/clients/get-client/ports.js';
 import type { ListClientActivityRepos } from '../application/clients/list-client-activity/ports.js';
 import type { ListClientContactsRepos } from '../application/clients/list-client-contacts/ports.js';
+import type { ListClientOwnerCandidatesRepos } from '../application/clients/list-owner-candidates/ports.js';
 import type { ListClientsRepos } from '../application/clients/list-clients/ports.js';
 import type { ReactivateClientRepos } from '../application/clients/reactivate-client/ports.js';
 import type { UpdateClientContactRepos } from '../application/clients/update-client-contact/ports.js';
@@ -120,6 +124,7 @@ export type UserScopeRepos = GetMeRepos &
   ArchiveClientRepos &
   ReactivateClientRepos &
   ListClientContactsRepos &
+  ListClientOwnerCandidatesRepos &
   CreateClientContactRepos &
   UpdateClientContactRepos &
   CreateSubscriptionRepos &
@@ -148,10 +153,13 @@ export type UserScopeRepos = GetMeRepos &
   RetryNotificationRepos &
   ChangePasswordRepos &
   AlertSchedulingRepos &
+  AlertEmailTemplateRepos &
   ListAlertRulesRepos &
   UpdateAlertRuleRepos &
   GetDashboardSummaryRepos &
   ListRenewalRequestsRepos &
+  UpdateRenewalRequestRepos &
+  ResolveRenewalRequestRepos &
   CreateRenewalRequestRepos &
   GetPortalMeRepos &
   ListPortalSubscriptionsRepos &

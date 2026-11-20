@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type {
-  AuditLogListQuery,
-  PortalRenewalRequestListQuery,
-  PortalSubscriptionListQuery,
+import {
+  DEFAULT_ALERT_EMAIL_TEMPLATE,
+  type AlertEmailTemplate,
+  type AuditLogListQuery,
+  type PortalRenewalRequestListQuery,
+  type PortalSubscriptionListQuery,
 } from '@fabsoft/shared';
 import type { AuditLogView } from '../../src/application/audit/shared/audit-log-view.js';
 import type {
@@ -215,6 +217,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
     responseBody: null,
     expiresAt: new Date(Date.now() + 86_400_000),
   });
+  let alertEmailTemplate: AlertEmailTemplate = { ...DEFAULT_ALERT_EMAIL_TEMPLATE };
   const userRepos: UserScopeRepos = {
     audit,
     alerts,
@@ -259,6 +262,13 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
         }
         store.alertRules.set(id, next);
         return { ok: true as const, rule: next };
+      },
+    },
+    alertEmailTemplate: {
+      get: async () => alertEmailTemplate,
+      update: async (template: AlertEmailTemplate) => {
+        alertEmailTemplate = template;
+        return alertEmailTemplate;
       },
     },
     auditLogs: {
@@ -544,6 +554,13 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
                 ? -1
                 : 1,
           ),
+    },
+    clientOwnerCandidates: {
+      list: async () =>
+        [...store.users.values()]
+          .filter((u) => u.status === 'activo' && (u.role === 'admin' || u.role === 'operator'))
+          .map((u) => ({ id: u.id, fullName: u.fullName, role: u.role }))
+          .sort((a, b) => a.fullName.localeCompare(b.fullName)),
     },
     clientContactCreate: {
       countActive: async (clientId) =>
@@ -886,6 +903,16 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
     },
     renewalRequestDetail: {
       findById: async () => null,
+    },
+    renewalRequestUpdate: {
+      loadForUpdate: async () => null,
+      findAssignableUser: async () => null,
+      update: async () => null,
+    },
+    renewalRequestResolve: {
+      loadForUpdate: async () => null,
+      hasConfirmedRenewalAfter: async () => false,
+      resolve: async () => null,
     },
     renewalRequestCreate: {
       findForClient: async (clientId, subscriptionId) => {
@@ -1261,6 +1288,9 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
             claimDue: async () => ({ items: [], cancelled: 0 }),
             markSent: async () => false,
             markFailure: async () => false,
+          },
+          alertEmailTemplate: {
+            get: async () => alertEmailTemplate,
           },
           subscriptionsExpire: {
             expire: async () => ({ expired: 0, notRenewed: 0 }),

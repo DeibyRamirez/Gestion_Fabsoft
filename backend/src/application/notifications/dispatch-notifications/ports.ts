@@ -1,4 +1,5 @@
 import type { NotificationChannel, NotificationStatus, NotificationType } from '@fabsoft/shared';
+import type { AlertEmailTemplateQuery } from '../../alerts/shared/email-template.js';
 import type { LocalDate } from '../../../domain/subscriptions/local-date.js';
 
 export interface DispatchableNotification {
@@ -42,4 +43,5 @@ export interface NotificationDispatchRepository {
 
 export interface NotificationDispatchRepos {
   notificationsDispatch: NotificationDispatchRepository;
+  alertEmailTemplate: AlertEmailTemplateQuery;
 }

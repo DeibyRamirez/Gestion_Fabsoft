@@ -23,7 +23,7 @@
 - **Destinatarios** (pregunta funcional 8 pendiente; regla inicial): responsable de la suscripción (`subscriptions.owner_user_id`) → si es nulo, responsable del cliente (`clients.owner_user_id`) → si es nulo, todos los admins activos. Sólo usuarios internos activos.
 - Las tareas automáticas se asignan al mismo destinatario principal, con `due_date = fecha de la alerta + 2 días` (y nunca posterior al vencimiento para reglas previas).
 - **Email:** habilitado por regla (`channels`) y globalmente por `CORREO_CANAL=resend`. Con `CORREO_CANAL=log` (dev/test) el envío se escribe en log y se marca `enviada`.
-- **Plantilla:** el asunto/cuerpo es fijo en `infrastructure/email/`; no es editable desde la UI en el MVP. `/alert-rules` configura umbrales, canales, creación de tarea y excepción RN-10.
+- **Plantilla:** asunto y cuerpo editables desde `/admin/alert-rules` mediante `GET/PATCH /api/v1/alert-rules/email-template`; se guardan en `app_settings` (`key=alert_email_template`) y el worker las aplica a los correos de vencimiento. Placeholders: `{{recipientName}}`, `{{clientName}}`, `{{productName}}`, `{{periodEnd}}`, `{{ruleCode}}`, `{{subscriptionUrl}}`, `{{frontendUrl}}`. `/alert-rules` configura además umbrales, canales, creación de tarea y excepción RN-10.
 
 ## 3. Programación (scheduling)
 
@@ -116,7 +116,7 @@ stateDiagram-v2
 
 ## 8. Contenido del correo
 
-- Plantillas en `infrastructure/email/templates/` (texto + HTML simple), en español, con: cliente, producto, fecha de vencimiento (formato `d 'de' MMMM 'de' yyyy`), días restantes, regla, enlace a `FRONTEND_URL/subscriptions/<id>`.
+- Plantilla editable en `app_settings` con asunto y cuerpo en texto plano; placeholders permitidos: cliente, producto, fecha de vencimiento, regla, enlace a la suscripción y URL del frontend. El contenido por defecto se mantiene en `DEFAULT_ALERT_EMAIL_TEMPLATE` y se usa si aún no hay configuración guardada.
 - Sin precio ni costo en el correo (minimizar datos sensibles en buzones).
 - Remitente `CORREO_DESDE` en dominio verificado en Resend.
 

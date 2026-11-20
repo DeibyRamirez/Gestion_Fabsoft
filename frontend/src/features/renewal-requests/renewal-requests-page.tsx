@@ -3,9 +3,14 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { InboxIcon } from 'lucide-react';
-import type { RenewalRequestDto, RenewalRequestPage } from '@fabsoft/shared';
-import { apiFetch } from '@/shared/api/client';
+import type {
+  RenewalRequestDto,
+  RenewalRequestPage,
+  RenewalRequestResolution,
+} from '@fabsoft/shared';
+import { ApiError, apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
+import { PromptDialog } from '@/shared/components/action-dialog';
 import { EmptyState } from '@/shared/components/empty-state';
 import { FilterBar, FilterField } from '@/shared/components/filter-bar';
 import { LoadingState } from '@/shared/components/loading-state';
@@ -27,12 +32,16 @@ import { nativeSelectClassName } from '@/shared/ui/native-select';
 import { StatusBadge } from '@/shared/ui/status-badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
 
+const RESOLUTIONS: RenewalRequestResolution[] = ['renovada', 'no_renovada', 'otra'];
+
 export function RenewalRequestsPage({ initialStatus = '' }: { initialStatus?: string }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [page, setPage] = useState<RenewalRequestPage | null>(null);
   const [status, setStatus] = useState(initialStatus);
   const [message, setMessage] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
+  const [acting, setActing] = useState<string | null>(null);
+  const [resolveTarget, setResolveTarget] = useState<RenewalRequestDto | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -55,6 +64,94 @@ export function RenewalRequestsPage({ initialStatus = '' }: { initialStatus?: st
   const requestedByLabel = (request: RenewalRequestDto) =>
     request.requestedBy.name ?? AUDIT_ACTOR_TYPE_LABELS[request.requestedBy.actorType];
 
+  async function updateRequest(
+    id: string,
+    payload: { status?: 'en_progreso'; assignedUserId?: string | null },
+  ) {
+    setActing(id);
+    try {
+      await apiFetch(`/renewal-requests/${id}`, {
+        method: 'PATCH',
+        token,
+        body: JSON.stringify(payload),
+      });
+      setMessage(null);
+      setVersion((v) => v + 1);
+    } catch (err) {
+      setMessage(err instanceof ApiError ? err.message : 'No se pudo actualizar la solicitud.');
+    } finally {
+      setActing(null);
+    }
+  }
+
+  async function resolveRequest(id: string, values: Record<string, string>) {
+    const resolution = values.resolution as RenewalRequestResolution;
+    if (!RESOLUTIONS.includes(resolution)) {
+      setMessage('Resolución inválida.');
+      return;
+    }
+    setActing(id);
+    try {
+      await apiFetch(`/renewal-requests/${id}/resolve`, {
+        method: 'POST',
+        token,
+        body: JSON.stringify({
+          resolution,
+          resolutionNote: values.resolutionNote?.trim() || null,
+        }),
+      });
+      setMessage(null);
+      setVersion((v) => v + 1);
+    } catch (err) {
+      setMessage(err instanceof ApiError ? err.message : 'No se pudo resolver la solicitud.');
+    } finally {
+      setActing(null);
+    }
+  }
+
+  function actions(request: RenewalRequestDto) {
+    if (!user || request.status === 'resuelta') return null;
+    return (
+      <div className="flex flex-wrap justify-end gap-1">
+        {request.assignedUser?.id !== user.id ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={acting === request.id}
+            onClick={() =>
+              void updateRequest(request.id, {
+                assignedUserId: user.id,
+                status: 'en_progreso',
+              })
+            }
+          >
+            Asignarme
+          </Button>
+        ) : null}
+        {request.status === 'pendiente_revision' ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={acting === request.id}
+            onClick={() => void updateRequest(request.id, { status: 'en_progreso' })}
+          >
+            En progreso
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          size="sm"
+          disabled={acting === request.id}
+          onClick={() => setResolveTarget(request)}
+        >
+          Resolver
+        </Button>
+      </div>
+    );
+  }
+
   const desktop = (
     <Table>
       <TableHeader>
@@ -66,6 +163,7 @@ export function RenewalRequestsPage({ initialStatus = '' }: { initialStatus?: st
           <TableHead>Responsable</TableHead>
           <TableHead>Resolución</TableHead>
           <TableHead>Comentario</TableHead>
+          <TableHead className="text-right">Acciones</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -95,6 +193,7 @@ export function RenewalRequestsPage({ initialStatus = '' }: { initialStatus?: st
             <TableCell className="max-w-64 truncate text-fg-muted">
               {request.comment ?? '—'}
             </TableCell>
+            <TableCell>{actions(request)}</TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -126,6 +225,7 @@ export function RenewalRequestsPage({ initialStatus = '' }: { initialStatus?: st
             </p>
           ) : null}
           {request.comment ? <p className="text-sm text-fg">{request.comment}</p> : null}
+          {actions(request)}
         </MobileCard>
       ))}
     </MobileCardList>
@@ -185,6 +285,37 @@ export function RenewalRequestsPage({ initialStatus = '' }: { initialStatus?: st
       ) : (
         <LoadingState label="Cargando solicitudes…" />
       )}
+
+      <PromptDialog
+        open={resolveTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setResolveTarget(null);
+        }}
+        title="Resolver solicitud"
+        description="Registra el resultado comercial. Si eliges “Renovada”, debe existir una renovación confirmada posterior a la solicitud."
+        submitLabel="Resolver"
+        fields={[
+          {
+            name: 'resolution',
+            label: 'Resolución',
+            type: 'select',
+            defaultValue: 'renovada',
+            options: RESOLUTIONS.map((value) => ({
+              value,
+              label: RENEWAL_REQUEST_RESOLUTION_LABELS[value],
+            })),
+          },
+          {
+            name: 'resolutionNote',
+            label: 'Nota (opcional)',
+            type: 'textarea',
+            validate: () => null,
+          },
+        ]}
+        onSubmit={(values) => {
+          if (resolveTarget) void resolveRequest(resolveTarget.id, values);
+        }}
+      />
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import {
   RenewalRequestCreateSchema,
   RenewalRequestListQuerySchema,
+  RenewalRequestResolveSchema,
+  RenewalRequestUpdateSchema,
   type RenewalRequestDto,
   type RenewalRequestPage,
 } from '@fabsoft/shared';
@@ -12,6 +14,8 @@ import type { GetRenewalRequest } from '../../../../application/renewal-requests
 import type { ListRenewalRequests } from '../../../../application/renewal-requests/list-renewal-requests/use-case.js';
 import type { RenewalRequestView } from '../../../../application/renewal-requests/list-renewal-requests/ports.js';
 import type { ProcessRenewalRequestCreated } from '../../../../application/renewal-requests/process-created/use-case.js';
+import type { ResolveRenewalRequest } from '../../../../application/renewal-requests/resolve-renewal-request/use-case.js';
+import type { UpdateRenewalRequest } from '../../../../application/renewal-requests/update-renewal-request/use-case.js';
 import { actorOf, requireRole } from '../../middlewares/authenticate.js';
 
 export interface RenewalRequestsRouteDeps {
@@ -19,6 +23,8 @@ export interface RenewalRequestsRouteDeps {
   getRenewalRequest: GetRenewalRequest;
   createRenewalRequest: CreateRenewalRequest;
   processRenewalRequestCreated: ProcessRenewalRequestCreated;
+  updateRenewalRequest: UpdateRenewalRequest;
+  resolveRenewalRequest: ResolveRenewalRequest;
 }
 
 const IdSchema = z.string().uuid();
@@ -88,6 +94,24 @@ export function renewalRequestsRouter(
       createdAt: created.createdAt.toISOString(),
       updatedAt: created.updatedAt.toISOString(),
     });
+  });
+
+  router.patch('/renewal-requests/:id', ...staff, async (req, res) => {
+    const updated = await deps.updateRenewalRequest.execute(
+      actorOf(res),
+      IdSchema.parse(req.params.id),
+      RenewalRequestUpdateSchema.parse(req.body),
+    );
+    res.json(toRenewalRequestDto(updated));
+  });
+
+  router.post('/renewal-requests/:id/resolve', ...staff, async (req, res) => {
+    const updated = await deps.resolveRenewalRequest.execute(
+      actorOf(res),
+      IdSchema.parse(req.params.id),
+      RenewalRequestResolveSchema.parse(req.body),
+    );
+    res.json(toRenewalRequestDto(updated));
   });
 
   return router;

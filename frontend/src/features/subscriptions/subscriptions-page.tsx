@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { RepeatIcon } from 'lucide-react';
+import { DownloadIcon, RepeatIcon } from 'lucide-react';
 import type { SubscriptionPage } from '@fabsoft/shared';
-import { apiFetch } from '@/shared/api/client';
+import { ApiError, apiFetch, downloadCsv } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
 import { EmptyState } from '@/shared/components/empty-state';
 import { FilterBar, FilterField, SearchInput } from '@/shared/components/filter-bar';
@@ -44,6 +44,7 @@ export function SubscriptionsPage({
   const [filters, setFilters] = useState<SubscriptionFilters>(initialFilters);
   const [message, setMessage] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
+  const [exporting, setExporting] = useState(false);
   const reload = useCallback(() => setVersion((v) => v + 1), []);
 
   useEffect(() => {
@@ -74,15 +75,50 @@ export function SubscriptionsPage({
   const set = <K extends keyof SubscriptionFilters>(key: K, value: SubscriptionFilters[K]) =>
     setFilters((current) => ({ ...current, [key]: value }));
 
+  function filterParams(): string {
+    const params = new URLSearchParams();
+    if (filters.q.trim()) params.set('q', filters.q.trim());
+    if (filters.status) params.set('status', filters.status);
+    if (filters.followUpStatus) params.set('followUpStatus', filters.followUpStatus);
+    if (filters.expiresFrom) params.set('expiresFrom', filters.expiresFrom);
+    if (filters.expiresTo) params.set('expiresTo', filters.expiresTo);
+    if (filters.ownerUserId) params.set('ownerUserId', filters.ownerUserId);
+    return params.toString();
+  }
+
+  async function exportCsv() {
+    const query = filterParams();
+    setExporting(true);
+    try {
+      await downloadCsv(`/subscriptions/export${query ? `?${query}` : ''}`, token);
+      setMessage(null);
+    } catch (err) {
+      setMessage(err instanceof ApiError ? err.message : 'No se pudo exportar el CSV.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-5">
       <PageHeader
         title="Suscripciones"
         description="Vigencia de las suscripciones de los clientes."
         actions={
-          <Button asChild>
-            <Link href="/subscriptions/new">Nueva suscripción</Link>
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void exportCsv()}
+              disabled={exporting}
+            >
+              <DownloadIcon aria-hidden />
+              {exporting ? 'Exportando…' : 'Exportar CSV'}
+            </Button>
+            <Button asChild>
+              <Link href="/subscriptions/new">Nueva suscripción</Link>
+            </Button>
+          </>
         }
       />
 

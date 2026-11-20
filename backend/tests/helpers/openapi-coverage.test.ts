@@ -17,8 +17,6 @@ const PENDING_OPERATIONS = new Set([
   'getSettings',
   'listClientNotes',
   'listSubscriptionNotifications',
-  'resolveRenewalRequest',
-  'updateRenewalRequest',
   'updateSettings',
 ]);
 
