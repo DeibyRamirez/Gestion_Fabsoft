@@ -1,11 +1,10 @@
-import path from 'node:path';
 import { expect, test } from '@playwright/test';
-
-const adminState = path.join(process.cwd(), 'e2e/.auth/admin.json');
+import { seedUsers } from './seed-users';
+import { openAuthenticatedContext } from './session';
 
 test.describe('HU-05 — catálogo de productos', () => {
   test('admin crea y desactiva un producto sin precio ni periodicidad', async ({ browser }) => {
-    const context = await browser.newContext({ storageState: adminState });
+    const { context, storagePath } = await openAuthenticatedContext(browser, seedUsers.admin);
     const page = await context.newPage();
     const name = `Producto E2E ${Date.now()}`;
 
@@ -35,7 +34,7 @@ test.describe('HU-05 — catálogo de productos', () => {
     ).toBeVisible();
     await expect(row.getByText('Inactivo')).toBeVisible();
 
-    await context.storageState({ path: adminState });
+    await context.storageState({ path: storagePath });
     await context.close();
   });
 });

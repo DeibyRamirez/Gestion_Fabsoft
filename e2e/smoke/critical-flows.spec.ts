@@ -64,15 +64,20 @@ test.describe('HT-07 — alta, suscripción y renovación', () => {
     const page = await context.newPage();
     await page.goto(subscriptionPath);
 
+    const toast = page.locator('[aria-live="polite"]');
+
     await page.getByRole('button', { name: 'Activar', exact: true }).click();
-    await expect(page.getByText('Suscripción activada.')).toBeVisible({ timeout: 15_000 });
+    await expect(toast.getByText('Suscripción activada.')).toBeVisible({ timeout: 15_000 });
 
     await page.getByRole('button', { name: 'Iniciar renovación' }).click();
-    await expect(page.getByText('Renovación iniciada.')).toBeVisible({ timeout: 15_000 });
+    await expect(toast.getByText('Renovación iniciada.')).toBeVisible({ timeout: 15_000 });
 
-    page.once('dialog', (dialog) => void dialog.accept('160000.00'));
     await page.getByRole('button', { name: 'Renovar', exact: true }).click();
-    await expect(page.getByText('Suscripción renovada.')).toBeVisible({ timeout: 15_000 });
+    const renewDialog = page.getByRole('dialog', { name: 'Renovar suscripción' });
+    await expect(renewDialog).toBeVisible();
+    await renewDialog.getByLabel('Nuevo precio del periodo (COP)').fill('160000');
+    await renewDialog.getByRole('button', { name: 'Confirmar renovación' }).click();
+    await expect(toast.getByText('Suscripción renovada.')).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('tbody tr')).toHaveCount(2, { timeout: 15_000 });
 
     await context.storageState({ path: storagePath });

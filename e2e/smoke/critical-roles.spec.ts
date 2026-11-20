@@ -19,7 +19,7 @@ test.describe('HT-07 — roles', () => {
     const page = await context.newPage();
 
     await page.goto('/portal');
-    await expect(page.getByRole('heading', { name: 'Mis suscripciones', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /tus suscripciones/i, level: 1 })).toBeVisible();
 
     await page.goto('/dashboard');
     await expect(page).toHaveURL(/\/portal$/, { timeout: 15_000 });

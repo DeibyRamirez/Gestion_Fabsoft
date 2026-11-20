@@ -46,7 +46,7 @@ export async function openPortalContext(
   await page.getByLabel('Contraseña', { exact: true }).fill(role.password);
   await page.getByRole('button', { name: 'Ingresar' }).click();
   await expect(page).toHaveURL(/\/portal$/, { timeout: 20000 });
-  await expect(page.getByRole('heading', { name: 'Mis suscripciones', level: 1 })).toBeVisible({
+  await expect(page.getByRole('heading', { name: /tus suscripciones/i, level: 1 })).toBeVisible({
     timeout: 30000,
   });
   await context.storageState({ path: storagePath });

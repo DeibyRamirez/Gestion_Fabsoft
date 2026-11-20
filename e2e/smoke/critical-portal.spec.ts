@@ -51,7 +51,7 @@ test.describe('HT-07 — portal del cliente', () => {
     expect(subscription.status()).toBe(201);
 
     await page.goto('/portal');
-    await expect(page.getByRole('heading', { name: 'Mis suscripciones', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /tus suscripciones/i, level: 1 })).toBeVisible();
     await expect(page.getByText(productName)).toBeVisible();
 
     const requestLink = page.getByRole('link', { name: 'Solicitar renovación' }).first();
@@ -67,7 +67,7 @@ test.describe('HT-07 — portal del cliente', () => {
 
     await page.goto('/portal/requests');
     await expect(page.getByRole('heading', { name: 'Mis solicitudes', level: 1 })).toBeVisible();
-    await expect(page.getByText(comment)).toBeVisible();
+    await expect(page.getByText(comment).first()).toBeVisible();
 
     await context.storageState({ path: storagePath });
     await context.close();

@@ -1,11 +1,10 @@
-import path from 'node:path';
 import { expect, test } from '@playwright/test';
-
-const adminState = path.join(process.cwd(), 'e2e/.auth/admin.json');
+import { seedUsers } from './seed-users';
+import { openAuthenticatedContext } from './session';
 
 test.describe('HU-11 — alertas', () => {
   test('admin abre la bandeja de alertas', async ({ browser }) => {
-    const context = await browser.newContext({ storageState: adminState });
+    const { context, storagePath } = await openAuthenticatedContext(browser, seedUsers.admin);
     const page = await context.newPage();
 
     await page.goto('/notifications');
@@ -13,7 +12,7 @@ test.describe('HU-11 — alertas', () => {
     await expect(page.getByLabel('Sólo mis alertas')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Actualizar' })).toBeVisible();
 
-    await context.storageState({ path: adminState });
+    await context.storageState({ path: storagePath });
     await context.close();
   });
 });
