@@ -545,6 +545,13 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
                 : 1,
           ),
     },
+    clientOwnerCandidates: {
+      list: async () =>
+        [...store.users.values()]
+          .filter((u) => u.status === 'activo' && (u.role === 'admin' || u.role === 'operator'))
+          .map((u) => ({ id: u.id, fullName: u.fullName, role: u.role }))
+          .sort((a, b) => a.fullName.localeCompare(b.fullName)),
+    },
     clientContactCreate: {
       countActive: async (clientId) =>
         [...store.contacts.values()].filter((c) => c.clientId === clientId && c.archivedAt === null)

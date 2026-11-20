@@ -70,6 +70,7 @@ import type { CreateClientContactRepos } from '../application/clients/create-cli
 import type { GetClientRepos } from '../application/clients/get-client/ports.js';
 import type { ListClientActivityRepos } from '../application/clients/list-client-activity/ports.js';
 import type { ListClientContactsRepos } from '../application/clients/list-client-contacts/ports.js';
+import type { ListClientOwnerCandidatesRepos } from '../application/clients/list-owner-candidates/ports.js';
 import type { ListClientsRepos } from '../application/clients/list-clients/ports.js';
 import type { ReactivateClientRepos } from '../application/clients/reactivate-client/ports.js';
 import type { UpdateClientContactRepos } from '../application/clients/update-client-contact/ports.js';
@@ -122,6 +123,7 @@ export type UserScopeRepos = GetMeRepos &
   ArchiveClientRepos &
   ReactivateClientRepos &
   ListClientContactsRepos &
+  ListClientOwnerCandidatesRepos &
   CreateClientContactRepos &
   UpdateClientContactRepos &
   CreateSubscriptionRepos &

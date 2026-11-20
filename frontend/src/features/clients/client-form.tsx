@@ -1,7 +1,13 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
-import { ClientCreateSchema, type ClientCreateInput, type ClientDto } from '@fabsoft/shared';
+import { useEffect, useState, type FormEvent } from 'react';
+import {
+  ClientCreateSchema,
+  type ClientCreateInput,
+  type ClientDto,
+  type ClientOwnerCandidate,
+  type ClientOwnerCandidateList,
+} from '@fabsoft/shared';
 import { ApiError, apiFetch } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
@@ -16,6 +22,21 @@ type Props = {
 export function ClientForm({ token, onCreated }: Props) {
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [owners, setOwners] = useState<ClientOwnerCandidate[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch<ClientOwnerCandidateList>('/clients/assignable-owners', { token })
+      .then((result) => {
+        if (alive) setOwners(result.data);
+      })
+      .catch(() => {
+        if (alive) setOwners([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [token]);
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -26,6 +47,7 @@ export function ClientForm({ token, onCreated }: Props) {
       taxId: String(data.get('taxId') ?? '').trim() || null,
       email: String(data.get('email') ?? '').trim() || null,
       phone: String(data.get('phone') ?? '').trim() || null,
+      ownerUserId: String(data.get('ownerUserId') ?? '').trim() || null,
       status: String(data.get('status') ?? 'activo') as ClientCreateInput['status'],
     });
     if (!parsed.success) {
@@ -75,6 +97,22 @@ export function ClientForm({ token, onCreated }: Props) {
       <div className="grid gap-2">
         <Label htmlFor="phone">Teléfono</Label>
         <Input id="phone" name="phone" />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="ownerUserId">Responsable interno</Label>
+        <select
+          id="ownerUserId"
+          name="ownerUserId"
+          defaultValue=""
+          className={nativeSelectClassName}
+        >
+          <option value="">Sin responsable</option>
+          {owners.map((owner) => (
+            <option key={owner.id} value={owner.id}>
+              {owner.fullName}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="grid gap-2">
         <Label htmlFor="status">Estado inicial</Label>

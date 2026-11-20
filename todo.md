@@ -50,7 +50,7 @@ Validación contra `SoftLab.md` (2026-11-20). El flujo principal cumple; estos b
 
 - **Bloque 0 — Registro y gobierno** — `hecho`. Matriz de cumplimiento, `todo.md`/`memory.md`, tareas de cierre en ClickUp (lista de Sprint 3; el token no permite crear listas) y HU-16 (CSV) fuera del alcance del MVP.
 - **Bloque 1 — Solicitudes de renovación** — `hecho`. `PATCH /renewal-requests/{id}` (asignar responsable / pasar a “en progreso”) y `POST /renewal-requests/{id}/resolve` (`renovada` exige periodo confirmado; `no_renovada`/`otra`), UI con acciones y diálogo de resolución, cierre de la tarea vinculada y resolución automática al renovar, no renovar o cancelar. OpenAPI sin `pending`; unit 701, API DB 7, integración 43 + 2 nuevas, frontend 66 y build en verde.
-- **Bloque 2 — Ficha de cliente** — `pendiente`. Selector de responsable interno y paneles de suscripciones, tareas y solicitudes dentro de la ficha.
+- **Bloque 2 — Ficha de cliente** — `hecho`. `GET /clients/assignable-owners` para admin/operator, selector de responsable interno en alta y edición, y paneles de suscripciones, tareas y solicitudes dentro de la ficha. OpenAPI y tests de API/frontend en verde.
 - **Bloque 3 — Suscripciones y tareas** — `pendiente`. Exponer en UI responsable, notas, condiciones, costo de proveedor, visibilidad en portal e `isRenewable`; filtros de tareas por cliente y suscripción.
 - **Bloque 4 — Alertas** — `pendiente`. Plantilla de correo editable si HU-13 sigue siendo vinculante; decisión sobre reglas por servicio.
 - **Bloque 5 — Despliegue real** — `pendiente`. VPS/DNS/GHCR/secretos, despliegue real, migraciones, smoke y backup para cerrar HT-08.

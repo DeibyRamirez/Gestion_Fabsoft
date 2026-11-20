@@ -391,6 +391,20 @@ paths:
                       existingClientId: { type: string, format: uuid }
                       archived: { type: boolean }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/clients/assignable-owners:
+    get:
+      tags: [Clients]
+      operationId: listClientOwnerCandidates
+      summary: Lista usuarios internos activos para asignar como responsable
+      x-roles: [admin, operator]
+      responses:
+        '200':
+          description: Candidatos a responsable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientOwnerCandidateList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/clients/{id}:
     parameters:
       - $ref: '#/components/parameters/IdPath'
@@ -2333,6 +2347,20 @@ components:
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/Client' } }
         meta: { $ref: '#/components/schemas/PaginationMeta' }
+    ClientOwnerCandidate:
+      type: object
+      required: [id, fullName, role]
+      properties:
+        id: { type: string, format: uuid }
+        fullName: { type: string }
+        role: { type: string, enum: [admin, operator] }
+    ClientOwnerCandidateList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ClientOwnerCandidate' }
     ClientContact:
       type: object
       required: [id, clientId, fullName, isPrimary]

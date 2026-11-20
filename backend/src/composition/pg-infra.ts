@@ -60,6 +60,7 @@ import {
   PgListClientContactsQuery,
   PgUpdateClientContactRepository,
 } from '../infrastructure/persistence/pg/clients/pg-client-contact-repositories.js';
+import { PgClientOwnerCandidatesQuery } from '../infrastructure/persistence/pg/clients/pg-client-owner-candidates.js';
 import {
   PgActivateSubscriptionRepository,
   PgCancelSubscriptionRepository,
@@ -150,6 +151,7 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     clientArchive: new PgArchiveClientRepository(tx),
     clientReactivate: new PgReactivateClientRepository(tx),
     clientContactsList: new PgListClientContactsQuery(tx),
+    clientOwnerCandidates: new PgClientOwnerCandidatesQuery(tx),
     clientContactCreate: new PgCreateClientContactRepository(tx),
     clientContactUpdate: new PgUpdateClientContactRepository(tx),
     subscriptionCreate: new PgCreateSubscriptionRepository(tx),

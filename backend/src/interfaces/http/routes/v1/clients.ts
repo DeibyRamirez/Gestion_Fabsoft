@@ -4,6 +4,7 @@ import {
   ClientListQuerySchema,
   ClientUpdateSchema,
   type ClientDto,
+  type ClientOwnerCandidateList,
   type ClientPage,
 } from '@fabsoft/shared';
 import { API_VERSION_PREFIX } from '@fabsoft/shared';
@@ -12,6 +13,7 @@ import { z } from 'zod';
 import type { ArchiveClient } from '../../../../application/clients/archive-client/use-case.js';
 import type { CreateClient } from '../../../../application/clients/create-client/use-case.js';
 import type { GetClient } from '../../../../application/clients/get-client/use-case.js';
+import type { ListClientOwnerCandidates } from '../../../../application/clients/list-owner-candidates/use-case.js';
 import type { ListClients } from '../../../../application/clients/list-clients/use-case.js';
 import type { ReactivateClient } from '../../../../application/clients/reactivate-client/use-case.js';
 import type { ClientView } from '../../../../application/clients/shared/client-view.js';
@@ -20,6 +22,7 @@ import { actorOf, requireRole } from '../../middlewares/authenticate.js';
 
 export interface ClientsRouteDeps {
   listClients: ListClients;
+  listClientOwnerCandidates: ListClientOwnerCandidates;
   getClient: GetClient;
   createClient: CreateClient;
   updateClient: UpdateClient;
@@ -75,6 +78,13 @@ export function clientsRouter(
     );
     res.setHeader('Location', `${API_VERSION_PREFIX}/clients/${client.id}`);
     res.status(201).json(toClientDto(client));
+  });
+
+  router.get('/clients/assignable-owners', ...readGuards, async (_req, res) => {
+    const body: ClientOwnerCandidateList = {
+      data: await deps.listClientOwnerCandidates.execute(actorOf(res)),
+    };
+    res.json(body);
   });
 
   router.get('/clients/:id', ...readGuards, async (req, res) => {

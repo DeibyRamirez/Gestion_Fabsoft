@@ -218,4 +218,43 @@ describe.skipIf(!dbTestsConfigured())('Clients API (Postgres)', () => {
     expect(b.status).toBe(201);
     expect(b.body.id).toBe(a.body.id);
   });
+
+  it('T-HU03 — lista responsables internos asignables para admin/operator', async () => {
+    const app = await buildTestApp();
+    const admin = await factories.adminUser();
+    const operator = await factories.operatorUser();
+    const clientRow = await factories.client();
+    const clientUser = await factories.clientUser(clientRow);
+    const adminToken = await factories.tokenFor(admin);
+    const operatorToken = await factories.tokenFor(operator);
+    const clientToken = await factories.tokenFor(clientUser);
+
+    const adminRes = await request(app)
+      .get('/api/v1/clients/assignable-owners')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(adminRes.status).toBe(200);
+    expectMatchesOperation(adminRes, 'listClientOwnerCandidates');
+    expect(adminRes.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: admin.id, role: 'admin' }),
+        expect.objectContaining({ id: operator.id, role: 'operator' }),
+      ]),
+    );
+
+    expect(
+      (
+        await request(app)
+          .get('/api/v1/clients/assignable-owners')
+          .set('Authorization', `Bearer ${operatorToken}`)
+      ).status,
+    ).toBe(200);
+
+    expect(
+      (
+        await request(app)
+          .get('/api/v1/clients/assignable-owners')
+          .set('Authorization', `Bearer ${clientToken}`)
+      ).status,
+    ).toBe(403);
+  });
 });
