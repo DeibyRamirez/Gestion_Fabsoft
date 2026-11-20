@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { ListChecksIcon } from 'lucide-react';
-import type { ClientDto, ClientPage, TaskPage } from '@fabsoft/shared';
+import type { ClientDto, ClientPage, SubscriptionPage, TaskPage } from '@fabsoft/shared';
 import { apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
 import { BentoCard } from '@/shared/components/bento';
@@ -22,6 +22,8 @@ export type TaskFilters = {
   status: string;
   priority: string;
   assignee: string;
+  clientId: string;
+  subscriptionId: string;
   overdue: boolean;
   dueFrom: string;
   dueTo: string;
@@ -31,6 +33,8 @@ export const DEFAULT_TASK_FILTERS: TaskFilters = {
   status: 'pendiente,en_progreso',
   priority: '',
   assignee: '',
+  clientId: '',
+  subscriptionId: '',
   overdue: false,
   dueFrom: '',
   dueTo: '',
@@ -44,11 +48,14 @@ export function TasksPage({
   const { token, user } = useAuth();
   const [page, setPage] = useState<TaskPage | null>(null);
   const [clients, setClients] = useState<ClientDto[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionPage['data']>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [status, setStatus] = useState(initialFilters.status);
   const [priority, setPriority] = useState(initialFilters.priority);
   const [assignee, setAssignee] = useState(initialFilters.assignee);
+  const [clientId, setClientId] = useState(initialFilters.clientId);
+  const [subscriptionId, setSubscriptionId] = useState(initialFilters.subscriptionId);
   const [overdue, setOverdue] = useState(initialFilters.overdue);
   const [dueFrom, setDueFrom] = useState(initialFilters.dueFrom);
   const [dueTo, setDueTo] = useState(initialFilters.dueTo);
@@ -67,10 +74,27 @@ export function TasksPage({
 
   useEffect(() => {
     let alive = true;
+    if (!clientId) {
+      return () => {
+        alive = false;
+      };
+    }
+    apiFetch<SubscriptionPage>(`/subscriptions?clientId=${clientId}&pageSize=100`, { token })
+      .then((p) => alive && setSubscriptions(p.data))
+      .catch(() => alive && setSubscriptions([]));
+    return () => {
+      alive = false;
+    };
+  }, [token, clientId]);
+
+  useEffect(() => {
+    let alive = true;
     const params = new URLSearchParams({ pageSize: '50', sort: 'dueDate' });
     if (status) params.set('status', status);
     if (priority) params.set('priority', priority);
     if (assignee) params.set('assigneeUserId', assignee);
+    if (clientId) params.set('clientId', clientId);
+    if (subscriptionId) params.set('subscriptionId', subscriptionId);
     if (overdue) params.set('overdue', 'true');
     if (dueFrom) params.set('dueFrom', dueFrom);
     if (dueTo) params.set('dueTo', dueTo);
@@ -80,12 +104,26 @@ export function TasksPage({
     return () => {
       alive = false;
     };
-  }, [token, status, priority, assignee, overdue, dueFrom, dueTo, version]);
+  }, [
+    token,
+    status,
+    priority,
+    assignee,
+    clientId,
+    subscriptionId,
+    overdue,
+    dueFrom,
+    dueTo,
+    version,
+  ]);
 
   function clearFilters() {
     setStatus(DEFAULT_TASK_FILTERS.status);
     setPriority(DEFAULT_TASK_FILTERS.priority);
     setAssignee(DEFAULT_TASK_FILTERS.assignee);
+    setClientId(DEFAULT_TASK_FILTERS.clientId);
+    setSubscriptionId(DEFAULT_TASK_FILTERS.subscriptionId);
+    setSubscriptions([]);
     setOverdue(DEFAULT_TASK_FILTERS.overdue);
     setDueFrom(DEFAULT_TASK_FILTERS.dueFrom);
     setDueTo(DEFAULT_TASK_FILTERS.dueTo);
@@ -137,6 +175,41 @@ export function TasksPage({
           </>
         }
       >
+        <FilterField label="Cliente" htmlFor="filter-client">
+          <select
+            id="filter-client"
+            value={clientId}
+            onChange={(e) => {
+              setClientId(e.target.value);
+              setSubscriptionId('');
+              setSubscriptions([]);
+            }}
+            className={nativeSelectClassName}
+          >
+            <option value="">Todos</option>
+            {clients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.legalName}
+              </option>
+            ))}
+          </select>
+        </FilterField>
+        <FilterField label="Suscripción" htmlFor="filter-subscription">
+          <select
+            id="filter-subscription"
+            value={subscriptionId}
+            onChange={(e) => setSubscriptionId(e.target.value)}
+            className={nativeSelectClassName}
+            disabled={!clientId}
+          >
+            <option value="">Todas</option>
+            {subscriptions.map((subscription) => (
+              <option key={subscription.id} value={subscription.id}>
+                {subscription.product.name} · vence {subscription.currentPeriodEnd}
+              </option>
+            ))}
+          </select>
+        </FilterField>
         <FilterField label="Estado" htmlFor="filter-status">
           <select
             id="filter-status"
