@@ -92,7 +92,7 @@ jobs:
     needs: [lint-typecheck]
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Validar compose de producción
         run: |
           for f in deploy/env/*.example; do cp "$f" "${f%.example}"; done
