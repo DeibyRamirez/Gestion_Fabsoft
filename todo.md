@@ -54,7 +54,7 @@ Validación contra `SoftLab.md` (2026-11-20). El flujo principal cumple; estos b
 - **Bloque 3 — Suscripciones y tareas** — `hecho`. Alta de suscripción con referencia contractual, responsable, condiciones, costo de proveedor (admin), notas, renovable y visibilidad en portal; tarjeta de configuración editable en el detalle con motivo obligatorio al cambiar costo; filtros de tareas por cliente y suscripción. Typecheck, lint, tests (frontend 66), OpenAPI y build en verde.
 - **Bloque 4 — Alertas** — `hecho`. Plantilla de asunto/cuerpo editable en `/admin/alert-rules` (`GET/PATCH /alert-rules/email-template`), almacenada en `app_settings`, con placeholders validados, auditoría `app_setting.updated` y uso por el worker. Reglas configuradas siguen siendo globales; reglas por servicio quedan fuera de este bloque.
 - **Bloque 5 — Despliegue real** — `pendiente`. VPS/DNS/GHCR/secretos, despliegue real, migraciones, smoke y backup para cerrar HT-08.
-- **Bloque 6 — Opcional CSV (HU-16)** — `pendiente`. Solo si el PO decide incluirlo; por defecto queda fuera del MVP.
+- **Bloque 6 — CSV (HU-16)** — `hecho`. `GET /clients/export` y `GET /subscriptions/export` con los filtros del listado, CSV UTF-8 con BOM y descarga desde la UI. OpenAPI y tests API DB de clientes/suscripciones en verde.
 
 ## Pendiente
 

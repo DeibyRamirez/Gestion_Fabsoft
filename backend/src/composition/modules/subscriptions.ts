@@ -2,6 +2,7 @@ import { ActivateSubscription } from '../../application/subscriptions/activate-s
 import { CancelSubscription } from '../../application/subscriptions/cancel-subscription/use-case.js';
 import { CorrectExpiration } from '../../application/subscriptions/correct-expiration/use-case.js';
 import { CreateSubscription } from '../../application/subscriptions/create-subscription/use-case.js';
+import { ExportSubscriptionsCsv } from '../../application/subscriptions/export-subscriptions-csv/use-case.js';
 import { GetSubscription } from '../../application/subscriptions/get-subscription/use-case.js';
 import { ListSubscriptionPeriods } from '../../application/subscriptions/list-subscription-periods/use-case.js';
 import { ListSubscriptions } from '../../application/subscriptions/list-subscriptions/use-case.js';
@@ -13,8 +14,10 @@ import { UpdateSubscription } from '../../application/subscriptions/update-subsc
 import type { Infra } from '../infra.js';
 
 export function subscriptionsModule(infra: Infra) {
+  const listSubscriptions = new ListSubscriptions(infra.userUow);
   return {
-    listSubscriptions: new ListSubscriptions(infra.userUow),
+    listSubscriptions,
+    exportSubscriptionsCsv: new ExportSubscriptionsCsv(listSubscriptions),
     getSubscription: new GetSubscription(infra.userUow),
     createSubscription: new CreateSubscription(infra.userUow),
     activateSubscription: new ActivateSubscription(infra.userUow, infra.clock),

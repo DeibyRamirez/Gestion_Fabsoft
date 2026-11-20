@@ -12,6 +12,7 @@ import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
 import type { ArchiveClient } from '../../../../application/clients/archive-client/use-case.js';
 import type { CreateClient } from '../../../../application/clients/create-client/use-case.js';
+import type { ExportClientsCsv } from '../../../../application/clients/export-clients-csv/use-case.js';
 import type { GetClient } from '../../../../application/clients/get-client/use-case.js';
 import type { ListClientOwnerCandidates } from '../../../../application/clients/list-owner-candidates/use-case.js';
 import type { ListClients } from '../../../../application/clients/list-clients/use-case.js';
@@ -22,6 +23,7 @@ import { actorOf, requireRole } from '../../middlewares/authenticate.js';
 
 export interface ClientsRouteDeps {
   listClients: ListClients;
+  exportClientsCsv: ExportClientsCsv;
   listClientOwnerCandidates: ListClientOwnerCandidates;
   getClient: GetClient;
   createClient: CreateClient;
@@ -85,6 +87,14 @@ export function clientsRouter(
       data: await deps.listClientOwnerCandidates.execute(actorOf(res)),
     };
     res.json(body);
+  });
+
+  router.get('/clients/export', ...readGuards, async (req, res) => {
+    const query = ClientListQuerySchema.parse(req.query);
+    const result = await deps.exportClientsCsv.execute(actorOf(res), query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(result.csv);
   });
 
   router.get('/clients/:id', ...readGuards, async (req, res) => {

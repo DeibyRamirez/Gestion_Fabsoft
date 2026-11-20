@@ -219,6 +219,28 @@ describe.skipIf(!dbTestsConfigured())('Clients API (Postgres)', () => {
     expect(b.body.id).toBe(a.body.id);
   });
 
+  it('T-HU16 — exporta el listado filtrado de clientes a CSV UTF-8', async () => {
+    const app = await buildTestApp();
+    const admin = await factories.adminUser();
+    const token = await factories.tokenFor(admin);
+
+    await request(app)
+      .post('/api/v1/clients')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ legalName: 'Cliente Exportable S.A.S.', taxId: '900777888-1' })
+      .expect(201);
+
+    const res = await request(app)
+      .get('/api/v1/clients/export?q=Exportable')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+    expect(res.headers['content-disposition']).toContain('attachment');
+    expect(res.text.startsWith('\uFEFF')).toBe(true);
+    expect(res.text).toContain('"Razón social"');
+    expect(res.text).toContain('Cliente Exportable S.A.S.');
+  });
+
   it('T-HU03 — lista responsables internos asignables para admin/operator', async () => {
     const app = await buildTestApp();
     const admin = await factories.adminUser();
