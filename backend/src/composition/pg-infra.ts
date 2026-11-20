@@ -14,6 +14,7 @@ import {
 } from '../infrastructure/persistence/pg/tasks/pg-task-repositories.js';
 import { PgRenewalRequestAutomationRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-automation-repository.js';
 import { PgListRenewalRequestsQuery } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-list-repository.js';
+import { PgRenewalRequestMutationRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-mutation-repository.js';
 import { PgRenewalRequestCreateRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-create-repository.js';
 import { PgRenewalRequestProcessRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-process-repository.js';
 import { PgIntegrationsRepository } from '../infrastructure/persistence/pg/integrations/pg-integrations-repository.js';
@@ -174,6 +175,8 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     renewalRequests: new PgRenewalRequestAutomationRepository(tx),
     renewalRequestsList: new PgListRenewalRequestsQuery(tx),
     renewalRequestDetail: new PgListRenewalRequestsQuery(tx),
+    renewalRequestUpdate: new PgRenewalRequestMutationRepository(tx),
+    renewalRequestResolve: new PgRenewalRequestMutationRepository(tx),
     renewalRequestCreate: new PgRenewalRequestCreateRepository(tx),
     portalMe: new PgPortalMeQuery(tx),
     portalSubscriptions: new PgPortalSubscriptionsQuery(tx),

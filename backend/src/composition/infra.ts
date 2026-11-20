@@ -24,6 +24,8 @@ import type {
   GetRenewalRequestQuery,
   ListRenewalRequestsRepos,
 } from '../application/renewal-requests/list-renewal-requests/ports.js';
+import type { UpdateRenewalRequestRepos } from '../application/renewal-requests/update-renewal-request/ports.js';
+import type { ResolveRenewalRequestRepos } from '../application/renewal-requests/resolve-renewal-request/ports.js';
 import type {
   ApiKeyAuthRepository,
   CredentialQuery,
@@ -152,6 +154,8 @@ export type UserScopeRepos = GetMeRepos &
   UpdateAlertRuleRepos &
   GetDashboardSummaryRepos &
   ListRenewalRequestsRepos &
+  UpdateRenewalRequestRepos &
+  ResolveRenewalRequestRepos &
   CreateRenewalRequestRepos &
   GetPortalMeRepos &
   ListPortalSubscriptionsRepos &

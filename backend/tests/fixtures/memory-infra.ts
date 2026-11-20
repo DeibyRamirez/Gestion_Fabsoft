@@ -887,6 +887,16 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
     renewalRequestDetail: {
       findById: async () => null,
     },
+    renewalRequestUpdate: {
+      loadForUpdate: async () => null,
+      findAssignableUser: async () => null,
+      update: async () => null,
+    },
+    renewalRequestResolve: {
+      loadForUpdate: async () => null,
+      hasConfirmedRenewalAfter: async () => false,
+      resolve: async () => null,
+    },
     renewalRequestCreate: {
       findForClient: async (clientId, subscriptionId) => {
         const s = store.subscriptions.get(subscriptionId);

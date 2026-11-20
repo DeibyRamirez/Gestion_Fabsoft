@@ -107,7 +107,12 @@ export class RenewSubscription {
           'Renovación confirmada',
           actor.userId,
         );
-        await renewalRequests.resolveOpenForSubscription(id, 'Renovación confirmada', actor.userId);
+        await renewalRequests.resolveOpenForSubscription(
+          id,
+          'renovada',
+          'Renovación confirmada',
+          actor.userId,
+        );
         await alerts.scheduleForPeriod(id, toBogotaLocalDate(this.clock.now()));
 
         await audit.write({

@@ -2705,7 +2705,6 @@
         ],
         "operationId": "updateRenewalRequest",
         "summary": "Asigna responsable o pasa a `en_progreso`",
-        "x-implementation-status": "pending",
         "x-roles": [
           "admin",
           "operator"
@@ -2761,7 +2760,6 @@
         ],
         "operationId": "resolveRenewalRequest",
         "summary": "Resuelve la solicitud (renovada | no_renovada | otra)",
-        "x-implementation-status": "pending",
         "description": "Resolver como `renovada` exige un periodo renovado confirmado posterior a la solicitud (usar antes `/subscriptions/{id}/renew`; si no, `422 renewal_not_confirmed`). La solicitud nunca renueva por sí misma (RN-05).",
         "x-roles": [
           "admin",

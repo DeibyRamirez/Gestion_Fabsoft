@@ -78,6 +78,7 @@ function makeUc(current: SubscriptionView | null, updated: SubscriptionView | nu
   const auditWrite = vi.fn(async () => undefined);
   const cancelPendingWithoutException = vi.fn(async () => 1);
   const cancelOpenAutoTasksForSubscription = vi.fn(async () => 1);
+  const resolveOpenForSubscription = vi.fn(async () => 1);
   const uc = new MarkNotRenewed(
     {
       run: async (_a, work) =>
@@ -97,6 +98,7 @@ function makeUc(current: SubscriptionView | null, updated: SubscriptionView | nu
             cancelOpenAutoTasksForSubscription,
             cancelOpenTasksForSubscription: async () => 0,
           },
+          renewalRequests: { resolveOpenForSubscription },
           audit: { write: auditWrite },
         }),
     },
@@ -108,6 +110,7 @@ function makeUc(current: SubscriptionView | null, updated: SubscriptionView | nu
     auditWrite,
     cancelPendingWithoutException,
     cancelOpenAutoTasksForSubscription,
+    resolveOpenForSubscription,
   };
 }
 
@@ -166,6 +169,7 @@ describe('MarkNotRenewed', () => {
       auditWrite,
       cancelPendingWithoutException,
       cancelOpenAutoTasksForSubscription,
+      resolveOpenForSubscription,
     } = makeUc(sample(), updated);
     const result = await uc.execute(operator, 'sub-1', input);
 
@@ -183,6 +187,12 @@ describe('MarkNotRenewed', () => {
     expect(cancelPendingWithoutException).toHaveBeenCalledWith('sub-1', 'not_renewed');
     expect(cancelOpenAutoTasksForSubscription).toHaveBeenCalledWith(
       'sub-1',
+      `No renovación: ${input.reason}`,
+      'o',
+    );
+    expect(resolveOpenForSubscription).toHaveBeenCalledWith(
+      'sub-1',
+      'no_renovada',
       `No renovación: ${input.reason}`,
       'o',
     );

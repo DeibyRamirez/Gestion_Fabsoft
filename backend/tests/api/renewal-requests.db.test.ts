@@ -106,4 +106,58 @@ describe.skipIf(!dbTestsConfigured())('Renewal requests list API (Postgres)', ()
       403,
     );
   });
+
+  it('asigna responsable y pasa la solicitud a en progreso', async () => {
+    const res = await request(app)
+      .patch(`/api/v1/renewal-requests/${pendingRequestId}`)
+      .set(auth(adminToken))
+      .send({ assignedUserId: operator.id, status: 'en_progreso' });
+
+    expect(res.status).toBe(200);
+    expectMatchesOperation(res, 'updateRenewalRequest');
+    expect(res.body.status).toBe('en_progreso');
+    expect(res.body.assignedUser).toMatchObject({ id: operator.id });
+  });
+
+  it('resuelve una solicitud como no renovada', async () => {
+    const res = await request(app)
+      .post(`/api/v1/renewal-requests/${pendingRequestId}/resolve`)
+      .set(auth(operatorToken))
+      .send({ resolution: 'no_renovada', resolutionNote: 'El cliente no continúa' });
+
+    expect(res.status).toBe(200);
+    expectMatchesOperation(res, 'resolveRenewalRequest');
+    expect(res.body.status).toBe('resuelta');
+    expect(res.body.resolution).toBe('no_renovada');
+    expect(res.body.resolutionNote).toBe('El cliente no continúa');
+  });
+
+  it('no permite resolver renovada sin una renovación confirmada', async () => {
+    const res = await request(app)
+      .post(`/api/v1/renewal-requests/${pendingRequestId}/resolve`)
+      .set(auth(adminToken))
+      .send({ resolution: 'renovada' });
+
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('renewal_not_confirmed');
+  });
+
+  it('cliente no puede modificar ni resolver solicitudes internas', async () => {
+    expect(
+      (
+        await request(app)
+          .patch(`/api/v1/renewal-requests/${pendingRequestId}`)
+          .set(auth(clientToken))
+          .send({ status: 'en_progreso' })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await request(app)
+          .post(`/api/v1/renewal-requests/${pendingRequestId}/resolve`)
+          .set(auth(clientToken))
+          .send({ resolution: 'otra' })
+      ).status,
+    ).toBe(403);
+  });
 });

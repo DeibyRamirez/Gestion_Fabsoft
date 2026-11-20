@@ -11,6 +11,7 @@ import {
 } from '@/shared/ui/dialog';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
+import { nativeSelectClassName } from '@/shared/ui/native-select';
 import { Textarea } from '@/shared/ui/textarea';
 
 /** Reemplazo accesible de window.confirm. */
@@ -59,8 +60,9 @@ export function ConfirmDialog({
 export type PromptField = {
   name: string;
   label: string;
-  type?: 'text' | 'date' | 'textarea' | 'number';
+  type?: 'text' | 'date' | 'textarea' | 'number' | 'select';
   defaultValue?: string;
+  options?: Array<{ value: string; label: string }>;
   /** Devuelve un mensaje de error o null. Replica la validación de la vista / schema Zod. */
   validate?: (value: string) => string | null;
   inputMode?: 'decimal' | 'text' | 'numeric';
@@ -143,6 +145,14 @@ export function PromptDialog({
                 <Label htmlFor={id}>{f.label}</Label>
                 {f.type === 'textarea' ? (
                   <Textarea {...common} rows={3} />
+                ) : f.type === 'select' ? (
+                  <select {...common} className={nativeSelectClassName}>
+                    {(f.options ?? []).map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 ) : (
                   <Input
                     {...common}
