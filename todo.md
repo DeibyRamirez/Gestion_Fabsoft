@@ -48,7 +48,7 @@ Orden por dependencias. Un bloque se cierra con código, tests y esta lista actu
 
 Validación contra `SoftLab.md` (2026-11-20). El flujo principal cumple; estos bloques cierran las brechas detectadas antes de declarar el MVP completo. Un bloque se cierra con código, tests, documentación y ClickUp actualizado antes de abrir el siguiente.
 
-- **Bloque 0 — Registro y gobierno** — `hecho`. Matriz de cumplimiento, `todo.md`/`memory.md`, Sprint 4 en ClickUp y HU-16 (CSV) fuera del alcance del MVP.
+- **Bloque 0 — Registro y gobierno** — `hecho`. Matriz de cumplimiento, `todo.md`/`memory.md`, tareas de cierre en ClickUp (lista de Sprint 3; el token no permite crear listas) y HU-16 (CSV) fuera del alcance del MVP.
 - **Bloque 1 — Solicitudes de renovación** — `hecho`. `PATCH /renewal-requests/{id}` (asignar responsable / pasar a “en progreso”) y `POST /renewal-requests/{id}/resolve` (`renovada` exige periodo confirmado; `no_renovada`/`otra`), UI con acciones y diálogo de resolución, cierre de la tarea vinculada y resolución automática al renovar, no renovar o cancelar. OpenAPI sin `pending`; unit 701, API DB 7, integración 43 + 2 nuevas, frontend 66 y build en verde.
 - **Bloque 2 — Ficha de cliente** — `pendiente`. Selector de responsable interno y paneles de suscripciones, tareas y solicitudes dentro de la ficha.
 - **Bloque 3 — Suscripciones y tareas** — `pendiente`. Exponer en UI responsable, notas, condiciones, costo de proveedor, visibilidad en portal e `isRenewable`; filtros de tareas por cliente y suscripción.
