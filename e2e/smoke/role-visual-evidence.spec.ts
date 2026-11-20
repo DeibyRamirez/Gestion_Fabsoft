@@ -49,7 +49,7 @@ test.describe('evidencia visual autenticada (rediseño)', () => {
     const { context, storagePath } = await openAuthenticatedContext(browser, seedUsers.operator);
     const page = await context.newPage();
     await page.goto('/dashboard');
-    await expect(page.getByText('Rol: Operador')).toBeVisible();
+    await expect(page.getByText('Operador', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('Admin', { exact: true })).toHaveCount(0);
     await shotPath(page, '20-dashboard-operator-desktop.png')();
 
@@ -65,7 +65,7 @@ test.describe('evidencia visual autenticada (rediseño)', () => {
     const context = await browser.newContext({ storageState: storagePath });
     const page = await context.newPage();
     await page.goto('/portal');
-    await expect(page.getByRole('heading', { name: 'Mis suscripciones', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /tus suscripciones/i, level: 1 })).toBeVisible();
     await page.setViewportSize({ width: 1280, height: 800 });
     await shotPath(page, '30-portal-client-desktop.png')();
 

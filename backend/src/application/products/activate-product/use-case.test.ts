@@ -11,7 +11,7 @@ const admin: UserActor = {
   requestId: 'r',
 };
 
-const p = (status: 'active' | 'inactive'): ProductView => ({
+const p = (status: 'activo' | 'inactivo'): ProductView => ({
   id: 'p1',
   name: 'X',
   description: null,
@@ -29,7 +29,7 @@ describe('ActivateProduct', () => {
       run: async (_a, work) =>
         work({
           productUpdate: {
-            loadForUpdate: async () => p('active'),
+            loadForUpdate: async () => p('activo'),
             save: async () => {
               throw new Error('no debería guardar');
             },
@@ -38,6 +38,6 @@ describe('ActivateProduct', () => {
         }),
     });
     const result = await uc.execute(admin, 'p1');
-    expect(result.status).toBe('active');
+    expect(result.status).toBe('activo');
   });
 });

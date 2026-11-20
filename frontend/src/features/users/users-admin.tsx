@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
   USER_ROLES,
   UserCreateSchema,
+  type ClientDto,
+  type ClientPage,
   type UserCreatedDto,
   type UserDto,
   type UserPage,
@@ -11,12 +13,19 @@ import {
 } from '@fabsoft/shared';
 import { ApiError, apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
+import { ConfirmDialog } from '@/shared/components/action-dialog';
+import { BentoCard } from '@/shared/components/bento';
+import { CopyButton } from '@/shared/components/copy-button';
+import { FormField } from '@/shared/components/form-field';
+import { FormGrid } from '@/shared/components/form-layout';
+import { OneTimeSecret } from '@/shared/components/one-time-secret';
 import { PageHeader } from '@/shared/components/page-header';
-import { cn } from '@/shared/lib/utils';
+import { SectionHeader } from '@/shared/components/section-header';
+import { USER_ROLE_LABELS } from '@/shared/lib/labels';
 import { Button } from '@/shared/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Input } from '@/shared/ui/input';
-import { Label } from '@/shared/ui/label';
+import { nativeSelectClassName } from '@/shared/ui/native-select';
+import { StatusBadge } from '@/shared/ui/status-badge';
 import {
   Table,
   TableBody,
@@ -26,17 +35,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/shared/ui/table';
-
-const selectClassName =
-  'flex h-10 w-full rounded-md border border-border-input bg-bg px-3 py-2 text-sm text-fg shadow-sm focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
+import { useToast } from '@/shared/ui/toast';
 
 /** Gestión de usuarios (sólo admin; la API devuelve 403 a otros roles). */
 export function UsersAdmin() {
   const { token, user: me } = useAuth();
   const [page, setPage] = useState<UserPage | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-
+  const [secret, setSecret] = useState<string | null>(null);
+  const [secretFor, setSecretFor] = useState<string | null>(null);
+  const [toDisable, setToDisable] = useState<UserDto | null>(null);
+  const [clients, setClients] = useState<ClientDto[]>([]);
+  const [role, setRole] = useState<UserRole>('operator');
+  const [clientId, setClientId] = useState('');
   const [version, setVersion] = useState(0);
+  const toast = useToast();
   const load = useCallback(() => setVersion((v) => v + 1), []);
 
   useEffect(() => {
@@ -44,6 +57,16 @@ export function UsersAdmin() {
     apiFetch<UserPage>('/users?pageSize=100', { token })
       .then((p) => alive && setPage(p))
       .catch(() => alive && setMessage('No se pudo cargar la lista de usuarios.'));
+    return () => {
+      alive = false;
+    };
+  }, [token, version]);
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch<ClientPage>('/clients?pageSize=100&status=activo', { token })
+      .then((p) => alive && setClients(p.data))
+      .catch(() => alive && setClients([]));
     return () => {
       alive = false;
     };
@@ -67,26 +90,33 @@ export function UsersAdmin() {
         token,
         body: JSON.stringify(parsed.data),
       });
-      setMessage(
-        `Usuario creado. Contraseña temporal (se muestra una sola vez): ${created.temporaryPassword}`,
-      );
+      setMessage('Usuario creado.');
+      setSecret(created.temporaryPassword);
+      setSecretFor(String(parsed.data.email));
+      toast('Usuario creado.');
       form.reset();
+      setRole('operator');
+      setClientId('');
       load();
     } catch (err) {
-      setMessage(
+      const errorMessage =
         err instanceof ApiError && err.problem?.code === 'duplicate_email'
           ? 'Ese email ya existe.'
-          : 'No se pudo crear el usuario.',
-      );
+          : 'No se pudo crear el usuario.';
+      setMessage(errorMessage);
+      toast(errorMessage, 'error');
     }
   }
 
   async function patch(u: UserDto, body: Partial<Pick<UserDto, 'role' | 'status'>>) {
     try {
       await apiFetch(`/users/${u.id}`, { method: 'PATCH', token, body: JSON.stringify(body) });
+      toast('Usuario actualizado.');
       load();
     } catch (err) {
-      setMessage(err instanceof ApiError ? err.message : 'Error');
+      const errorMessage = err instanceof ApiError ? err.message : 'Error';
+      setMessage(errorMessage);
+      toast(errorMessage, 'error');
     }
   }
 
@@ -95,37 +125,61 @@ export function UsersAdmin() {
       method: 'POST',
       token,
     });
-    setMessage(`Contraseña temporal de ${u.email}: ${r.temporaryPassword}`);
+    setSecret(r.temporaryPassword);
+    setSecretFor(u.email);
+    setMessage(`Contraseña temporal generada para ${u.email}.`);
+    toast('Contraseña temporal generada.');
+  }
+
+  function requestStatusToggle(u: UserDto) {
+    if (u.status === 'activo') setToDisable(u);
+    else void patch(u, { status: 'activo' });
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8">
-      <PageHeader
-        breadcrumbs={['Admin']}
-        title="Usuarios"
-        description="Alta, roles y restablecimiento de contraseñas."
+    <div className="mx-auto flex max-w-7xl flex-col gap-5">
+      <PageHeader title="Usuarios" description="Alta, roles y restablecimiento de contraseñas." />
+
+      <ConfirmDialog
+        open={toDisable !== null}
+        onOpenChange={(open) => {
+          if (!open) setToDisable(null);
+        }}
+        title="Desactivar usuario"
+        description={
+          toDisable
+            ? `¿Desactivar a ${toDisable.fullName}? No podrá iniciar sesión hasta que lo reactives.`
+            : ''
+        }
+        confirmLabel="Desactivar"
+        destructive
+        onConfirm={() => {
+          if (toDisable) void patch(toDisable, { status: 'deshabilitado' });
+        }}
       />
 
       {message ? (
-        <div
-          role="status"
-          className="rounded-md border border-border bg-surface px-4 py-3 text-sm text-fg"
-        >
+        <p role="status" className="text-sm text-fg-muted">
           {message}
-        </div>
+        </p>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Nuevo usuario</CardTitle>
-          <CardDescription>
-            La contraseña temporal se muestra una sola vez al crear o resetear.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={create} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <div className="grid gap-2">
-              <Label htmlFor="user-email">Email</Label>
+      {secret ? (
+        <OneTimeSecret
+          value={secret}
+          title={`Contraseña temporal${secretFor ? ` de ${secretFor}` : ''}`}
+          description="Se muestra una sola vez. Compártela por un canal seguro."
+        />
+      ) : null}
+
+      <BentoCard>
+        <SectionHeader
+          title="Nuevo usuario"
+          description="La contraseña temporal se muestra una sola vez al crear o resetear."
+        />
+        <form onSubmit={create} className="mt-4">
+          <FormGrid columns={3}>
+            <FormField label="Email" htmlFor="user-email">
               <Input
                 id="user-email"
                 name="email"
@@ -133,42 +187,80 @@ export function UsersAdmin() {
                 placeholder="nombre@empresa.com"
                 required
               />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="user-fullName">Nombre completo</Label>
+            </FormField>
+            <FormField label="Nombre completo" htmlFor="user-fullName">
               <Input id="user-fullName" name="fullName" placeholder="Nombre completo" required />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="user-role">Rol</Label>
+            </FormField>
+            <FormField label="Rol" htmlFor="user-role">
               <select
                 id="user-role"
                 name="role"
-                defaultValue="operator"
-                className={selectClassName}
+                value={role}
+                onChange={(event) => {
+                  setRole(event.target.value as UserRole);
+                  setClientId('');
+                }}
+                className={nativeSelectClassName}
               >
-                {USER_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
+                {USER_ROLES.map((value) => (
+                  <option key={value} value={value}>
+                    {USER_ROLE_LABELS[value]}
                   </option>
                 ))}
               </select>
-            </div>
-            <div className="grid gap-2 md:col-span-2 lg:col-span-3">
-              <Label htmlFor="user-clientId">ID de cliente (sólo rol client)</Label>
-              <Input id="user-clientId" name="clientId" placeholder="UUID del cliente" />
-            </div>
-            <div className="md:col-span-2 lg:col-span-3">
-              <Button type="submit">Crear usuario</Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+            </FormField>
+            {role === 'client' ? (
+              <FormField
+                label="Cliente"
+                htmlFor="user-clientId"
+                className="md:col-span-2 lg:col-span-3"
+                hint="El usuario cliente verá el portal de esta empresa."
+                required
+              >
+                <select
+                  id="user-clientId"
+                  name="clientId"
+                  required
+                  value={clientId}
+                  onChange={(event) => setClientId(event.target.value)}
+                  className={nativeSelectClassName}
+                >
+                  <option value="">Seleccione una empresa…</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.legalName}
+                    </option>
+                  ))}
+                </select>
+                {clientId ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-md bg-surface-muted px-3 py-2">
+                    <span className="text-xs text-fg-muted">ID cliente:</span>
+                    <code className="min-w-0 flex-1 break-all font-mono text-xs">{clientId}</code>
+                    <CopyButton
+                      value={clientId}
+                      label=""
+                      aria-label="Copiar ID cliente"
+                      size="icon"
+                    />
+                  </div>
+                ) : clients.length === 0 ? (
+                  <p className="text-xs text-fg-muted">
+                    No hay clientes activos. Crea una empresa en Clientes antes de asignar un
+                    usuario cliente.
+                  </p>
+                ) : null}
+              </FormField>
+            ) : null}
+          </FormGrid>
+          <div className="mt-4 flex justify-end">
+            <Button type="submit">Crear usuario</Button>
+          </div>
+        </form>
+      </BentoCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Usuarios registrados</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <BentoCard>
+        <SectionHeader title="Usuarios registrados" />
+        <div className="mt-4">
           {page === null && !message ? (
             <p role="status" aria-busy="true" className="text-sm text-fg-muted">
               Cargando usuarios…
@@ -190,8 +282,8 @@ export function UsersAdmin() {
             <TableBody>
               {page?.data.map((u) => (
                 <TableRow key={u.id}>
-                  <TableCell>{u.fullName}</TableCell>
-                  <TableCell>{u.email}</TableCell>
+                  <TableCell className="font-semibold text-fg">{u.fullName}</TableCell>
+                  <TableCell className="text-fg-muted">{u.email}</TableCell>
                   <TableCell>
                     <label className="sr-only" htmlFor={`role-${u.id}`}>
                       Rol de {u.fullName}
@@ -200,29 +292,29 @@ export function UsersAdmin() {
                       id={`role-${u.id}`}
                       value={u.role}
                       disabled={u.id === me?.id || u.role === 'client'}
-                      className={cn(selectClassName, 'max-w-[10rem]')}
+                      className={`${nativeSelectClassName} max-w-40`}
                       onChange={(e) => void patch(u, { role: e.target.value as UserRole })}
                     >
                       {USER_ROLES.filter((r) => r !== 'client' || u.role === 'client').map((r) => (
                         <option key={r} value={r}>
-                          {r}
+                          {USER_ROLE_LABELS[r]}
                         </option>
                       ))}
                     </select>
                   </TableCell>
-                  <TableCell className="capitalize">{u.status}</TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap gap-2">
+                    <StatusBadge kind="user" value={u.status} />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap justify-end gap-2">
                       {u.id !== me?.id ? (
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() =>
-                            void patch(u, { status: u.status === 'active' ? 'disabled' : 'active' })
-                          }
+                          onClick={() => requestStatusToggle(u)}
                         >
-                          {u.status === 'active' ? 'Desactivar' : 'Activar'}
+                          {u.status === 'activo' ? 'Desactivar' : 'Activar'}
                         </Button>
                       ) : null}
                       <Button
@@ -239,8 +331,8 @@ export function UsersAdmin() {
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </div>
+      </BentoCard>
     </div>
   );
 }

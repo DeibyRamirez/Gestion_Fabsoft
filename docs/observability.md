@@ -12,7 +12,7 @@
   | Nivel | Uso |
   |---|---|
   | `error` | Excepción no controlada (500), fallo de job, credencial Resend inválida, fallo de conexión a BD. |
-  | `warn` | Violación RLS (`42501`, indica bug de autorización), `reuse_detected`, rate limit excedido, notificación pasada a `failed`, `version_conflict` repetido. |
+  | `warn` | Violación RLS (`42501`, indica bug de autorización), `reuse_detected`, rate limit excedido, notificación pasada a `fallida`, `version_conflict` repetido. |
   | `info` | Petición completada (pino-http), arranque/parada, ejecución de cron con contadores. |
   | `debug` | Sólo en desarrollo (SQL de repositorios sin parámetros sensibles). |
 - `LOG_LEVEL` por entorno: `debug` (dev), `warn` (test), `info` (prod).
@@ -33,8 +33,8 @@
 
 | Métrica | Consulta / fuente | Umbral de alerta |
 |---|---|---|
-| Notificaciones pendientes atrasadas | `count(*) where status='pending' and scheduled_for < now() - interval '15 min' and (next_attempt_at is null or next_attempt_at < now())` | > 0 durante 15 min |
-| Notificaciones fallidas 24 h | `count(*) where status='failed' and updated_at > now() - interval '24 h'` | > 0 |
+| Notificaciones pendientes atrasadas | `count(*) where status='pendiente' and scheduled_for < now() - interval '15 min' and (next_attempt_at is null or next_attempt_at < now())` | > 0 durante 15 min |
+| Notificaciones fallidas 24 h | `count(*) where status='fallida' and updated_at > now() - interval '24 h'` | > 0 |
 | Latido del worker | `select max(completed_on) from pgboss.job where name='notifications.dispatch' and state='completed'` (las tablas de pg-boss 9 viven en el esquema `pgboss`) | > 5 min sin ejecución |
 | Job de vencimiento | log `subscriptions.expire` con `updatedCount` del día | Sin ejecución tras 00:30 Bogotá |
 | Errores 5xx | logs `status >= 500` | > 5 en 5 min |

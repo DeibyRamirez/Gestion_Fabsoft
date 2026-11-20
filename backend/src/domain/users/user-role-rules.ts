@@ -36,8 +36,8 @@ export function applyUserChange(
 
   const losesAdmin =
     target.role === 'admin' &&
-    target.status === 'active' &&
-    (next.role !== 'admin' || next.status !== 'active');
+    target.status === 'activo' &&
+    (next.role !== 'admin' || next.status !== 'activo');
   if (losesAdmin && target.id === ctx.actorUserId) {
     throw new DomainError(
       'invalid_state_transition',

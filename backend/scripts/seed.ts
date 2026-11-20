@@ -109,7 +109,7 @@ const users = [
     client: null,
     pw: 'Admin.dev-2026!',
     must: false,
-    status: 'active',
+    status: 'activo',
   },
   {
     id: U.operator,
@@ -119,7 +119,7 @@ const users = [
     client: null,
     pw: 'Operador.dev-2026!',
     must: false,
-    status: 'active',
+    status: 'activo',
   },
   {
     id: U.andina,
@@ -129,7 +129,7 @@ const users = [
     client: C.andina,
     pw: 'Cliente.dev-2026!',
     must: false,
-    status: 'active',
+    status: 'activo',
   },
   {
     id: U.cafetal,
@@ -139,7 +139,7 @@ const users = [
     client: C.cafetal,
     pw: 'Cliente.dev-2026!',
     must: true,
-    status: 'active',
+    status: 'activo',
   },
   {
     id: U.inactive,
@@ -149,24 +149,24 @@ const users = [
     client: null,
     pw: 'Inactivo.dev-2026!',
     must: false,
-    status: 'disabled',
+    status: 'deshabilitado',
   },
 ] as const;
 
 const clients = [
-  [C.andina, 'Distribuidora Andina S.A.S.', '900.123.456-7', 'active', U.admin],
-  [C.cafetal, 'Café El Cafetal Ltda.', '800.987.654-3', 'active', U.operator],
-  [C.norte, 'Clínica Norte S.A.', '901.555.222-1', 'active', U.operator],
-  [C.ferreteria, 'Ferretería Los Andes', null, 'inactive', null],
-  [C.textiles, 'Textiles Antiguos S.A.S.', '830.111.000-9', 'inactive', null],
+  [C.andina, 'Distribuidora Andina S.A.S.', '900.123.456-7', 'activo', U.admin],
+  [C.cafetal, 'Café El Cafetal Ltda.', '800.987.654-3', 'activo', U.operator],
+  [C.norte, 'Clínica Norte S.A.', '901.555.222-1', 'activo', U.operator],
+  [C.ferreteria, 'Ferretería Los Andes', null, 'inactivo', null],
+  [C.textiles, 'Textiles Antiguos S.A.S.', '830.111.000-9', 'inactivo', null],
 ] as const;
 
 const products = [
-  [P.m365, 'Microsoft 365 Business Standard', 'third_party', 'Microsoft', 'active'],
-  [P.eset, 'Antivirus ESET Protect Entry', 'third_party', 'ESET', 'active'],
-  [P.facturacion, 'FabSoft Facturación', 'own', 'FabSoft', 'active'],
-  [P.soporte, 'Soporte técnico mensual', 'recurring_service', 'FabSoft', 'active'],
-  [P.hosting, 'Hosting compartido básico', 'recurring_service', 'FabSoft', 'inactive'],
+  [P.m365, 'Microsoft 365 Business Standard', 'third_party', 'Microsoft', 'activo'],
+  [P.eset, 'Antivirus ESET Protect Entry', 'third_party', 'ESET', 'activo'],
+  [P.facturacion, 'FabSoft Facturación', 'own', 'FabSoft', 'activo'],
+  [P.soporte, 'Soporte técnico mensual', 'recurring_service', 'FabSoft', 'activo'],
+  [P.hosting, 'Hosting compartido básico', 'recurring_service', 'FabSoft', 'inactivo'],
 ] as const;
 
 type Cycle = 'monthly' | 'quarterly' | 'annual' | 'custom';
@@ -184,7 +184,7 @@ interface Sub {
   cost?: number;
   periods?: number;
   visible?: boolean;
-  lastOutcome?: 'not_renewed';
+  lastOutcome?: 'no_renovada';
 }
 const subs: Sub[] = [
   {
@@ -193,9 +193,9 @@ const subs: Sub[] = [
     product: P.m365,
     cycle: 'annual',
     endOffset: 30,
-    status: 'active',
-    followUp: 'none',
-    payment: 'received',
+    status: 'activa',
+    followUp: 'sin_gestion',
+    payment: 'recibido',
     price: 1_850_000,
   },
   {
@@ -204,9 +204,9 @@ const subs: Sub[] = [
     product: P.eset,
     cycle: 'annual',
     endOffset: 15,
-    status: 'in_renewal',
-    followUp: 'in_progress',
-    payment: 'received',
+    status: 'en_renovacion',
+    followUp: 'en_gestion',
+    payment: 'recibido',
     price: 420_000,
     cost: 300_000,
   },
@@ -216,9 +216,9 @@ const subs: Sub[] = [
     product: P.facturacion,
     cycle: 'annual',
     endOffset: 7,
-    status: 'active',
-    followUp: 'awaiting_client',
-    payment: 'pending',
+    status: 'activa',
+    followUp: 'esperando_cliente',
+    payment: 'pendiente',
     price: 2_400_000,
   },
   {
@@ -227,9 +227,9 @@ const subs: Sub[] = [
     product: P.soporte,
     cycle: 'monthly',
     endOffset: 1,
-    status: 'active',
-    followUp: 'none',
-    payment: 'not_tracked',
+    status: 'activa',
+    followUp: 'sin_gestion',
+    payment: 'sin_seguimiento',
     price: 350_000,
   },
   {
@@ -238,9 +238,9 @@ const subs: Sub[] = [
     product: P.m365,
     cycle: 'annual',
     endOffset: 0,
-    status: 'in_renewal',
-    followUp: 'in_progress',
-    payment: 'received',
+    status: 'en_renovacion',
+    followUp: 'en_gestion',
+    payment: 'recibido',
     price: 3_700_000,
     cost: 2_900_000,
   },
@@ -250,9 +250,9 @@ const subs: Sub[] = [
     product: P.eset,
     cycle: 'annual',
     endOffset: -1,
-    status: 'expired',
-    followUp: 'none',
-    payment: 'received',
+    status: 'vencida',
+    followUp: 'sin_gestion',
+    payment: 'recibido',
     price: 840_000,
   },
   {
@@ -261,11 +261,11 @@ const subs: Sub[] = [
     product: P.soporte,
     cycle: 'monthly',
     endOffset: -20,
-    status: 'not_renewed',
-    followUp: 'closed',
-    payment: 'received',
+    status: 'no_renovada',
+    followUp: 'cerrado',
+    payment: 'recibido',
     price: 350_000,
-    lastOutcome: 'not_renewed',
+    lastOutcome: 'no_renovada',
   },
   {
     n: 8,
@@ -273,9 +273,9 @@ const subs: Sub[] = [
     product: P.soporte,
     cycle: 'quarterly',
     endOffset: 75,
-    status: 'active',
-    followUp: 'none',
-    payment: 'received',
+    status: 'activa',
+    followUp: 'sin_gestion',
+    payment: 'recibido',
     price: 900_000,
     periods: 3,
   },
@@ -285,9 +285,9 @@ const subs: Sub[] = [
     product: P.eset,
     cycle: 'annual',
     endOffset: 340,
-    status: 'pending_activation',
-    followUp: 'none',
-    payment: 'pending',
+    status: 'pendiente_activacion',
+    followUp: 'sin_gestion',
+    payment: 'pendiente',
     price: 420_000,
   },
   {
@@ -296,9 +296,9 @@ const subs: Sub[] = [
     product: P.facturacion,
     cycle: 'annual',
     endOffset: -90,
-    status: 'cancelled',
-    followUp: 'closed',
-    payment: 'received',
+    status: 'cancelada',
+    followUp: 'cerrado',
+    payment: 'recibido',
     price: 2_400_000,
   },
   {
@@ -307,9 +307,9 @@ const subs: Sub[] = [
     product: P.facturacion,
     cycle: 'custom',
     endOffset: 200,
-    status: 'active',
-    followUp: 'none',
-    payment: 'received',
+    status: 'activa',
+    followUp: 'sin_gestion',
+    payment: 'recibido',
     price: 3_600_000,
     visible: false,
   },
@@ -349,7 +349,7 @@ try {
 
   for (const [cid, name, tax, status, owner] of clients) {
     await db.query(
-      `insert into app.clients (id, legal_name, tax_id, status, archived_at) values ($1, $2, $3, $4::app.client_status, case when $4::text = 'archived' then now() end)
+      `insert into app.clients (id, legal_name, tax_id, status, archived_at) values ($1, $2, $3, $4::app.client_status, case when $4::text = 'archivado' then now() end)
        on conflict (id) do nothing`,
       [cid, name, tax, status],
     );
@@ -370,8 +370,8 @@ try {
       );
   }
   await db.query(
-    `update app.clients set status = 'archived'::app.client_status, archived_at = now()
-     where id = $1 and status <> 'archived'::app.client_status`,
+    `update app.clients set status = 'archivado'::app.client_status, archived_at = now()
+     where id = $1 and status <> 'archivado'::app.client_status`,
     [C.textiles],
   );
   await db.query(
@@ -420,7 +420,7 @@ try {
     const startOf = (k: number) =>
       `(${end} - interval '${months * (nPeriods - k + 1)} months' + interval '1 day')::date`;
     const insertStatus =
-      s.status === 'pending_activation' || s.status === 'active' ? s.status : 'active';
+      s.status === 'pendiente_activacion' || s.status === 'activa' ? s.status : 'activa';
     const inserted = await db.query(
       `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle, custom_cycle_months,
          price_amount, supplier_cost_amount, status, follow_up_status, visible_in_portal, owner_user_id, contract_reference)
@@ -446,20 +446,20 @@ try {
     if (insertStatus !== s.status) {
       await db.query(
         `update app.subscriptions set status = $2::app.subscription_status,
-           cancelled_at = case when $2::text = 'cancelled' then now() end,
-           cancellation_reason = case when $2::text = 'cancelled' then 'Cliente cerró operaciones' end
+           cancelled_at = case when $2::text = 'cancelada' then now() end,
+           cancellation_reason = case when $2::text = 'cancelada' then 'Cliente cerró operaciones' end
          where id = $1`,
         [subId(s.n), s.status],
       );
     }
     for (let k = 1; k <= nPeriods; k++) {
       const last = k === nPeriods;
-      const outcome = last ? (s.lastOutcome ?? 'pending') : 'renewed';
+      const outcome = last ? (s.lastOutcome ?? 'pendiente') : 'renovada';
       await db.query(
         `insert into app.subscription_periods (id, subscription_id, period_number, start_date, end_date, billing_cycle, custom_cycle_months,
            price_amount, supplier_cost_amount, renewal_outcome, outcome_reason, payment_status, confirmed_at, confirmed_by)
          values ($2, $3, $4, ${startOf(k)}, (${startOf(k + 1)} - 1), $5, $6, $7, $8, $9::app.renewal_outcome, $10, $11,
-           case when $9::text <> 'pending' then now() end, case when $9::text <> 'pending' then $12::uuid end)
+           case when $9::text <> 'pendiente' then now() end, case when $9::text <> 'pendiente' then $12::uuid end)
          on conflict (id) do nothing`,
         [
           today,
@@ -471,8 +471,8 @@ try {
           s.price,
           s.cost ?? null,
           outcome,
-          outcome === 'not_renewed' ? 'El cliente decidió no continuar' : null,
-          last ? s.payment : 'received',
+          outcome === 'no_renovada' ? 'El cliente decidió no continuar' : null,
+          last ? s.payment : 'recibido',
           U.operator,
         ],
       );
@@ -503,17 +503,17 @@ try {
     client: string,
     due: number,
     title: string,
-    status = 'pending',
+    status = 'pendiente',
   ) =>
     db.query(
       `insert into app.tasks (id, task_type, client_id, subscription_id, assignee_user_id, due_date, title, status, completed_at)
-       values ($1, $2, $3, $4, $5, $6::date + $7::int, $8, $9::app.task_status, case when $9::text = 'completed' then now() end) on conflict (id) do nothing`,
+       values ($1, $2, $3, $4, $5, $6::date + $7::int, $8, $9::app.task_status, case when $9::text = 'completada' then now() end) on conflict (id) do nothing`,
       [id(0x800 + n), type, client, subId(sub), U.operator, today, due, title, status],
     );
   await task(1, 'send_proposal', 1, C.andina, 5, 'Enviar propuesta de renovación M365');
   await task(2, 'contact_client', 2, C.andina, 2, 'Contactar a Andina por renovación ESET');
   await task(3, 'review_expired', 6, C.norte, 0, 'Revisar suscripción ESET vencida');
-  await task(4, 'other', 8, C.andina, -30, 'Confirmar pago del trimestre anterior', 'completed');
+  await task(4, 'other', 8, C.andina, -30, 'Confirmar pago del trimestre anterior', 'completada');
 
   await db.query('commit');
   console.log(`Seed aplicado (hoy=${today}) en ${redactDatabaseUrl(url)}.`);
@@ -521,7 +521,7 @@ try {
     console.log('Credenciales de desarrollo (ver docs/seed-data.md):');
     for (const u of users)
       console.log(
-        `  ${u.email.padEnd(24)} ${u.role.padEnd(9)}${u.status === 'disabled' ? ' (desactivado)' : ''}${u.must ? ' (cambio obligatorio)' : ''}`,
+        `  ${u.email.padEnd(24)} ${u.role.padEnd(9)}${u.status === 'deshabilitado' ? ' (desactivado)' : ''}${u.must ? ' (cambio obligatorio)' : ''}`,
       );
   }
 } catch (err) {

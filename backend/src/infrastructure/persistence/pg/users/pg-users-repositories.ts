@@ -93,7 +93,7 @@ export class PgUpdateUserRepository implements UpdateUserRepository {
   }
   async countActiveAdmins(): Promise<number> {
     const { rows } = await this.tx.query<{ n: string }>(
-      `select count(*)::text as n from app.users where role = 'admin' and status = 'active'`,
+      `select count(*)::text as n from app.users where role = 'admin' and status = 'activo'`,
     );
     return Number(rows[0]?.n ?? 0);
   }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyUserChange, type UserState } from './user-role-rules.js';
 import { assertValidNewPassword } from './password-policy.js';
 
-const admin: UserState = { id: 'a', role: 'admin', clientId: null, status: 'active' };
+const admin: UserState = { id: 'a', role: 'admin', clientId: null, status: 'activo' };
 
 describe('applyUserChange', () => {
   it('impide que un admin se quite el rol a sí mismo', () => {
@@ -12,7 +12,11 @@ describe('applyUserChange', () => {
   });
   it('impide desactivar al último admin activo', () => {
     expect(() =>
-      applyUserChange(admin, { status: 'disabled' }, { actorUserId: 'b', activeAdminCount: 1 }),
+      applyUserChange(
+        admin,
+        { status: 'deshabilitado' },
+        { actorUserId: 'b', activeAdminCount: 1 },
+      ),
     ).toThrow(/al menos un admin/);
   });
   it('exige clientId para rol client', () => {
@@ -21,7 +25,7 @@ describe('applyUserChange', () => {
     ).toThrow(/inconsistentes/);
   });
   it('limpia clientId al pasar de client a operator', () => {
-    const client: UserState = { id: 'c', role: 'client', clientId: 'x', status: 'active' };
+    const client: UserState = { id: 'c', role: 'client', clientId: 'x', status: 'activo' };
     expect(
       applyUserChange(client, { role: 'operator' }, { actorUserId: 'a', activeAdminCount: 1 })
         .clientId,

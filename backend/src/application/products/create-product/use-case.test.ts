@@ -26,7 +26,7 @@ const sampleProduct = (): ProductView => ({
   productType: 'third_party',
   vendor: 'Acme',
   referenceCode: null,
-  status: 'active',
+  status: 'activo',
   createdAt: new Date('2026-11-01T12:00:00Z'),
   updatedAt: new Date('2026-11-01T12:00:00Z'),
 });

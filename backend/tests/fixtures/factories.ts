@@ -31,7 +31,7 @@ export type FactoryClient = {
   legalName: string;
   taxId: string | null;
   taxIdNormalized: string | null;
-  status: 'active' | 'inactive' | 'archived';
+  status: 'activo' | 'inactivo' | 'archivado';
 };
 
 export type FactoryUser = {
@@ -47,7 +47,7 @@ export type FactoryProduct = {
   id: string;
   name: string;
   productType: 'third_party' | 'own' | 'recurring_service';
-  status: 'active' | 'inactive';
+  status: 'activo' | 'inactivo';
 };
 
 export type FactorySubscription = {
@@ -106,8 +106,8 @@ export function createFactories(options: { seed?: number; tokens?: AccessTokenSe
     const base = faker.string.numeric(9);
     const taxId =
       overrides.document === null ? null : formatColombianNit(overrides.document ?? base);
-    const status = overrides.status ?? 'active';
-    const archivedAt = status === 'archived' ? new Date().toISOString() : null;
+    const status = overrides.status ?? 'activo';
+    const archivedAt = status === 'archivado' ? new Date().toISOString() : null;
     return withOwnerSystemContext(async (c) => {
       const id = faker.string.uuid();
       const { rows } = await c.query<FactoryClient>(
@@ -142,7 +142,7 @@ export function createFactories(options: { seed?: number; tokens?: AccessTokenSe
       const id = faker.string.uuid();
       const { rows } = await c.query<FactoryUser>(
         `insert into app.users (id, email, full_name, password_hash, role, client_id, must_change_password, status)
-         values ($1, $2, $3, $4, $5, $6, false, 'active')
+         values ($1, $2, $3, $4, $5, $6, false, 'activo')
          returning id, email, full_name as "fullName", role, client_id as "clientId"`,
         [id, email, fullName, `h:${password}`, role, clientId],
       );
@@ -183,7 +183,7 @@ export function createFactories(options: { seed?: number; tokens?: AccessTokenSe
     }> = {},
   ): Promise<FactoryProduct> {
     const productType = overrides.type ?? 'third_party';
-    const status = overrides.status ?? 'active';
+    const status = overrides.status ?? 'activo';
     return withOwnerSystemContext(async (c) => {
       const id = faker.string.uuid();
       const { rows } = await c.query<FactoryProduct>(
@@ -210,7 +210,7 @@ export function createFactories(options: { seed?: number; tokens?: AccessTokenSe
     const billingCycle = overrides.billingCycle ?? 'monthly';
     const end = monthEndInclusive(startDate);
     const price = overrides.price ?? faker.number.int({ min: 100_000, max: 2_000_000 });
-    const status = overrides.status ?? 'pending_activation';
+    const status = overrides.status ?? 'pendiente_activacion';
     return withOwnerSystemContext(async (c) => {
       const id = faker.string.uuid();
       const { rows } = await c.query<FactorySubscription>(
@@ -259,7 +259,7 @@ export function createFactories(options: { seed?: number; tokens?: AccessTokenSe
       const endDate = overrides.endDate ?? monthEndInclusive(start);
       const periodNumber = last.rows[0]!.n + 1;
       const price = overrides.priceAmount ?? Number(sub.priceAmount);
-      const paymentStatus = overrides.paymentStatus ?? 'pending';
+      const paymentStatus = overrides.paymentStatus ?? 'pendiente';
       await c.query(
         `insert into app.subscription_periods (subscription_id, period_number, start_date, end_date, billing_cycle,
            price_amount, payment_status)
@@ -278,7 +278,7 @@ export function createFactories(options: { seed?: number; tokens?: AccessTokenSe
     sub: FactorySubscription,
     overrides: Partial<{ status: string; requestedByUserId: string }> = {},
   ): Promise<FactoryRenewalRequest> {
-    const status = overrides.status ?? 'pending_review';
+    const status = overrides.status ?? 'pendiente_revision';
     const requester =
       overrides.requestedByUserId ?? (await user({ role: 'client', clientId: sub.clientId })).id;
     return withOwnerSystemContext(async (c) => {
@@ -306,7 +306,7 @@ export function createFactories(options: { seed?: number; tokens?: AccessTokenSe
           let name = faker.company.name();
           if ((offset + i) % 10 < 3) name = `${name} ñ ${faker.location.city()}`;
           const archived = (offset + i) % 20 === 0;
-          const status = archived ? 'archived' : 'active';
+          const status = archived ? 'archivado' : 'activo';
           const tax = formatColombianNit(faker.string.numeric(9));
           const archivedAt = archived ? `'2026-01-01'` : 'null';
           lines.push(

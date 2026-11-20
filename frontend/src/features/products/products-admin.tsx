@@ -10,27 +10,16 @@ import {
 } from '@fabsoft/shared';
 import { ApiError, apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
+import { ConfirmDialog } from '@/shared/components/action-dialog';
 import { PageHeader } from '@/shared/components/page-header';
+import { PRODUCT_TYPE_LABELS } from '@/shared/lib/labels';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
+import { nativeSelectClassName } from '@/shared/ui/native-select';
+import { StatusBadge } from '@/shared/ui/status-badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
-
-const selectClassName =
-  'flex h-10 w-full rounded-md border border-border-input bg-bg px-3 py-2 text-sm text-fg shadow-sm focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
-
-const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
-  { value: 'third_party', label: 'De terceros' },
-  { value: 'own', label: 'Propio' },
-  { value: 'recurring_service', label: 'Servicio recurrente' },
-];
-
-const productTypeLabel = (value: ProductType): string =>
-  PRODUCT_TYPES.find((t) => t.value === value)?.label ?? value;
-
-const statusLabel = (value: ProductDto['status']): string =>
-  value === 'active' ? 'Activo' : 'Inactivo';
 
 export function ProductsAdmin() {
   const { token } = useAuth();
@@ -38,6 +27,7 @@ export function ProductsAdmin() {
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [editing, setEditing] = useState<ProductDto | null>(null);
+  const [toDeactivate, setToDeactivate] = useState<ProductDto | null>(null);
   const [version, setVersion] = useState(0);
   const formRef = useRef<HTMLDivElement>(null);
   const reload = useCallback(() => setVersion((v) => v + 1), []);
@@ -116,16 +106,13 @@ export function ProductsAdmin() {
     }
   }
 
+  function requestToggle(product: ProductDto) {
+    if (product.status === 'activo') setToDeactivate(product);
+    else void toggleStatus(product);
+  }
+
   async function toggleStatus(product: ProductDto) {
-    const next = product.status === 'active' ? 'inactive' : 'active';
-    if (
-      next === 'inactive' &&
-      !window.confirm(
-        `¿Desactivar "${product.name}"? No se ofrecerá para nuevas suscripciones; las existentes no cambian.`,
-      )
-    ) {
-      return;
-    }
+    const next = product.status === 'activo' ? 'inactivo' : 'activo';
     try {
       await apiFetch(`/products/${product.id}`, {
         method: 'PATCH',
@@ -133,7 +120,7 @@ export function ProductsAdmin() {
         body: JSON.stringify({ status: next }),
       });
       setMessage(
-        next === 'inactive'
+        next === 'inactivo'
           ? 'Producto desactivado. No se ofrece para nuevas suscripciones; las existentes no cambian.'
           : 'Producto activado.',
       );
@@ -145,8 +132,24 @@ export function ProductsAdmin() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
+      <ConfirmDialog
+        open={toDeactivate !== null}
+        onOpenChange={(o) => {
+          if (!o) setToDeactivate(null);
+        }}
+        title="Desactivar producto"
+        description={
+          toDeactivate
+            ? `¿Desactivar "${toDeactivate.name}"? No se ofrecerá para nuevas suscripciones; las existentes no cambian.`
+            : ''
+        }
+        confirmLabel="Desactivar"
+        destructive
+        onConfirm={() => {
+          if (toDeactivate) void toggleStatus(toDeactivate);
+        }}
+      />
       <PageHeader
-        breadcrumbs={['Admin']}
         title="Productos"
         description="Catálogo sin precio ni periodicidad; ambos se definen en cada suscripción."
       />
@@ -187,11 +190,11 @@ export function ProductsAdmin() {
                   id="product-type"
                   name="productType"
                   defaultValue={editing?.productType ?? 'third_party'}
-                  className={selectClassName}
+                  className={nativeSelectClassName}
                 >
-                  {PRODUCT_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
+                  {Object.entries(PRODUCT_TYPE_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
                     </option>
                   ))}
                 </select>
@@ -266,10 +269,12 @@ export function ProductsAdmin() {
                   page.data.map((product) => (
                     <TableRow key={product.id}>
                       <TableCell>{product.name}</TableCell>
-                      <TableCell>{productTypeLabel(product.productType)}</TableCell>
+                      <TableCell>{PRODUCT_TYPE_LABELS[product.productType]}</TableCell>
                       <TableCell>{product.vendor ?? '—'}</TableCell>
                       <TableCell>{product.referenceCode ?? '—'}</TableCell>
-                      <TableCell>{statusLabel(product.status)}</TableCell>
+                      <TableCell>
+                        <StatusBadge kind="product" value={product.status} />
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-2">
                           <Button
@@ -282,11 +287,11 @@ export function ProductsAdmin() {
                           </Button>
                           <Button
                             type="button"
-                            variant={product.status === 'active' ? 'destructive' : 'outline'}
+                            variant={product.status === 'activo' ? 'destructive' : 'outline'}
                             size="sm"
-                            onClick={() => void toggleStatus(product)}
+                            onClick={() => requestToggle(product)}
                           >
-                            {product.status === 'active' ? 'Desactivar' : 'Activar'}
+                            {product.status === 'activo' ? 'Desactivar' : 'Activar'}
                           </Button>
                         </div>
                       </TableCell>

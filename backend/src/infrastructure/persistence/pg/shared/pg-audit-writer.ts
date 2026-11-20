@@ -18,7 +18,7 @@ export class PgAuditWriter implements AuditWriter {
         e.resourceType,
         e.resourceId,
         changes ? JSON.stringify(changes) : null,
-        null,
+        e.reason ?? null,
         e.ip ?? null,
       ],
     );

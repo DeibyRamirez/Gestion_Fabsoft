@@ -1,8 +1,8 @@
-import type { UserActor } from './actor.js';
+import type { Actor } from './actor.js';
 
-/** Transacción + contexto RLS de un actor humano (ADR-007 §3). */
+/** Transacción + contexto RLS de un actor humano o integración (ADR-007 §3). */
 export interface UnitOfWork<R> {
-  run<T>(actor: UserActor, work: (repos: R) => Promise<T>): Promise<T>;
+  run<T>(actor: Actor, work: (repos: R) => Promise<T>): Promise<T>;
 }
 
 /**
@@ -51,16 +51,47 @@ export type AuditAction =
   | 'subscription.expiration_corrected'
   | 'subscription.price_changed'
   | 'subscription.expired'
-  | 'subscription_period.payment_updated';
+  | 'subscription_period.payment_updated'
+  | 'renewal_request.created'
+  | 'renewal_request.updated'
+  | 'renewal_request.resolved'
+  | 'task.created'
+  | 'task.updated'
+  | 'task.completed'
+  | 'task.cancelled'
+  | 'alert_rule.updated'
+  | 'notification.retried'
+  | 'integration.created'
+  | 'integration.updated'
+  | 'integration.manifest_updated'
+  | 'api_credential.created'
+  | 'api_credential.revoked';
 
 export interface AuditEntry {
   /** El actor real lo fija el contexto RLS en Postgres; este campo documenta la intención en capa app. */
-  actor: { type: 'user'; userId: string } | { type: 'system' };
+  actor:
+    | { type: 'user'; userId: string }
+    | { type: 'integration'; integrationId: string }
+    | { type: 'system' };
   action: AuditAction;
   resourceType:
-    'user' | 'product' | 'client' | 'client_contact' | 'subscription' | 'subscription_period';
+    | 'user'
+    | 'product'
+    | 'client'
+    | 'client_contact'
+    | 'client_note'
+    | 'subscription'
+    | 'subscription_period'
+    | 'renewal_request'
+    | 'task'
+    | 'notification'
+    | 'alert_rule'
+    | 'integration'
+    | 'api_credential'
+    | 'app_setting';
   resourceId: string;
   changes?: { before?: Record<string, unknown>; after?: Record<string, unknown> };
+  reason?: string | null;
   requestId: string;
   ip?: string | null;
 }

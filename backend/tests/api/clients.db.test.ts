@@ -38,7 +38,7 @@ describe.skipIf(!dbTestsConfigured())('Clients API (Postgres)', () => {
     const create = await request(app)
       .post('/api/v1/clients')
       .set('Authorization', `Bearer ${token}`)
-      .send({ legalName: 'Nueva Empresa S.A.S.', taxId: '800111222-3', status: 'active' });
+      .send({ legalName: 'Nueva Empresa S.A.S.', taxId: '800111222-3', status: 'activo' });
     expect(create.status).toBe(201);
     expect(create.headers.location).toMatch(/\/api\/v1\/clients\//);
     expectMatchesOperation(create, 'createClient');
@@ -59,9 +59,9 @@ describe.skipIf(!dbTestsConfigured())('Clients API (Postgres)', () => {
     const patch = await request(app)
       .patch(`/api/v1/clients/${id}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ status: 'inactive' });
+      .send({ status: 'inactivo' });
     expect(patch.status).toBe(200);
-    expect(patch.body.status).toBe('inactive');
+    expect(patch.body.status).toBe('inactivo');
   });
 
   it('T-HU03 — operador lee y escribe; client recibe 403 en /clients', async () => {
@@ -81,7 +81,7 @@ describe.skipIf(!dbTestsConfigured())('Clients API (Postgres)', () => {
         await request(app)
           .post('/api/v1/clients')
           .set('Authorization', `Bearer ${opToken}`)
-          .send({ legalName: 'Operador Alta', status: 'active' })
+          .send({ legalName: 'Operador Alta', status: 'activo' })
       ).status,
     ).toBe(201);
 
@@ -96,7 +96,7 @@ describe.skipIf(!dbTestsConfigured())('Clients API (Postgres)', () => {
         await request(app)
           .post('/api/v1/clients')
           .set('Authorization', `Bearer ${clientToken}`)
-          .send({ legalName: 'X', status: 'active' })
+          .send({ legalName: 'X', status: 'activo' })
       ).status,
     ).toBe(403);
     expect(
@@ -112,7 +112,7 @@ describe.skipIf(!dbTestsConfigured())('Clients API (Postgres)', () => {
     const dupAsClient = await request(app)
       .post('/api/v1/clients')
       .set('Authorization', `Bearer ${clientToken}`)
-      .send({ legalName: 'Intento duplicado', taxId: other.taxId, status: 'active' });
+      .send({ legalName: 'Intento duplicado', taxId: other.taxId, status: 'activo' });
     expect(dupAsClient.status).toBe(403);
     expect(dupAsClient.body.code).toBe('forbidden');
     expect(dupAsClient.body.existingClientId).toBeUndefined();
@@ -122,12 +122,12 @@ describe.skipIf(!dbTestsConfigured())('Clients API (Postgres)', () => {
     const app = await buildTestApp();
     const admin = await factories.adminUser();
     const token = await factories.tokenFor(admin);
-    const existing = await factories.client({ status: 'archived' });
+    const existing = await factories.client({ status: 'archivado' });
 
     const dup = await request(app)
       .post('/api/v1/clients')
       .set('Authorization', `Bearer ${token}`)
-      .send({ legalName: 'Duplicado', taxId: existing.taxId, status: 'active' });
+      .send({ legalName: 'Duplicado', taxId: existing.taxId, status: 'activo' });
     expect(dup.status).toBe(409);
     expect(dup.body.code).toBe('client_tax_id_taken');
     expect(dup.body.existingClientId).toBe(existing.id);
@@ -174,20 +174,20 @@ describe.skipIf(!dbTestsConfigured())('Clients API (Postgres)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ reason: 'Cierre comercial' });
     expect(archived.status).toBe(200);
-    expect(archived.body.status).toBe('archived');
+    expect(archived.body.status).toBe('archivado');
 
     const reactivated = await request(app)
       .post(`/api/v1/clients/${row.id}/reactivate`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(reactivated.status).toBe(200);
-    expect(reactivated.body.status).toBe('active');
+    expect(reactivated.body.status).toBe('activo');
   });
 
   it('T-HU03 — PATCH en archivado devuelve client_archived', async () => {
     const app = await buildTestApp();
     const admin = await factories.adminUser();
     const token = await factories.tokenFor(admin);
-    const row = await factories.client({ status: 'archived' });
+    const row = await factories.client({ status: 'archivado' });
 
     const patch = await request(app)
       .patch(`/api/v1/clients/${row.id}`)
@@ -202,7 +202,7 @@ describe.skipIf(!dbTestsConfigured())('Clients API (Postgres)', () => {
     const admin = await factories.adminUser();
     const token = await factories.tokenFor(admin);
     const key = randomUUID();
-    const body = { legalName: `Idem ${randomUUID().slice(0, 8)}`, status: 'active' as const };
+    const body = { legalName: `Idem ${randomUUID().slice(0, 8)}`, status: 'activo' as const };
 
     const a = await request(app)
       .post('/api/v1/clients')

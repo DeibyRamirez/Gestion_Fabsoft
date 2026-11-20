@@ -1,12 +1,12 @@
 # Despliegue y entornos — FabSoft
 
-> Fase 1: API + worker + frontend en un VPS con Docker; BD en **Supabase**. Fase 2: BD **PostgreSQL 16 en VPS** (plan de migración: `docs/architecture.md` §7). Separación estricta dev / test / prod (§12 funcional).
+> Fase 1: API + worker + frontend en un VPS con Docker; BD en **Supabase**. Fase 2: BD **PostgreSQL 16 en VPS** (plan de migración: `docs/architecture.md` §7). Separación estricta dev / test / prod (§12 funcional). Guía operativa del VPS, compose, pipeline y rollback: [`docs/migracion-vps.md`](migracion-vps.md).
 
 ## 1. Entornos
 
 | Entorno | Propósito | BD | Email | Datos |
 |---|---|---|---|---|
-| **dev** (local) | Desarrollo | `postgres:16` en docker-compose (`localhost:54320`) | `EMAIL_TRANSPORT=log` | Seed demo (`docs/seed-data.md`) |
+| **dev** (local) | Desarrollo | `postgres:16` en docker-compose (`localhost:54320`) | `CORREO_CANAL=log` | Seed demo (`docs/seed-data.md`) |
 | **test** (CI y local) | Tests automatizados | `postgres:16` efímero (`localhost:54329`, `tmpfs`) | `log` / fakes | Fábricas por test |
 | **staging** (recomendado) | Validación previa a release, ensayo de migración | Proyecto Supabase separado (fase 1) / BD separada en VPS (fase 2) | Resend con dominio de pruebas y lista blanca de destinatarios | Seed demo, nunca datos reales |
 | **prod** | Operación | Supabase (fase 1) → VPS (fase 2) | Resend (dominio verificado) | Reales |
@@ -32,18 +32,24 @@ Cada entorno tiene sus **propios** secretos, claves JWT, pepper y proyecto/BD. N
 | `JWT_ISSUER` / `JWT_AUDIENCE` | api | `fabsoft-api` / `fabsoft-web` |
 | `ACCESS_TOKEN_TTL_SECONDS` | api | `900` |
 | `REFRESH_TOKEN_TTL_DAYS` | api | `14` |
+| `LOGIN_RATE_LIMIT_PER_MINUTE` | api | `20` por IP |
+| `LOGIN_RATE_LIMIT_PER_EMAIL` | api | `5` por IP+email |
+| `LOGIN_IP_FAILURE_THRESHOLD` | api | `10` fallos 401 por IP antes de bloquear |
+| `LOGIN_IP_FAILURE_WINDOW_MINUTES` | api | `15` |
+| `LOGIN_IP_BLOCK_MINUTES` | api | `15` |
 | `API_KEY_PEPPER` (+ `API_KEY_PEPPER_PREVIOUS` opcional) | api | 32+ bytes aleatorios base64 |
 | `API_KEY_ENV` | api | `live` (prod) / `test` (resto) → prefijo `fsk_live_`/`fsk_test_` |
 | `CORS_ALLOWED_ORIGINS` | api | `https://app.fabsoft.example` |
 | `COOKIE_DOMAIN` | api | `api.fabsoft.example` (host-only si se omite) |
 | `BUSINESS_TIMEZONE` | api, worker | `America/Bogota` (fijo) |
-| `EMAIL_TRANSPORT` | worker | `resend` \| `log` |
+| `CORREO_CANAL` | worker | `log` \| `resend` |
 | `RESEND_API_KEY` | worker | Sólo worker |
 | `RESEND_MAX_RPS` | worker | `2` |
-| `EMAIL_FROM` | worker | `FabSoft <alertas@fabsoft.example>` |
+| `CORREO_DESDE` | worker | `FabSoft <alertas@fabsoft.example>` |
 | `FRONTEND_URL` | worker | Enlaces en correos |
 | `LOG_LEVEL` | api, worker | `info` |
 | `MAINTENANCE_MODE` | api | `false` (true ⇒ 503 en escrituras) |
+| `OPENAPI_SPEC_PATH` | api | Opcional: ruta absoluta a `docs/api/openapi.json` si la imagen no incluye `docs/` |
 | `NEXT_PUBLIC_API_BASE_URL` | frontend | `https://api.fabsoft.example/api/v1` |
 | `NEXT_PUBLIC_APP_ENV` | frontend | `prod` |
 
@@ -107,7 +113,8 @@ Más la checklist de aislamiento (`docs/security/threat-model.md` §5) contra st
 3. `dbmate up` contra la BD del entorno (migraciones compatibles hacia atrás: *expand → migrate → contract*; nunca renombrar/borrar columnas en el mismo release que el código que deja de usarlas).
 4. `docker compose pull && docker compose up -d` (api, worker, web).
 5. *Smoke test*: `/api/v1/health/ready`, login, listado.
-6. Rollback: volver a la imagen anterior (las migraciones *expand* lo permiten).
+6. DAST smoke contra staging: `DAST_BASE_URL=https://api.fabsoft.example pnpm security:dast` (cabeceras, CORS, límites y errores).
+7. Rollback: volver a la imagen anterior (las migraciones *expand* lo permiten).
 
 ## 5. Fase 2 — PostgreSQL 16 en VPS
 
@@ -148,6 +155,12 @@ Las migraciones crean `fabsoft_app`, `fabsoft_worker` (0003), `fabsoft_secure_vi
    ```
    `fabsoft_worker` no tiene BYPASSRLS ni CREATE en la BD; sólo es propietario del esquema `pgboss`.
 3. Componer `WORKER_DATABASE_URL` en el gestor y montarla **sólo** en el contenedor del worker. La API usa `DATABASE_URL` con `fabsoft_app` (mismo procedimiento con su propio secreto). `env.ts` rechaza un `WORKER_DATABASE_URL` que no use `fabsoft_worker`.
+4. Instalar las tablas de pg-boss con el rol propietario **una vez por base** antes de arrancar el worker (pg-boss no puede crear el esquema si el worker no tiene `CREATE ON DATABASE`):
+   ```bash
+   DATABASE_PROVISION_URL=postgres://fabsoft_owner:...@host:5432/fabsoft \
+     pnpm --filter @fabsoft/backend db:pgboss:install
+   ```
+   El script crea las tablas en `pgboss`, las reasigna a `fabsoft_worker` y concede DML a `fabsoft_app`.
 
 **Supabase (fase 1):**
 - Ejecutar el `ALTER ROLE` desde el SQL Editor o con `psql` usando la conexión directa del rol `postgres` (no el pooler en modo transacción).

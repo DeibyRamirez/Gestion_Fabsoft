@@ -40,7 +40,7 @@ Como el backend es propio y portable (ADR-008), **no** se usa Supabase Auth: la 
 | Almacenamiento | `api_credentials.key_prefix` (público, único) + `key_hash = HMAC-SHA256(secreto, API_KEY_PEPPER)` en hex. **Nunca texto plano**; el secreto se muestra una sola vez al crearlo. |
 | Por qué HMAC y no argon2 | La clave tiene 256 bits de entropía: no es atacable por diccionario, y la verificación ocurre en cada petición. El *pepper* fuera de la BD impide verificar claves con un volcado de BD robado. |
 | Transporte | Cabecera `X-Api-Key`. No se acepta en query string. |
-| Verificación | Búsqueda por prefijo (contexto `system`), comparación con `crypto.timingSafeEqual`, comprobación de `revoked_at`, `expires_at` e `integrations.status='active'`. |
+| Verificación | Búsqueda por prefijo (contexto `system`), comparación con `crypto.timingSafeEqual`, comprobación de `revoked_at`, `expires_at` e `integrations.status='activa'`. |
 | Autorización | Scopes del manifest (`integrations.scopes`) + alcance de clientes (`client_scope` `all`/`own` con `integration_clients`). |
 | Revocación | `POST /api/v1/integrations/{id}/credentials/{credentialId}/revoke` → efecto inmediato. Se permiten 2 credenciales activas por integración para rotar sin corte. |
 | Uso | `last_used_at`/`last_used_ip` en `api_credentials` e `integrations.last_used_at`, actualizados como máximo 1 vez por minuto por credencial. |

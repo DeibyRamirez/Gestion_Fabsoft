@@ -12,7 +12,7 @@ describe('ClientsTable', () => {
               id: '00000000-0000-4000-8000-000000000101',
               legalName: 'Acme SAS',
               taxId: '900111222-3',
-              status: 'active',
+              status: 'activo',
               email: null,
               phone: null,
               owner: { id: '00000000-0000-4000-8000-000000000201', fullName: 'Ana Admin' },
@@ -25,10 +25,12 @@ describe('ClientsTable', () => {
         }}
       />,
     );
-    expect(screen.getByRole('link', { name: 'Acme SAS' })).toHaveAttribute(
+    expect(screen.getAllByRole('link', { name: 'Acme SAS' })[0]).toHaveAttribute(
       'href',
       '/clients/00000000-0000-4000-8000-000000000101',
     );
-    expect(screen.getByText('Ana Admin')).toBeInTheDocument();
+    expect(screen.getAllByText('Ana Admin').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('00000000-0000-4000-8000-000000000101').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('columnheader', { name: 'ID cliente' }).length).toBeGreaterThan(0);
   });
 });

@@ -20,7 +20,7 @@ const activeClient: ClientDto = {
   id: '00000000-0000-4000-8000-000000000101',
   legalName: 'Cliente Activo',
   taxId: null,
-  status: 'active',
+  status: 'activo',
   email: null,
   phone: null,
   owner: null,
@@ -32,7 +32,7 @@ const archivedClient: ClientDto = {
   ...activeClient,
   id: '00000000-0000-4000-8000-000000000102',
   legalName: 'Cliente Archivado',
-  status: 'archived',
+  status: 'archivado',
 };
 const activeProduct: ProductDto = {
   id: '00000000-0000-4000-8000-000000000201',
@@ -41,7 +41,7 @@ const activeProduct: ProductDto = {
   productType: 'third_party',
   vendor: null,
   referenceCode: null,
-  status: 'active',
+  status: 'activo',
   createdAt: '2026-11-01T00:00:00.000Z',
   updatedAt: '2026-11-01T00:00:00.000Z',
 };
@@ -49,7 +49,7 @@ const inactiveProduct: ProductDto = {
   ...activeProduct,
   id: '00000000-0000-4000-8000-000000000202',
   name: 'Producto Inactivo',
-  status: 'inactive',
+  status: 'inactivo',
 };
 
 function mockCatalog() {

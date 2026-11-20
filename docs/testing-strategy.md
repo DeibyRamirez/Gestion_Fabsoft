@@ -36,7 +36,12 @@ Scripts:
 | `pnpm test:api` | `backend/tests/api/**/*.db.test.ts` |
 | `pnpm test:coverage` | Cobertura vitest (`domain` + `application`) + `check-coverage-paths` en CI |
 | `pnpm test:perf` | `backend/tests/perf` → `backend/perf-results.json` |
-| `pnpm test:e2e` | Playwright `e2e/smoke` contra build local + seed |
+| `pnpm test:e2e` | Playwright `e2e/smoke` (flujos críticos HT-07 + DAST smoke) contra build local + seed; el `global-setup` ejecuta `alerts.reconcile` |
+| `pnpm audit:dependencies` | `pnpm audit --prod` con riesgos aceptados y fecha de revisión (`docs/security/hardening.md`) |
+| `pnpm secrets:check` | Patrones de secretos de alta confianza sobre archivos versionados |
+| `pnpm security:dast` | DAST smoke contra una URL desplegada (`DAST_BASE_URL`); en CI corre como test Playwright |
+
+La suite E2E corre con `workers: 1` porque la cookie `fs_rt` rota en cada refresh; los flujos críticos abren sesión fresca por contexto para no reutilizar un token rotado.
 
 ## 3. Reloj y zona horaria
 
@@ -54,7 +59,7 @@ Scripts:
 | `T-AUTH-04` | API | Login: misma respuesta y tiempo similar para email inexistente/contraseña errónea; rate limit 429. |
 | `T-AUTH-05` | Unit | JWT con `alg` distinto, `aud`/`iss` erróneos o `kid` desconocido → rechazado. |
 | `T-AUTH-06` | API | `/auth/refresh` sin `X-Requested-With: fabsoft-web` → 403. |
-| `T-API-01` | API | API key revocada, expirada o de integración `disabled` → 401. |
+| `T-API-01` | API | API key revocada, expirada o de integración `deshabilitada` → 401. |
 | `T-API-02` | API | `Authorization` + `X-Api-Key` simultáneos → 400 `ambiguous_credentials`. |
 | `T-API-03` | API | Ni la API key ni tokens aparecen en logs (captura de `pino`) ni en `audit_logs`. |
 | `T-API-04` | API | Rate limit por integración → 429 con `Retry-After`; `pageSize > 100` → 400. |
@@ -66,11 +71,11 @@ Scripts:
 | `T-SEC-05` | Contrato | Respuestas a integraciones/portal sin `supplierCostAmount`/`notes`. |
 | `T-SEC-06` | BD (sólo en entorno Supabase de staging) | `anon`/`authenticated` sin privilegios en `app`. |
 | `T-SEC-07` | Integración | Tras una petición, una conexión reutilizada del pool no conserva `app.*` (valores vacíos). |
-| `T-NOT-01` | Worker | Dispatch in-app marca `sent` y crea tarea de la regla una sola vez. |
-| `T-NOT-02` | Worker | Error 5xx → `pending` con `next_attempt_at` según backoff; tras 5 → `failed`. |
-| `T-NOT-03` | Worker | Error 422 de Resend → `failed` inmediato con `last_error`. |
+| `T-NOT-01` | Worker | Dispatch in-app marca `enviada` y crea tarea de la regla una sola vez. |
+| `T-NOT-02` | Worker | Error 5xx → `pendiente` con `next_attempt_at` según backoff; tras 5 → `fallida`. |
+| `T-NOT-03` | Worker | Error 422 de Resend → `fallida` inmediato con `last_error`. |
 | `T-NOT-04` | Worker | Limitador respeta `RESEND_MAX_RPS` y `Retry-After`. |
-| `T-NOT-05` | Worker | `subscriptions.expire` es idempotente y elige `expired` vs `not_renewed` según `renewal_outcome`. |
+| `T-NOT-05` | Worker | `subscriptions.expire` es idempotente y elige `vencida` vs `no_renovada` según `renewal_outcome`. |
 | `T-INT-01` | API | Manifest inválido (scope desconocido, `own` sin `client_ids`, versión no mayor) → 422 `manifest_invalid`. |
 | `T-FE-01` | Frontend | El token nunca se escribe en `localStorage`/`sessionStorage`. |
 | `T-RN16-01` | Integración (DB de test) | Dos contactos principales activos para un mismo cliente fallan (índice único parcial). `backend/tests/integration/clients/primary-contact.test.ts` |
@@ -84,9 +89,12 @@ Escenario base: clientes A y B; usuarios admin, operador, clienteA, clienteB; in
 ## 6. Contrato OpenAPI
 
 1. `npx @redocly/cli lint docs/api/openapi.yaml` (0 errores).
-2. Test que genera el documento desde el registro `zod-to-openapi` y compara rutas, métodos, parámetros y esquemas con `docs/api/openapi.yaml` (falla si divergen).
-3. En tests de API, un *helper* valida cada respuesta contra el esquema de la operación (por `operationId`).
-4. Test generado: para cada operación, si no declara `apiKeyAuth`, una API key válida recibe 401/403 (RN-12, `T-RN12-03`); ninguna operación `delete` sobre recursos de negocio (`T-RN14-02`).
+2. `pnpm openapi:check` y `openapi-json.test.ts`: `docs/api/openapi.json` (generado desde el YAML) está siempre en sincronía.
+3. `openapi-docs.test.ts`: `GET /api/v1/docs` sirve Swagger UI y `GET /api/v1/docs/openapi.json` el contrato, ambos sin autenticación.
+4. `openapi-coverage.test.ts`: reconstruye las rutas reales de Express y falla si una ruta implementada no está documentada o si una operación vigente no existe. Las operaciones planificadas llevan `x-implementation-status: pending`.
+5. En tests de API, un *helper* valida cada respuesta contra el esquema de la operación (por `operationId`).
+6. Test generado: para cada operación, si no declara `apiKeyAuth`, una API key válida recibe 401/403 (RN-12, `T-RN12-03`); ninguna operación `delete` sobre recursos de negocio (`T-RN14-02`).
+7. La fuente canónica es el YAML; los esquemas Zod compartidos se contrastan en `tests/contracts` y en la validación de respuestas. La derivación completa desde `zod-to-openapi` queda como mejora futura.
 
 ## 7. Frontend
 
@@ -94,7 +102,7 @@ Escenario base: clientes A y B; usuarios admin, operador, clienteA, clienteB; in
 - `DataTable` + `use-url-filters`: los filtros se reflejan en la URL y en la query key.
 - `client.ts`: un único refresh ante varios 401 simultáneos; tras fallo de refresh → logout.
 - `RoleGate`: redirecciones por rol.
-- `RenewDialog`: no permite enviar `paymentStatus=received`; muestra error de `version_conflict`.
+- `RenewDialog`: no permite enviar `paymentStatus=recibido`; muestra error de `version_conflict`.
 
 ## 8. CI (por PR)
 
@@ -102,14 +110,18 @@ Workflow [`.github/workflows/ci.yml`](../.github/workflows/ci.yml), `TZ=UTC`:
 
 | Job | Contenido |
 |---|---|
-| `lint + typecheck` | `pnpm lint`, `pnpm typecheck`, `pnpm format:check` |
+| `lint + typecheck` | `pnpm lint`, `pnpm typecheck`, `pnpm openapi:check`, `pnpm format:check` |
 | `unit tests` | `pnpm test`, `pnpm test:coverage`, `check-coverage-paths`; artefacto `coverage/` |
 | `build` | `pnpm build` (tras lint y unit) |
+| `security-audit` | `pnpm audit:dependencies` + `pnpm secrets:check` |
+| `docker-images` | Valida compose de producción y construye imágenes API/tools/web |
 | `db-security` | Postgres 16 → `pnpm db:migrate` → `pnpm test:security` |
 | `integration-api` | Postgres 16 → `pnpm db:migrate:test` → `pnpm db:roles:dev` → `pnpm test:integration` + `pnpm test:api` |
-| `e2e-smoke` | Postgres 16 → migrar + seed → `pnpm build` → Playwright (`e2e/smoke`; sólo `auth.spec.ts` activo) |
+| `e2e-smoke` | Postgres 16 → migrar + seed → `pnpm build` → Playwright (`e2e/smoke`, críticos HT-07 incluidos, `workers=1`); `alerts.reconcile` en `global-setup` |
 | `perf-smoke` | Postgres 16 → migrar → `pnpm test:perf`; artefacto `perf-results.json`; `continue-on-error` hasta 2026-11-23 |
-| `openapi lint` | Redocly sobre `docs/api/openapi.yaml` |
+| `openapi lint` | Redocly sobre `docs/api/openapi.yaml`; `pnpm openapi:check` en `lint + typecheck` |
+
+Despliegue: `.github/workflows/deploy.yml` publica imágenes en GHCR, aplica migraciones en el VPS, recrea servicios y ejecuta smoke + DAST (`docs/migracion-vps.md`).
 
 Protección de ramas (dueño del repo): marcar como required `unit tests`, `integration-api` y `e2e-smoke`.
 

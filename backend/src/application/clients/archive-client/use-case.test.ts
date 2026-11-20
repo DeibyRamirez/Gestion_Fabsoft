@@ -15,7 +15,7 @@ const row = (): ClientView => ({
   id: 'c1',
   legalName: 'X',
   taxId: null,
-  status: 'active',
+  status: 'activo',
   email: null,
   phone: null,
   owner: null,
@@ -30,7 +30,7 @@ describe('ArchiveClient', () => {
       run: async (_a, work) =>
         work({
           clientArchive: {
-            loadForUpdate: async () => ({ ...row(), status: 'archived', archivedAt: new Date() }),
+            loadForUpdate: async () => ({ ...row(), status: 'archivado', archivedAt: new Date() }),
             archive: async () => row(),
           },
           audit: { write: async () => undefined },

@@ -34,8 +34,8 @@ const sample = (over: Partial<SubscriptionView> = {}): SubscriptionView => ({
   supplierCostAmount: null,
   renewalTerms: null,
   isRenewable: true,
-  status: 'active',
-  followUpStatus: 'none',
+  status: 'activa',
+  followUpStatus: 'sin_gestion',
   visibleInPortal: true,
   ownerUserId: null,
   owner: null,
@@ -54,17 +54,33 @@ const clock = { now: () => new Date('2026-11-14T12:00:00Z') };
 function makeUc(current: SubscriptionView | null, updated: SubscriptionView | null) {
   const cancel = vi.fn(async () => updated);
   const auditWrite = vi.fn(async () => undefined);
+  const cancelAllPending = vi.fn(async () => 1);
+  const cancelOpenTasksForSubscription = vi.fn(async () => 1);
   const uc = new CancelSubscription(
     {
       run: async (_a, work) =>
         work({
           subscriptionCancel: { loadForUpdate: async () => current, cancel },
+          alerts: {
+            scheduleForPeriod: async () => 0,
+            cancelPendingForPeriod: async () => 0,
+            cancelPendingWithoutException: async () => 0,
+            cancelAllPending,
+            reconcile: async () => ({ scannedSubscriptions: 0, scheduled: 0, cancelled: 0 }),
+          },
+          tasksAutomation: {
+            completeAutoTasksForSubscription: async () => 0,
+            cancelPendingAutoTasksForPeriod: async () => 0,
+            annotateInProgressAutoTasksForPeriod: async () => 0,
+            cancelOpenAutoTasksForSubscription: async () => 0,
+            cancelOpenTasksForSubscription,
+          },
           audit: { write: auditWrite },
         }),
     },
     clock,
   );
-  return { uc, cancel, auditWrite };
+  return { uc, cancel, auditWrite, cancelAllPending, cancelOpenTasksForSubscription };
 }
 
 describe('CancelSubscription', () => {
@@ -90,16 +106,16 @@ describe('CancelSubscription', () => {
   });
 
   it('estado terminal no permite cancelar de nuevo', async () => {
-    const { uc } = makeUc(sample({ status: 'cancelled' }), sample());
+    const { uc } = makeUc(sample({ status: 'cancelada' }), sample());
     await expect(
       uc.execute(admin, 'sub-1', { version: 1, reason: 'motivo' }),
     ).rejects.toMatchObject({ code: 'invalid_state_transition' });
   });
 
   it('cancela con fecha del reloj y audita', async () => {
-    const { uc, cancel, auditWrite } = makeUc(
+    const { uc, cancel, auditWrite, cancelAllPending, cancelOpenTasksForSubscription } = makeUc(
       sample(),
-      sample({ status: 'cancelled', version: 2, cancellationReason: 'motivo' }),
+      sample({ status: 'cancelada', version: 2, cancellationReason: 'motivo' }),
     );
     const result = await uc.execute(admin, 'sub-1', { version: 1, reason: 'motivo' });
     expect(cancel).toHaveBeenCalledWith(
@@ -109,7 +125,13 @@ describe('CancelSubscription', () => {
       new Date('2026-11-14T12:00:00Z'),
       'a',
     );
-    expect(result.status).toBe('cancelled');
+    expect(cancelAllPending).toHaveBeenCalledWith('sub-1', 'subscription_cancelled');
+    expect(cancelOpenTasksForSubscription).toHaveBeenCalledWith(
+      'sub-1',
+      'Suscripción cancelada',
+      'a',
+    );
+    expect(result.status).toBe('cancelada');
     expect(auditWrite).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'subscription.cancelled' }),
     );

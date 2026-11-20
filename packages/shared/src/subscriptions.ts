@@ -113,7 +113,7 @@ export const SubscriptionUpdateSchema = z
     visibleInPortal: z.boolean().optional(),
     ownerUserId: z.string().uuid().nullable().optional(),
     notes: z.string().trim().max(5000).nullable().optional(),
-    followUpStatus: z.enum(['in_progress', 'awaiting_client']).optional(),
+    followUpStatus: z.enum(['en_gestion', 'esperando_cliente']).optional(),
     priceAmount: amount.optional(),
     supplierCostAmount: amount.nullable().optional(),
     changeReason: z.string().trim().min(3).max(1000).optional(),
@@ -152,6 +152,8 @@ export const SubscriptionListQuerySchema = PageQuerySchema.extend({
   ownerUserId: z.string().uuid().optional(),
   status: csvSubscriptionStatus.optional(),
   followUpStatus: FollowUpStatusSchema.optional(),
+  expiresFrom: isoDate.optional(),
+  expiresTo: isoDate.optional(),
   sort: z
     .enum([
       'currentPeriodEnd',
@@ -162,7 +164,10 @@ export const SubscriptionListQuerySchema = PageQuerySchema.extend({
       '-clientName',
     ])
     .default('currentPeriodEnd'),
-});
+}).refine(
+  (query) => !query.expiresFrom || !query.expiresTo || query.expiresFrom <= query.expiresTo,
+  { message: 'expiresFrom no puede ser posterior a expiresTo', path: ['expiresTo'] },
+);
 export type SubscriptionListQuery = z.infer<typeof SubscriptionListQuerySchema>;
 
 export const SubscriptionPageSchema = z.object({
@@ -183,13 +188,41 @@ export const RenewInputSchema = z
         priceAmount: amount,
         supplierCostAmount: amount.nullable().optional(),
         contractReference: z.string().trim().max(120).nullable().optional(),
-        paymentStatus: z.enum(['pending', 'not_tracked']).optional(),
+        paymentStatus: z.enum(['pendiente', 'sin_seguimiento']).optional(),
       })
       .strict(),
     note: z.string().trim().max(1000).nullable().optional(),
   })
   .strict();
 export type RenewInput = z.infer<typeof RenewInputSchema>;
+
+export const SubscriptionNotRenewedSchema = z
+  .object({
+    version: z.number().int().min(1),
+    reason: z.string().trim().min(3).max(1000),
+  })
+  .strict();
+export type SubscriptionNotRenewedInput = z.infer<typeof SubscriptionNotRenewedSchema>;
+
+export const CorrectExpirationInputSchema = z
+  .object({
+    version: z.number().int().min(1),
+    newCurrentPeriodEnd: isoDate,
+    reason: z.string().trim().min(3).max(1000),
+  })
+  .strict();
+export type CorrectExpirationInput = z.infer<typeof CorrectExpirationInputSchema>;
+
+export const PeriodPaymentUpdateSchema = z
+  .object({
+    paymentStatus: PaymentStatusSchema.optional(),
+    contractReference: z.string().trim().max(120).nullable().optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, {
+    message: 'Se requiere al menos un campo',
+  });
+export type PeriodPaymentUpdateInput = z.infer<typeof PeriodPaymentUpdateSchema>;
 
 export const SubscriptionPeriodListSchema = z.object({
   data: z.array(SubscriptionPeriodSchema),

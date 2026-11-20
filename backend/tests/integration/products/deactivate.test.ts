@@ -13,7 +13,7 @@ import { buildTestApp, closeTestApp, getTestAccessTokens } from '../../helpers/a
 
 assertDbTestsRequired();
 
-/** T-HU05-04 — desactivar producto no altera suscripciones ni periodos; filtro status=active. */
+/** T-HU05-04 — desactivar producto no altera suscripciones ni periodos; filtro status=activo. */
 describe.skipIf(!dbTestsConfigured())('T-HU05-04 desactivar producto', () => {
   let factories: Factories;
 
@@ -31,13 +31,13 @@ describe.skipIf(!dbTestsConfigured())('T-HU05-04 desactivar producto', () => {
     await closeTestPools();
   });
 
-  it('inactive un producto con suscripciones y periodos sin cambiarlos', async () => {
+  it('desactiva un producto con suscripciones y periodos sin cambiarlos', async () => {
     const app = await buildTestApp();
     const admin = await factories.adminUser();
     const token = await factories.tokenFor(admin);
     const client = await factories.client();
-    const product = await factories.product({ status: 'active' });
-    const subscription = await factories.subscription(client, product, { status: 'active' });
+    const product = await factories.product({ status: 'activo' });
+    const subscription = await factories.subscription(client, product, { status: 'activa' });
     const extraPeriod = await factories.period(subscription);
 
     const readState = async (c: pg.PoolClient) => {
@@ -60,9 +60,9 @@ describe.skipIf(!dbTestsConfigured())('T-HU05-04 desactivar producto', () => {
     const patch = await request(app)
       .patch(`/api/v1/products/${product.id}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ status: 'inactive' });
+      .send({ status: 'inactivo' });
     expect(patch.status).toBe(200);
-    expect(patch.body.status).toBe('inactive');
+    expect(patch.body.status).toBe('inactivo');
 
     const after = await withAppContext(
       { role: 'admin', userId: admin.id, clientId: null, requestId: 't-hu05-04' },
@@ -79,13 +79,13 @@ describe.skipIf(!dbTestsConfigured())('T-HU05-04 desactivar producto', () => {
     });
 
     const activeList = await request(app)
-      .get('/api/v1/products?status=active')
+      .get('/api/v1/products?status=activo')
       .set('Authorization', `Bearer ${token}`);
     expect(activeList.status).toBe(200);
     expect(activeList.body.data.some((p: { id: string }) => p.id === product.id)).toBe(false);
 
     const inactiveList = await request(app)
-      .get('/api/v1/products?status=inactive')
+      .get('/api/v1/products?status=inactivo')
       .set('Authorization', `Bearer ${token}`);
     expect(inactiveList.status).toBe(200);
     expect(inactiveList.body.data.some((p: { id: string }) => p.id === product.id)).toBe(true);

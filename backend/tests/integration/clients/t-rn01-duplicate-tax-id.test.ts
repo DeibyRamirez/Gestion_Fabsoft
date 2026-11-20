@@ -28,7 +28,7 @@ describe.skipIf(!dbTestsConfigured())('T-RN01 duplicate tax id', () => {
     await request(app)
       .post('/api/v1/clients')
       .set('Authorization', `Bearer ${token}`)
-      .send({ legalName: 'Distribuidora Andina S.A.S.', taxId: '900.123.456-7', status: 'active' });
+      .send({ legalName: 'Distribuidora Andina S.A.S.', taxId: '900.123.456-7', status: 'activo' });
   });
 
   afterAll(async () => {
@@ -45,7 +45,7 @@ describe.skipIf(!dbTestsConfigured())('T-RN01 duplicate tax id', () => {
       const res = await request(app)
         .post('/api/v1/clients')
         .set('Authorization', `Bearer ${token}`)
-        .send({ legalName: 'Conflicto NIT', taxId, status: 'active' });
+        .send({ legalName: 'Conflicto NIT', taxId, status: 'activo' });
       expect(res.status).toBe(409);
       expect(res.body.code).toBe('client_tax_id_taken');
       expect(res.body.existingClientId).toBeTruthy();

@@ -10,8 +10,8 @@ Se propuso integrar la pasarela **Wompi**. El documento funcional (§3) excluye 
 ## Decisión
 
 1. **No** se integra Wompi ni ninguna otra pasarela en el MVP. No hay SDK, webhooks, claves ni tablas de transacciones.
-2. El MVP sólo registra la **dimensión de pago** de forma manual y por periodo: `subscription_periods.payment_status` ∈ `not_tracked | pending | received`, modificable por admin/operador mediante `PATCH /api/v1/subscriptions/{id}/periods/{periodId}`. Nunca se infiere de la fecha de vencimiento (RN-06, RN-07).
-3. Una renovación confirmada crea el nuevo periodo con `payment_status='pending'` (o `not_tracked` si el operador lo indica), jamás `received` automáticamente.
+2. El MVP sólo registra la **dimensión de pago** de forma manual y por periodo: `subscription_periods.payment_status` ∈ `sin_seguimiento | pendiente | recibido`, modificable por admin/operador mediante `PATCH /api/v1/subscriptions/{id}/periods/{periodId}`. Nunca se infiere de la fecha de vencimiento (RN-06, RN-07).
+3. Una renovación confirmada crea el nuevo periodo con `payment_status='pendiente'` (o `sin_seguimiento` si el operador lo indica), jamás `recibido` automáticamente.
 4. Si en el futuro se aprueba (Etapa 5): tabla `payments` **separada** de `subscriptions` y `subscription_periods` (FK a `subscription_period_id`), adaptador `PaymentGateway` en `infrastructure/payments/wompi`, webhooks firmados con idempotencia, y un ADR nuevo que reemplace este.
 
 ## Consecuencias

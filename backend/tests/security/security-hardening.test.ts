@@ -82,14 +82,14 @@ beforeAll(async () => {
     await c.query(
       `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
          price_amount, supplier_cost_amount, notes, status, visible_in_portal)
-       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1000,600,'nota interna','active',true)
+       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1000,600,'nota interna','activa',true)
        on conflict do nothing`,
       [ids.subA, ids.clientA, ids.product],
     );
     await c.query(
       `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
          price_amount, supplier_cost_amount, notes, status, visible_in_portal)
-       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',2000,900,'nota B','active',true)
+       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',2000,900,'nota B','activa',true)
        on conflict do nothing`,
       [ids.subB, ids.clientB, ids.product],
     );
@@ -295,7 +295,7 @@ describe.skipIf(!url)('M3/M6 — el cliente no lee columnas sensibles ni contact
       await owner.query(
         `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
            price_amount, supplier_cost_amount, status, visible_in_portal)
-         values ($1,$2,$3,'2026-06-01','2027-05-31','annual',10,5,'active',true) on conflict do nothing`,
+         values ($1,$2,$3,'2026-06-01','2027-05-31','annual',10,5,'activa',true) on conflict do nothing`,
         [sec24.sub, ids.clientA, sec24.product],
       );
       await owner.query(
@@ -380,8 +380,8 @@ describe.skipIf(!url)('0004 — vistas de integración (matriz, nota 2)', () => 
       await owner.query(
         `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
            price_amount, supplier_cost_amount, status)
-         values ($1,$2,$3,'2026-06-01','2027-05-31','annual',1,1,'active'),
-                ($4,$5,$3,'2026-06-01','2027-05-31','annual',2,2,'active')
+         values ($1,$2,$3,'2026-06-01','2027-05-31','annual',1,1,'activa'),
+                ($4,$5,$3,'2026-06-01','2027-05-31','annual',2,2,'activa')
          on conflict do nothing`,
         [sec29.subA, ids.clientA, ids.product, sec29.subB, ids.clientB],
       );
@@ -471,7 +471,7 @@ describe.skipIf(!url)('0005 — funciones SECURITY DEFINER de auth', () => {
     const before = await active(ids.clientUserA);
     expect(before).toBe(2);
     await asActor(admin, async (c) => {
-      await c.query(`update app.users set status='disabled' where id=$1`, [ids.clientUserA]);
+      await c.query(`update app.users set status='deshabilitado' where id=$1`, [ids.clientUserA]);
       const { rows: [r] } = await c.query(`select app.revoke_user_sessions($1,'user_disabled') n`, [ids.clientUserA]);
       expect(r.n).toBe(2);
       const { rows: [a] } = await c.query(`select count(*)::int n from app.audit_logs where action='auth.sessions_revoked'`);
@@ -479,7 +479,7 @@ describe.skipIf(!url)('0005 — funciones SECURITY DEFINER de auth', () => {
     }); // asActor siempre hace ROLLBACK
     expect(await active(ids.clientUserA)).toBe(2);
     const { rows: [u] } = await pool.query('select status from app.users where id=$1', [ids.clientUserA]);
-    expect(u.status).toBe('active');
+    expect(u.status).toBe('activo');
   });
 
   it('T-SEC-34 el propio usuario revoca sus sesiones (conservando la actual) sin contexto system', () =>

@@ -30,7 +30,7 @@ const log: AuditLogView = {
   resourceType: 'subscription',
   resourceId: 'sub-1',
   clientId: 'client-1',
-  changes: { before: { status: 'active' }, after: { status: 'in_renewal' } },
+  changes: { before: { status: 'activa' }, after: { status: 'en_renovacion' } },
   reason: null,
   requestId: 'req-1',
 };

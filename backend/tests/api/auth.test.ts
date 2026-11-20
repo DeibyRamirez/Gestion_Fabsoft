@@ -53,7 +53,7 @@ describe('HU-01 auth y roles', () => {
   });
 
   it('credenciales inválidas, email inexistente y usuario desactivado responden igual (401 invalid_credentials)', async () => {
-    ctx.store.users.get(ctx.operator.id)!.status = 'disabled';
+    ctx.store.users.get(ctx.operator.id)!.status = 'deshabilitado';
     for (const [email, pw] of [
       ['admin@fabsoft.test', 'mala'],
       ['nadie@x.co', PASS],
@@ -158,7 +158,7 @@ describe('HU-01 auth y roles', () => {
     const res = await request(ctx.app)
       .patch(`/api/v1/users/${ctx.operator.id}`)
       .set('Authorization', `Bearer ${adm.body.accessToken}`)
-      .send({ status: 'disabled' });
+      .send({ status: 'deshabilitado' });
     expect(res.status).toBe(200);
     const me = await request(ctx.app)
       .get('/api/v1/auth/me')

@@ -2,6 +2,12 @@ import { z } from 'zod';
 import { UserRoleSchema, UserStatusSchema } from './enums.js';
 import { PageQuerySchema, PaginationMetaSchema } from './pagination.js';
 
+export const UserRefSchema = z.object({
+  id: z.string().uuid(),
+  fullName: z.string(),
+});
+export type UserRef = z.infer<typeof UserRefSchema>;
+
 /** Gestión de usuarios (docs/api/openapi.yaml: User, UserCreate, UserUpdate, UserCreated, UserPage). */
 export const UserSchema = z.object({
   id: z.string().uuid(),

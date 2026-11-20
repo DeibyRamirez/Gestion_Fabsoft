@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { homePathForRole } from '@fabsoft/shared';
 import { useAuth } from '@/features/auth/auth-provider';
+import { FabSoftLogo } from '@/shared/components/fabsoft-logo';
 
 /** Redirige según la sesión y el rol. */
 export default function HomePage() {
@@ -15,11 +16,12 @@ export default function HomePage() {
 
   return (
     <div
-      className="flex min-h-screen items-center justify-center bg-bg px-4"
+      className="flex min-h-screen flex-col items-center justify-center gap-4 bg-bg px-4"
       role="status"
       aria-busy="true"
       aria-live="polite"
     >
+      <FabSoftLogo href={null} />
       <p className="text-sm text-fg-muted">Cargando…</p>
     </div>
   );

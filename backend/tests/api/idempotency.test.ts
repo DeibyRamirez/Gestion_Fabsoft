@@ -68,7 +68,7 @@ describe('T-API-05 Idempotency-Key en POST /users', () => {
   it('petición original en curso ⇒ 409 idempotency_in_progress', async () => {
     const [actorId] = [...store.users.keys()];
     const { createHash } = await import('node:crypto');
-    store.idem.set(`${actorId}|key-00000003`, {
+    store.idem.set(`user|${actorId}|key-00000003`, {
       method: 'POST',
       path: '/api/v1/users',
       requestHash: createHash('sha256').update(canonicalJson(body)).digest('hex'),

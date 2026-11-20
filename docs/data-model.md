@@ -218,62 +218,64 @@ erDiagram
 | Tipo | Valores | Etiqueta UI (es) |
 |---|---|---|
 | `user_role` | `admin`, `operator`, `client` | Administrador, Operador, Cliente |
-| `user_status` | `active`, `disabled` | Activo, Desactivado |
-| `client_status` | `active`, `inactive`, `archived` | Activo, Inactivo, Archivado |
+| `user_status` | `activo`, `deshabilitado` | Activo, Desactivado |
+| `client_status` | `activo`, `inactivo`, `archivado` | Activo, Inactivo, Archivado |
 | `product_type` | `third_party`, `own`, `recurring_service` | Tercero, Propio, Servicio recurrente |
-| `product_status` | `active`, `inactive` | Activo, Inactivo |
+| `product_status` | `activo`, `inactivo` | Activo, Inactivo |
 | `billing_cycle` | `monthly`, `quarterly`, `semiannual`, `annual`, `biennial`, `custom` (+`custom_cycle_months`) | Mensual, Trimestral, Semestral, Anual, Bienal, Personalizada (N meses) |
-| `subscription_status` | `pending_activation`, `active`, `in_renewal`, `expired`, `cancelled`, `not_renewed` | Pendiente de activación, Activa, En renovación, Vencida, Cancelada, No renovada |
-| `payment_status` | `not_tracked`, `pending`, `received` | Sin seguimiento, Pendiente, Recibido |
-| `follow_up_status` | `none`, `in_progress`, `awaiting_client`, `closed` | Sin gestión, En gestión, Esperando al cliente, Cerrado |
-| `renewal_outcome` | `pending`, `renewed`, `not_renewed` | Pendiente, Renovada, No renovada |
-| `renewal_request_status` | `pending_review`, `in_progress`, `resolved` | Pendiente de revisión, En gestión, Resuelta |
-| `renewal_request_resolution` | `renewed`, `not_renewed`, `other` | Renovada, No renovada, Otro |
+| `subscription_status` | `pendiente_activacion`, `activa`, `en_renovacion`, `vencida`, `cancelada`, `no_renovada` | Pendiente de activación, Activa, En renovación, Vencida, Cancelada, No renovada |
+| `payment_status` | `sin_seguimiento`, `pendiente`, `recibido` | Sin seguimiento, Pendiente, Recibido |
+| `follow_up_status` | `sin_gestion`, `en_gestion`, `esperando_cliente`, `cerrado` | Sin gestión, En gestión, Esperando al cliente, Cerrado |
+| `renewal_outcome` | `pendiente`, `renovada`, `no_renovada` | Pendiente, Renovada, No renovada |
+| `renewal_request_status` | `pendiente_revision`, `en_progreso`, `resuelta` | Pendiente de revisión, En gestión, Resuelta |
+| `renewal_request_resolution` | `renovada`, `no_renovada`, `otra` | Renovada, No renovada, Otra |
 | `task_type` | `contact_client`, `send_proposal`, `confirm_terms`, `verify_payment`, `confirm_renewal`, `record_non_renewal`, `review_renewal_request`, `review_expired`, `other` | Contactar cliente, Preparar/enviar propuesta, Confirmar condiciones, Verificar orden de compra o pago, Confirmar renovación de licencia, Registrar motivo de no renovación, Revisar solicitud de renovación, Revisar suscripción vencida, Otra |
 | `task_priority` | `low`, `medium`, `high`, `urgent` | Baja, Media, Alta, Urgente |
-| `task_status` | `pending`, `in_progress`, `completed`, `cancelled` | Pendiente, En progreso, Completada, Cancelada |
+| `task_status` | `pendiente`, `en_progreso`, `completada`, `cancelada` | Pendiente, En progreso, Completada, Cancelada |
 | `notification_type` | `expiration_alert`, `renewal_request_created` | Alerta de vencimiento, Nueva solicitud |
 | `notification_channel` | `in_app`, `email` | En la aplicación, Correo |
-| `notification_status` | `pending`, `sent`, `failed`, `cancelled` | Pendiente, Enviada, Fallida, Cancelada |
-| `integration_status` | `active`, `disabled` | Activa, Desactivada |
+| `notification_status` | `pendiente`, `enviada`, `fallida`, `cancelada` | Pendiente, Enviada, Fallida, Cancelada |
+| `integration_status` | `activa`, `deshabilitada` | Activa, Desactivada |
 | `client_scope` | `all`, `own` | Todos los clientes, Clientes asignados |
 | `actor_type` | `user`, `integration`, `system` | Usuario, Integración, Sistema |
+
+> **Convención (migración `0007`):** los valores de estado de negocio están en español. Los nombres de tipos, columnas, campos de API, roles, tipos de producto, ciclos, prioridades, canales, scopes, motivos de cancelación y acciones de auditoría permanecen en inglés. `ALTER TYPE … RENAME VALUE` conserva datos y OIDs; los `audit_logs` históricos no se reescriben (tabla append-only) y las nuevas entradas usan los valores nuevos.
 
 ## 4. Dimensiones separadas: vigencia, pago y seguimiento (RN-05, RN-06, RN-07)
 
 | Dimensión | Dónde | Quién la cambia | Nunca |
 |---|---|---|---|
 | **Vigencia** `subscriptions.status` | Cabecera de la suscripción | Casos de uso explícitos (`activate`, `start-renewal`, `renew`, `cancel`) y el job `subscriptions.expire` | Cambiar al abrir una pantalla; inferirse del pago. |
-| **Pago** `subscription_periods.payment_status` | Por periodo | Admin/operador con `PATCH /subscriptions/{id}/periods/{periodId}` | Inferirse de la fecha; marcarse `received` al renovar. |
+| **Pago** `subscription_periods.payment_status` | Por periodo | Admin/operador con `PATCH /subscriptions/{id}/periods/{periodId}` | Inferirse de la fecha; marcarse `recibido` al renovar. |
 | **Seguimiento** `subscriptions.follow_up_status` + `subscription_periods.renewal_outcome` + `renewal_requests.status` | Cabecera / periodo / solicitud | Casos de uso de renovación y tareas | Confundir solicitud con renovación confirmada. |
 
 ### Máquina de estados de vigencia
 
 ```mermaid
 stateDiagram-v2
-  [*] --> pending_activation : crear (sin activar)
-  [*] --> active : crear con activar=true
-  pending_activation --> active : POST …/activate
-  pending_activation --> cancelled : POST …/cancel (admin)
-  active --> in_renewal : POST …/start-renewal
-  active --> active : POST …/renew (nuevo periodo)
-  in_renewal --> active : POST …/renew
-  active --> expired : job (hoy > current_period_end, outcome ≠ not_renewed)
-  in_renewal --> expired : job
-  active --> not_renewed : job (hoy > current_period_end, outcome = not_renewed)
-  in_renewal --> not_renewed : job
-  expired --> active : POST …/renew (renovación tardía)
-  expired --> not_renewed : POST …/not-renewed
-  active --> cancelled : POST …/cancel (admin)
-  in_renewal --> cancelled : POST …/cancel (admin)
-  expired --> cancelled : POST …/cancel (admin)
-  cancelled --> [*]
-  not_renewed --> [*]
+  [*] --> pendiente_activacion : crear (sin activar)
+  [*] --> activa : crear con activar=true
+  pendiente_activacion --> activa : POST …/activate
+  pendiente_activacion --> cancelada : POST …/cancel (admin)
+  activa --> en_renovacion : POST …/start-renewal
+  activa --> activa : POST …/renew (nuevo periodo)
+  en_renovacion --> activa : POST …/renew
+  activa --> vencida : job (hoy > current_period_end, outcome ≠ no_renovada)
+  en_renovacion --> vencida : job
+  activa --> no_renovada : job (hoy > current_period_end, outcome = no_renovada)
+  en_renovacion --> no_renovada : job
+  vencida --> activa : POST …/renew (renovación tardía)
+  vencida --> no_renovada : POST …/not-renewed
+  activa --> cancelada : POST …/cancel (admin)
+  en_renovacion --> cancelada : POST …/cancel (admin)
+  vencida --> cancelada : POST …/cancel (admin)
+  cancelada --> [*]
+  no_renovada --> [*]
 ```
 
-- `POST /subscriptions/{id}/not-renewed` sobre una suscripción **aún vigente** registra la decisión en el periodo actual (`renewal_outcome='not_renewed'`, `outcome_reason`) y cierra el seguimiento; el estado sigue `active`/`in_renewal` hasta el fin del periodo y el job la pasa a `not_renewed` (no a `expired`). Sobre una suscripción `expired` el cambio es inmediato.
-- `cancelled` y `not_renewed` son terminales; continuar requiere una suscripción nueva (conserva historial separado).
-- `follow_up_status`: `in_progress` al iniciar renovación; `awaiting_client` cuando el operador lo marca (tarea en espera de respuesta); `closed` al renovar, no renovar o cancelar; vuelve a `none` cuando empieza el nuevo periodo.
+- `POST /subscriptions/{id}/not-renewed` sobre una suscripción **aún vigente** registra la decisión en el periodo actual (`renewal_outcome='no_renovada'`, `outcome_reason`) y cierra el seguimiento; el estado sigue `activa`/`en_renovacion` hasta el fin del periodo y el job la pasa a `no_renovada` (no a `vencida`). Sobre una suscripción `vencida` el cambio es inmediato.
+- `cancelada` y `no_renovada` son terminales; continuar requiere una suscripción nueva (conserva historial separado).
+- `follow_up_status`: `en_gestion` al iniciar renovación; `esperando_cliente` cuando el operador lo marca (tarea en espera de respuesta); `cerrado` al renovar, no renovar o cancelar; vuelve a `sin_gestion` cuando empieza el nuevo periodo.
 
 ## 5. Convención de fechas y periodos (RN-03)
 
@@ -288,7 +290,7 @@ stateDiagram-v2
 - Inmutable salvo: `renewal_outcome`, `outcome_reason`, `confirmed_at`, `confirmed_by`, `payment_status`, `contract_reference` y `end_date` **sólo del último periodo** (corrección, Flujo E). Lo impone el trigger `tg_subscription_periods_guard`.
 - Sin solapes entre periodos de una suscripción (trigger, `errcode 23P01`) y `UNIQUE (subscription_id, period_number)` y `(subscription_id, start_date)`.
 - Cada periodo guarda su `price_amount`, `billing_cycle` y `supplier_cost_amount`: el historial nunca muestra condiciones actuales como si siempre hubieran existido (§6.5).
-- Al renovar: periodo actual → `renewal_outcome='renewed'`, `confirmed_at/by`; nuevo periodo → `period_number+1`, `renewal_outcome='pending'`, `payment_status='pending'` (o `not_tracked` si se indica).
+- Al renovar: periodo actual → `renewal_outcome='renovada'`, `confirmed_at/by`; nuevo periodo → `period_number+1`, `renewal_outcome='pendiente'`, `payment_status='pendiente'` (o `sin_seguimiento` si se indica).
 
 ## 7. Constraints relevantes
 
@@ -296,7 +298,7 @@ stateDiagram-v2
 |---|---|---|
 | `users` | `CHECK ((role='client') = (client_id IS NOT NULL))` | Usuario de portal ligado a un cliente; interno nunca. |
 | `clients` | `UNIQUE (tax_id_normalized) WHERE NOT NULL` | Evita duplicados evidentes por NIT (§6.2). Normaliza `900.123.456-7` = `9001234567`. |
-| `clients` | `CHECK ((status='archived') = (archived_at IS NOT NULL))` | Archivado coherente. |
+| `clients` | `CHECK ((status='archivado') = (archived_at IS NOT NULL))` | Archivado coherente. |
 | `subscriptions` | `CHECK (current_period_end >= start_date)`, `CHECK (currency='COP')`, `CHECK ((billing_cycle='custom') = (custom_cycle_months IS NOT NULL))`, `UNIQUE (id, client_id)` | Coherencia y FK compuestas. |
 | `renewal_requests` | `FK (subscription_id, client_id) → subscriptions(id, client_id)` | La solicitud es del mismo cliente que la suscripción. |
 | `renewal_requests` | exactamente uno de `requested_by_user_id` / `requested_by_integration_id` | Trazabilidad del solicitante. |
@@ -311,11 +313,11 @@ stateDiagram-v2
 
 | Índice | Consulta |
 |---|---|
-| `subscriptions_expiring_idx (current_period_end) WHERE status IN ('active','in_renewal')` | `GET /subscriptions/expiring`, dashboard 30/15/7, job de vencimiento. |
+| `subscriptions_expiring_idx (current_period_end) WHERE status IN ('activa','en_renovacion')` | `GET /subscriptions/expiring`, dashboard 30/15/7, job de vencimiento. |
 | `subscriptions_client_idx`, `_product_idx`, `_owner_idx`, `_status_idx` | Filtros de `GET /subscriptions`. |
 | `clients_legal_name_lower_idx`, `clients_tax_id_normalized_uq` | Búsqueda previa a crear (Flujo A). |
 | `tasks_assignee_status_due_idx`, `tasks_open_due_idx` | Filtros de tareas; tareas vencidas/próximas. |
-| `notifications_due_idx (scheduled_for, next_attempt_at) WHERE status='pending'` | Dispatcher del worker. |
+| `notifications_due_idx (scheduled_for, next_attempt_at) WHERE status='pendiente'` | Dispatcher del worker. |
 | `notifications_recipient_idx` | Bandeja in-app del usuario. |
 | `renewal_requests_status_idx`, `_client_status_idx` | Solicitudes nuevas (dashboard) y portal. |
 | `audit_logs_resource_idx`, `_client_idx`, `_occurred_idx` | Historial por recurso/cliente; actividad reciente. |
@@ -326,13 +328,13 @@ stateDiagram-v2
 
 | Entidad | Mecanismo | Efecto |
 |---|---|---|
-| `clients` | `status='archived'` + `archived_at` (admin) / `inactive` | Historial intacto; no aparece en listas por defecto (`status=active,inactive`); no se crean nuevas suscripciones. |
+| `clients` | `status='archivado'` + `archived_at` (admin) / `inactivo` | Historial intacto; no aparece en listas por defecto (`status=activo,inactivo`); no se crean nuevas suscripciones. |
 | `client_contacts` | `archived_at` | Se oculta; se conserva. |
-| `products` | `status='inactive'` | No seleccionable para nuevas suscripciones; las existentes siguen. |
-| `subscriptions` | `cancelled` / `not_renewed` | Terminales, sin borrado. |
-| `users` | `status='disabled'` | Revoca refresh tokens; JWT vigente deja de servir en la siguiente petición. |
-| `integrations` / `api_credentials` | `disabled` / `revoked_at` | Acceso cortado inmediatamente. |
-| `notifications` | `cancelled` | Conserva motivo (`cancel_reason`). |
+| `products` | `status='inactivo'` | No seleccionable para nuevas suscripciones; las existentes siguen. |
+| `subscriptions` | `cancelada` / `no_renovada` | Terminales, sin borrado. |
+| `users` | `status='deshabilitado'` | Revoca refresh tokens; JWT vigente deja de servir en la siguiente petición. |
+| `integrations` / `api_credentials` | `deshabilitada` / `revoked_at` | Acceso cortado inmediatamente. |
+| `notifications` | `cancelada` | Conserva motivo (`cancel_reason`). |
 | `audit_logs` | append-only | Nunca se modifica ni borra. |
 
 Borrado físico permitido sólo en: `refresh_tokens` y `idempotency_keys` (limpieza técnica) e `integration_clients` (quitar un cliente del alcance; se audita).

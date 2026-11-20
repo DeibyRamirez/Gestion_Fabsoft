@@ -2,12 +2,16 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { Building2Icon } from 'lucide-react';
 import type { ClientPage } from '@fabsoft/shared';
 import { apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
+import { EmptyState } from '@/shared/components/empty-state';
+import { FilterBar, FilterField, SearchInput } from '@/shared/components/filter-bar';
+import { LoadingState } from '@/shared/components/loading-state';
 import { PageHeader } from '@/shared/components/page-header';
 import { Button } from '@/shared/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
+import { Card, CardContent } from '@/shared/ui/card';
 import { Input } from '@/shared/ui/input';
 import { ClientsTable } from './clients-table';
 
@@ -33,9 +37,8 @@ export function ClientsPage() {
   }, [token, q, taxId, version]);
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-5">
       <PageHeader
-        breadcrumbs={['Gestión']}
         title="Clientes"
         description="Alta, búsqueda y ficha de clientes."
         actions={
@@ -44,36 +47,55 @@ export function ClientsPage() {
           </Button>
         }
       />
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Búsqueda</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4 md:flex-row">
-          <Input
+
+      <FilterBar
+        actions={
+          <Button type="button" variant="outline" onClick={reload}>
+            Actualizar
+          </Button>
+        }
+      >
+        <FilterField label="Buscar" htmlFor="client-search" className="sm:col-span-2">
+          <SearchInput
+            id="client-search"
             placeholder="Nombre o NIT"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             aria-label="Buscar por nombre"
           />
+        </FilterField>
+        <FilterField label="NIT exacto" htmlFor="client-tax-id">
           <Input
-            placeholder="NIT exacto"
+            id="client-tax-id"
+            placeholder="900.123.456-7"
             value={taxId}
             onChange={(e) => setTaxId(e.target.value)}
             aria-label="Buscar por NIT"
           />
-          <Button type="button" variant="outline" onClick={reload}>
-            Actualizar
-          </Button>
-        </CardContent>
-      </Card>
+        </FilterField>
+      </FilterBar>
+
       {page ? (
-        <Card>
-          <CardContent className="pt-6">
-            <ClientsTable page={page} />
-          </CardContent>
-        </Card>
+        page.data.length === 0 ? (
+          <EmptyState
+            icon={Building2Icon}
+            title="No hay clientes con estos filtros."
+            description="Prueba con otro nombre o NIT, o crea el primer cliente."
+            action={
+              <Button asChild size="sm">
+                <Link href="/clients/new">Nuevo cliente</Link>
+              </Button>
+            }
+          />
+        ) : (
+          <Card>
+            <CardContent className="pt-5">
+              <ClientsTable page={page} />
+            </CardContent>
+          </Card>
+        )
       ) : (
-        <p>Cargando clientes…</p>
+        <LoadingState label="Cargando clientes…" />
       )}
     </div>
   );

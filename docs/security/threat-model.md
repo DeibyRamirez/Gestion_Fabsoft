@@ -37,8 +37,8 @@ flowchart LR
 
 | # | Categoría | Amenaza | Mitigaciones | Test |
 |---|---|---|---|---|
-| S1 | Spoofing | Robo/adivinanza de contraseñas | argon2id; rate limit 5/min por IP+email y 20/min por IP en `/auth/login`; mensajes genéricos; contraseña mínima 12; cambio obligatorio de contraseña temporal; auditoría `auth.login_failed` (sin la contraseña). | `T-AUTH-04` |
-| S2 | Spoofing | Robo de access token (XSS) | Access token sólo en memoria (no `localStorage`), TTL 15 min; CSP en frontend; React escapa por defecto; prohibido `dangerouslySetInnerHTML` (lint). | `T-FE-01` |
+| S1 | Spoofing | Robo/adivinanza de contraseñas | argon2id; rate limit configurable por IP+email y por IP en `/auth/login`; bloqueo temporal de la IP tras N fallos 401 (`ipBlocklist`, en memoria); mensajes genéricos; contraseña mínima 12; cambio obligatorio de contraseña temporal; auditoría `auth.login_failed` (sin la contraseña). | `T-AUTH-04`, `T-AUTH-07`, `T-AUTH-08` |
+| S2 | Spoofing | Robo de access token (XSS) | Access token sólo en memoria (no `localStorage`), TTL 15 min; CSP/HSTS en frontend y API; React escapa por defecto; prohibido `dangerouslySetInnerHTML` (lint). | `T-FE-01`, DAST smoke |
 | S3 | Spoofing | Robo/reutilización de refresh token | Cookie `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`; hash SHA-256 en BD; rotación en cada uso; reutilización ⇒ revoca familia. | `T-AUTH-01`, `T-AUTH-02` |
 | S4 | Spoofing | Integración usa credenciales humanas o viceversa | Mecanismos separados (ADR-001); ambas credenciales ⇒ `400`; `actor_type` distinto en contexto RLS. | `T-API-02` |
 | S5 | Spoofing | API key filtrada | HMAC+pepper (volcado de BD inútil); prefijo identificable para escaneo de secretos; revocación inmediata; expiración opcional (`credential_ttl_days`); máximo 2 activas para rotar. | `T-API-01` |
@@ -71,10 +71,10 @@ flowchart LR
 | I7 | Info. disclosure | Columnas internas (`supplier_cost_amount`, `notes`, `password_hash`) legibles a nivel BD por el rol `client` | `0003`: el cliente lee sólo vistas `app.portal_subscriptions`/`app.portal_subscription_periods` (rol propietario `fabsoft_secure_view`); `password_hash` sin `SELECT` para `fabsoft_app`, acceso vía `app.auth_password_hash()`. Integraciones: vistas `app.integration_subscriptions`/`app.integration_subscription_periods` (`0004`). | `T-SEC-18`…`T-SEC-22`, `T-SEC-25`…`T-SEC-29` |
 | I8 | Info. disclosure | Volcados/backups hechos con rol `BYPASSRLS` contienen todo | Pendiente: cifrado y control de acceso de los volcados (deployment §5) y registro de quién los genera. | — |
 | I9 | Info. disclosure / Spoofing | Correos de alerta falsificados en nombre de FabSoft | Pendiente: SPF/DKIM/DMARC del dominio verificado en Resend. | — |
-| D4 | DoS | Rate limit en memoria con varias instancias o `trust proxy` mal configurado (IP falsificable vía `X-Forwarded-For`) | `trust proxy = 1` (deployment §4.2). Pendiente: almacén compartido (`RateLimitStore`) si hay >1 instancia; test de `X-Forwarded-For`. | — |
+| D4 | DoS | Rate limit/bloqueo en memoria con varias instancias o `trust proxy` mal configurado (IP falsificable vía `X-Forwarded-For`) | `trust proxy = 1` (deployment §4.2); límites y bloqueo por IP con `express-rate-limit` + `ipBlocklist`. Pendiente: almacén compartido (`RateLimitStore`) si hay >1 instancia; test de `X-Forwarded-For`. | `T-AUTH-07` |
 | S8 | Spoofing / Elevation | Alta del primer admin con rol propietario/BYPASSRLS o repetible | `0005`: `app.bootstrap_first_admin()` SECURITY DEFINER (search_path fijo, sólo si no hay admin, lock de asesoría, exige argon2id, auditoría `user.bootstrap_admin`); EXECUTE sólo a `fabsoft_bootstrap` (NOLOGIN). | `T-SEC-30`…`T-SEC-32` |
 | S9 | Spoofing | Sesiones vivas tras desactivar/resetear/cambiar contraseña si la revocación (tx aparte) falla | `0005`: `app.revoke_user_sessions()` en la **misma** transacción del cambio; sólo admin, system o el propio usuario; sin contexto system. | `T-SEC-33`…`T-SEC-36` |
-| S7 | Spoofing / Tampering | Cadena de suministro (dependencias npm comprometidas) | Pendiente: lockfile, `pnpm audit`/Dependabot en CI. | — |
+| S7 | Spoofing / Tampering | Cadena de suministro (dependencias npm comprometidas) | Lockfile congelado, `pnpm audit:dependencies` (high/critical falla) y Dependabot semanal; riesgos aceptados en `docs/security/hardening.md`. | `security-audit` CI |
 
 ## 3. Contrato `withRlsContext`
 
@@ -118,7 +118,7 @@ Reglas: `.env` en `.gitignore`; `.env.example` sin valores reales; escaneo de se
 - [ ] Usuario cliente: no ve suscripciones con `visible_in_portal=false`, ni `supplierCostAmount`, `notes`, `owner`, `paymentStatus`.
 - [ ] Usuario cliente: no accede a ninguna ruta interna (`/clients`, `/subscriptions`, `/renewal-tasks`...) ⇒ 403.
 - [ ] Integración `own`: sólo ve clientes en `integration_clients`; `GET /clients/{idAjeno}` ⇒ 404.
-- [ ] Integración sin scope ⇒ 403 `insufficient_scope`; integración `disabled` o credencial revocada/expirada ⇒ 401.
+- [ ] Integración sin scope ⇒ 403 `insufficient_scope`; integración `deshabilitada` o credencial revocada/expirada ⇒ 401.
 - [ ] Integración no accede a rutas sin `apiKeyAuth` declarado en OpenAPI (test generado desde el spec).
 - [ ] Operador: no archiva clientes, no cancela suscripciones, no cambia precio/costo, no gestiona usuarios/integraciones/reglas/ajustes.
 - [ ] Nadie (incluido admin) puede `DELETE` en tablas históricas ni `UPDATE` en `audit_logs`.

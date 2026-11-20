@@ -6,6 +6,10 @@
   "scripts": {
     "predev": "pnpm --filter @fabsoft/shared build",
     "dev": "tsx watch --env-file-if-exists=.env src/main-api.ts",
+    "worker": "tsx watch --env-file-if-exists=.env src/main-worker.ts",
+    "worker:start": "node dist/main-worker.js",
+    "openapi:build": "tsx scripts/build-openapi.ts",
+    "openapi:check": "tsx scripts/build-openapi.ts --check",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main-api.js",
     "lint": "eslint .",
@@ -27,6 +31,8 @@
     "admin:create": "tsx --env-file-if-exists=.env scripts/create-admin.ts",
     "db:seed": "tsx --env-file-if-exists=.env scripts/seed.ts",
     "db:roles:dev": "tsx --env-file-if-exists=.env scripts/dev-roles.ts",
+    "db:pgboss:install": "tsx --env-file-if-exists=.env scripts/install-pgboss.ts",
+    "alerts:reconcile": "tsx --env-file-if-exists=.env scripts/reconcile-alerts.ts",
     "db:provision:ci": "tsx scripts/provision-disposable-database.ts ci-main",
     "db:provision:foundation": "tsx scripts/provision-disposable-database.ts foundation-harness",
     "db:provision:develop-upgrade": "tsx scripts/provision-disposable-database.ts develop-historical-upgrade",
@@ -43,6 +49,8 @@
     "helmet": "^8",
     "jose": "^6",
     "pg": "^8",
+    "pg-boss": "^9",
+    "swagger-ui-express": "^5.0.1",
     "zod": "^3.25"
   },
   "devDependencies": {
@@ -55,6 +63,7 @@
     "@types/node": "^22",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^6",
+    "@types/swagger-ui-express": "^4.1.8",
     "@vitest/coverage-v8": "^3.2.4",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",

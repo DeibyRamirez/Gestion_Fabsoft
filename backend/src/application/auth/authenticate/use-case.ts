@@ -28,7 +28,7 @@ export class AuthenticateAccessToken {
     const user = await this.uow.run(requestId, ({ authenticate }) =>
       authenticate.loadUser(claims.userId),
     );
-    if (!user || user.status !== 'active')
+    if (!user || user.status !== 'activo')
       throw new ApplicationError('unauthenticated', 'Token inválido');
     return {
       actor: {

@@ -71,13 +71,13 @@ export class CreateSubscription {
       async ({ subscriptionCreate, clientDetail, productDetail, audit }) => {
         const client = await clientDetail.findById(input.clientId);
         if (!client) throw new ApplicationError('not_found', 'Cliente no encontrado');
-        if (client.status === 'archived') {
+        if (client.status === 'archivado') {
           throw new ApplicationError('client_archived', 'El cliente está archivado');
         }
 
         const product = await productDetail.findById(input.productId);
         if (!product) throw new ApplicationError('not_found', 'Producto no encontrado');
-        if (product.status !== 'active') {
+        if (product.status !== 'activo') {
           throw new ApplicationError('product_inactive', 'El producto está inactivo');
         }
 

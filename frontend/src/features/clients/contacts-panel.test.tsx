@@ -32,7 +32,7 @@ describe('ContactsPanel', () => {
   it('lista contactos y marca el principal', async () => {
     fetchMock.mockResolvedValue({ data: [contact] });
     render(<ContactsPanel clientId="c1" token="t" />);
-    expect(await screen.findByText('Ana Pérez')).toBeInTheDocument();
+    expect((await screen.findAllByText('Ana Pérez')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Principal').some((el) => el.tagName === 'SPAN')).toBe(true);
   });
 

@@ -5,7 +5,7 @@ import request from 'supertest';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ProblemSchema } from '@fabsoft/shared';
-import { createFactories } from '../fixtures/factories.js';
+import { createFactories, type FactoryUser } from '../fixtures/factories.js';
 import {
   assertDbTestsRequired,
   closeTestPools,
@@ -21,6 +21,7 @@ describe.skipIf(!dbTestsConfigured())(
   'POST /api/v1/auth/login — email inexistente (api-db)',
   () => {
     const factories = createFactories();
+    let admin: FactoryUser;
 
     beforeAll(async () => {
       await buildTestApp();
@@ -29,7 +30,7 @@ describe.skipIf(!dbTestsConfigured())(
     beforeEach(async () => {
       factories.reseed();
       await resetDatabase();
-      await factories.adminUser();
+      admin = await factories.adminUser();
     });
 
     afterAll(async () => {
@@ -86,6 +87,43 @@ describe.skipIf(!dbTestsConfigured())(
           `select count(*)::int as n from app.audit_logs where action = 'auth.login_failed'`,
         );
         expect(rows[0]!.n).toBe(5);
+      } finally {
+        await db.end();
+      }
+    });
+
+    it('T-SEC-04: neutraliza payloads de inyección SQL en email y contraseña', async () => {
+      const app = await buildTestApp();
+
+      for (const payload of [
+        "' OR '1'='1",
+        "'; DROP TABLE app.users; --",
+        '" OR 1=1 --',
+        "admin@fabsoft.test' --",
+      ]) {
+        const res = await request(app)
+          .post('/api/v1/auth/login')
+          .set('X-Forwarded-For', '203.0.113.99')
+          .send({ email: admin.email, password: payload });
+        expect(res.status).toBe(401);
+        expect(ProblemSchema.parse(res.body).code).toBe('invalid_credentials');
+      }
+
+      const badEmail = await request(app)
+        .post('/api/v1/auth/login')
+        .set('X-Forwarded-For', '203.0.113.99')
+        .send({ email: "admin@fabsoft.test' OR '1'='1", password: admin.password });
+      expect(badEmail.status).toBe(400);
+
+      const db = new pg.Client({ connectionString: provisionUrl });
+      await db.connect();
+      try {
+        const table = await db.query<{ name: string | null }>(
+          `select to_regclass('app.users')::text as name`,
+        );
+        expect(table.rows[0]!.name).toBe('app.users');
+        const users = await db.query<{ n: number }>(`select count(*)::int as n from app.users`);
+        expect(users.rows[0]!.n).toBeGreaterThanOrEqual(1);
       } finally {
         await db.end();
       }

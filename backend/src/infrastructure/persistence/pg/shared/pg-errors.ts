@@ -1,6 +1,7 @@
 /** Códigos SQLSTATE usados por los repositorios. 42501 se traduce a 403 en interfaces/http. */
 export const PG = {
   uniqueViolation: '23505',
+  checkViolation: '23514',
   foreignKeyViolation: '23503',
   insufficientPrivilege: '42501',
 } as const;
