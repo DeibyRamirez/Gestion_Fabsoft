@@ -15,16 +15,13 @@ import {
   ClockAlertIcon,
   HourglassIcon,
   InboxIcon,
-  RepeatIcon,
   TriangleAlertIcon,
 } from 'lucide-react';
 import { apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
 import { ActivityFeed } from '@/shared/components/activity-feed';
-import { BentoCard, NebulaStat, UrgentCard } from '@/shared/components/bento';
+import { NebulaStat, UrgentCard } from '@/shared/components/bento';
 import { BarChart } from '@/shared/components/charts/bar-chart';
-import { ChartLegend } from '@/shared/components/charts/chart-legend';
-import { DonutChart } from '@/shared/components/charts/donut-chart';
 import { Sparkline } from '@/shared/components/charts/sparkline';
 import { EmptyState } from '@/shared/components/empty-state';
 import { LoadingState } from '@/shared/components/loading-state';
@@ -35,6 +32,7 @@ import { Button } from '@/shared/ui/button';
 import { StatusBadge } from '@/shared/ui/status-badge';
 import { buildExpirationBuckets, buildExpirationSeries, buildStatusSegments } from './chart-data';
 import { indicatorHref, KpiCard } from './kpi-card';
+import { PortfolioCard } from './portfolio-card';
 import { usePortfolio } from './use-portfolio';
 
 function greeting(): string {
@@ -212,18 +210,55 @@ export function DashboardPage() {
                 </div>
               )}
             </div>
-            <p className="mt-auto pt-8 text-[11px] leading-relaxed text-white/75">
-              Los conteos superiores son acumulados; las barras, la distribución por rango.
-            </p>
+            <div className="mt-auto pt-6">
+              <div className="border-t border-white/10 pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-white/85">
+                    Ritmo diario de vencimientos
+                  </p>
+                  {!chartsLoading && !chartsError ? (
+                    <span className="text-[11px] text-white/65">
+                      Máx. {expirationSeries.max}/día · {expirationSeries.total} en total
+                    </span>
+                  ) : null}
+                </div>
+                {chartsLoading ? (
+                  <p className="mt-3 text-xs text-white/65">Calculando ritmo…</p>
+                ) : chartsError ? (
+                  <p className="mt-3 text-xs text-white/65">{chartsError}</p>
+                ) : (
+                  <>
+                    <Sparkline
+                      values={expirationSeries.values}
+                      label={`Vencimientos por día en los próximos 30 días. Máximo ${expirationSeries.max} en un día; ${expirationSeries.total} en total.`}
+                      height={88}
+                      color="#7FE6FB"
+                      fill="#7FE6FB"
+                      className="mt-2"
+                    />
+                    <div className="mt-1 flex justify-between text-[10px] text-white/60">
+                      <span>Hoy</span>
+                      <span>+15 días</span>
+                      <span>+30 días</span>
+                    </div>
+                  </>
+                )}
+              </div>
+              <p className="pt-3 text-[11px] leading-relaxed text-white/65">
+                Los conteos superiores son acumulados; las barras y la línea, la distribución por
+                rango y por día.
+              </p>
+            </div>
           </UrgentCard>
 
           <div className="flex flex-col gap-3 lg:col-span-5">
-            <KpiCard
-              label="Suscripciones activas"
+            <PortfolioCard
               indicator={summary.activeSubscriptions}
-              icon={RepeatIcon}
-              tone="success"
-              size="large"
+              activeCount={summary.activeSubscriptions.count}
+              segments={statusSegments}
+              total={portfolioTotal}
+              loading={chartsLoading}
+              error={chartsError}
             />
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -264,71 +299,6 @@ export function DashboardPage() {
       ) : (
         <LoadingState label="Cargando indicadores…" />
       )}
-
-      <div className="grid gap-5 lg:grid-cols-12">
-        <BentoCard className="lg:col-span-7">
-          <SectionHeader
-            title="Ritmo de vencimientos"
-            description="Suscripciones activas que vencen en los próximos 30 días."
-            action={
-              <span className="text-xs font-medium text-fg-muted">
-                {expirationSeries.total} en total
-              </span>
-            }
-          />
-          <div className="mt-4">
-            {chartsLoading ? (
-              <LoadingState label="Calculando ritmo de vencimientos…" />
-            ) : chartsError ? (
-              <p className="text-sm text-fg-muted">{chartsError}</p>
-            ) : (
-              <>
-                <Sparkline
-                  values={expirationSeries.values}
-                  label={`Vencimientos por día en los próximos 30 días. Máximo ${expirationSeries.max} en un día; ${expirationSeries.total} en total.`}
-                  height={120}
-                />
-                <div className="mt-2 flex justify-between text-[11px] text-fg-muted">
-                  <span>Hoy</span>
-                  <span>+15 días</span>
-                  <span>+30 días</span>
-                </div>
-                <p className="mt-2 text-xs text-fg-muted">
-                  Máximo diario: <strong className="text-fg">{expirationSeries.max}</strong> ·
-                  Total: <strong className="text-fg">{expirationSeries.total}</strong>
-                </p>
-              </>
-            )}
-          </div>
-        </BentoCard>
-
-        <BentoCard className="lg:col-span-5">
-          <SectionHeader
-            title="Cartera por estado"
-            description="Distribución real de todas las suscripciones."
-          />
-          <div className="mt-4">
-            {chartsLoading ? (
-              <LoadingState label="Calculando cartera…" />
-            ) : chartsError ? (
-              <p className="text-sm text-fg-muted">{chartsError}</p>
-            ) : statusSegments.length === 0 ? (
-              <p className="text-sm text-fg-muted">Sin suscripciones registradas.</p>
-            ) : (
-              <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:justify-between">
-                <DonutChart
-                  segments={statusSegments}
-                  label={`Cartera por estado. Total ${portfolioTotal} suscripciones.`}
-                  centerValue={portfolioTotal}
-                  centerLabel="total"
-                  size={128}
-                />
-                <ChartLegend items={statusSegments} className="w-full sm:max-w-56" />
-              </div>
-            )}
-          </div>
-        </BentoCard>
-      </div>
 
       <div className="grid gap-5 lg:grid-cols-12">
         <section className="rounded-xl border border-border bg-surface p-5 shadow-card lg:col-span-7 md:p-6">
