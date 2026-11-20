@@ -49,7 +49,7 @@
     "helmet": "^8",
     "jose": "^6",
     "pg": "^8",
-    "pg-boss": "^9",
+    "pg-boss": "^12",
     "swagger-ui-express": "^5.0.1",
     "zod": "^3.25"
   },
