@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Me | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const initialRefresh = useRef<Promise<void> | null>(null);
 
   const applySession = useCallback((raw: unknown) => {
     const session = TokenResponseSchema.parse(raw);
@@ -48,10 +50,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let alive = true;
-    apiFetch('/auth/refresh', { method: 'POST' })
-      .then((raw) => alive && applySession(raw))
-      .catch(() => undefined)
-      .finally(() => alive && setReady(true));
+    // StrictMode monta/desmonta el efecto dos veces: un solo refresh evita
+    // consumir dos veces el refresh token rotativo.
+    initialRefresh.current ??= apiFetch('/auth/refresh', { method: 'POST' })
+      .then((raw) => {
+        applySession(raw);
+      })
+      .catch(() => undefined);
+    void initialRefresh.current.finally(() => {
+      if (alive) setReady(true);
+    });
     return () => {
       alive = false;
     };

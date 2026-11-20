@@ -11,12 +11,16 @@ test.describe('HU-07 — historial de periodos', () => {
     await page.goto('/subscriptions');
     const renewable = page
       .getByRole('row')
-      .filter({ hasText: /active|in_renewal|expired/ })
+      .filter({ hasText: 'Antivirus ESET Protect Entry' })
+      .filter({ hasText: 'Distribuidora Andina S.A.S.' })
       .first();
     await renewable.getByRole('link').click();
 
     await expect(page.getByRole('heading', { name: 'Historial de periodos' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Renovar' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Renovar', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'No renovar', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Corregir vencimiento' })).toBeVisible();
+    await expect(page.getByLabel(/Pago del periodo/).first()).toBeVisible();
 
     await context.storageState({ path: adminState });
     await context.close();

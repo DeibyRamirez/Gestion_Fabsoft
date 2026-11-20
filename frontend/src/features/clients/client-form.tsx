@@ -6,9 +6,7 @@ import { ApiError, apiFetch } from '@/shared/api/client';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
-
-const selectClassName =
-  'flex h-10 w-full rounded-md border border-border-input bg-bg px-3 py-2 text-sm text-fg shadow-sm focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2';
+import { nativeSelectClassName } from '@/shared/ui/native-select';
 
 type Props = {
   token: string | null;
@@ -28,7 +26,7 @@ export function ClientForm({ token, onCreated }: Props) {
       taxId: String(data.get('taxId') ?? '').trim() || null,
       email: String(data.get('email') ?? '').trim() || null,
       phone: String(data.get('phone') ?? '').trim() || null,
-      status: String(data.get('status') ?? 'active') as ClientCreateInput['status'],
+      status: String(data.get('status') ?? 'activo') as ClientCreateInput['status'],
     });
     if (!parsed.success) {
       setMessage(parsed.error.issues[0]?.message ?? 'Datos inválidos');
@@ -80,9 +78,9 @@ export function ClientForm({ token, onCreated }: Props) {
       </div>
       <div className="grid gap-2">
         <Label htmlFor="status">Estado inicial</Label>
-        <select id="status" name="status" defaultValue="active" className={selectClassName}>
-          <option value="active">Activo</option>
-          <option value="inactive">Inactivo</option>
+        <select id="status" name="status" defaultValue="activo" className={nativeSelectClassName}>
+          <option value="activo">Activo</option>
+          <option value="inactivo">Inactivo</option>
         </select>
       </div>
       <div className="md:col-span-2">

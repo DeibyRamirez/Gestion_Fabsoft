@@ -15,7 +15,7 @@ const client = (): ClientView => ({
   id: 'c1',
   legalName: 'X',
   taxId: null,
-  status: 'active',
+  status: 'activo',
   email: null,
   phone: null,
   owner: null,
@@ -30,7 +30,7 @@ describe('UpdateClient', () => {
       run: async (_a, work) =>
         work({
           clientUpdate: {
-            loadForUpdate: async () => ({ ...client(), status: 'archived' }),
+            loadForUpdate: async () => ({ ...client(), status: 'archivado' }),
             findByTaxIdNormalized: async () => null,
             save: async () => ({ ok: true, client: client() }),
           },

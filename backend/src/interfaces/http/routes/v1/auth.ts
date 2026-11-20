@@ -32,6 +32,7 @@ export interface AuthRouteDeps {
   changePassword: ChangePassword;
   authenticateAccessToken: AuthenticateAccessToken;
   cookie: { secure: boolean; domain?: string | undefined };
+  loginIpBlocklist: RequestHandler;
   loginRateLimit: RequestHandler[];
 }
 
@@ -71,7 +72,7 @@ export function authRouter(deps: AuthRouteDeps): Router {
   const refreshCookie = (req: Request): string | undefined =>
     (req.cookies as Record<string, string> | undefined)?.[REFRESH_COOKIE_NAME];
 
-  router.post('/login', ...deps.loginRateLimit, async (req, res) => {
+  router.post('/login', deps.loginIpBlocklist, ...deps.loginRateLimit, async (req, res) => {
     sendSession(res, await deps.login.execute(LoginInputSchema.parse(req.body), meta(req, res)));
   });
   router.post('/refresh', csrf, async (req, res) => {

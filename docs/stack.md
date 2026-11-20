@@ -25,7 +25,8 @@
 | `pg` | `^8` | Driver PostgreSQL. SQL explícito en repositorios por caso de uso (ADR-007); pool singleton de infraestructura (ADR-006). Sin ORM para controlar `set_config` por transacción y consultas RLS. |
 | `pg-boss` | `9.0.x` | Cola y cron sobre PostgreSQL para el worker de alertas/correos (ADR-005). Sin Redis. `schedule()` con `tz: 'America/Bogota'`. |
 | `zod` | `^3.25` | Validación de entrada/salida (DTOs) y de variables de entorno. Esquemas compartidos en `packages/shared`. Se mantiene la rama 3 por compatibilidad con `zod-to-openapi` 7. |
-| `@asteasolutions/zod-to-openapi` | `^7.3` | Genera componentes OpenAPI 3.1 desde los esquemas Zod; test de CI compara el resultado con `docs/api/openapi.yaml` para evitar deriva. (La rama 8 exige Zod 4.) |
+| `swagger-ui-express` | `^5.0` | Sirve Swagger UI en `GET /api/v1/docs` con assets locales (sin CDN). La fuente canónica es `docs/api/openapi.yaml`; `pnpm openapi:build` genera el JSON y `openapi:check` evita deriva. |
+| `@asteasolutions/zod-to-openapi` | `^7.3` (futuro) | Derivación automática de componentes OpenAPI desde Zod; pendiente de adopción. Hoy los esquemas Zod se contrastan en `tests/contracts` y en la validación de respuestas. |
 | `jose` | `^6` | Firma/verificación JWT EdDSA, JWKS con `kid` para rotación (ADR-001). Sin dependencias nativas. |
 | `argon2` | `^0.4x` (`^0.45`) | Hash `argon2id` de contraseñas humanas (OWASP). Binario precompilado para linux-x64/arm64. |
 | `helmet` | `^8` | Cabeceras de seguridad (HSTS, `X-Content-Type-Options`, `Referrer-Policy`, CSP mínima para una API JSON). |
@@ -65,7 +66,7 @@
 |---|---|---|
 | Supabase (PostgreSQL gestionado) | BD fase 1 (ADR-008). Sólo Postgres + Supavisor. | prod (y opcionalmente staging) |
 | PostgreSQL 16 en VPS | BD fase 2 | prod tras migración |
-| Resend | Correo transaccional de alertas | prod (`EMAIL_TRANSPORT=resend`); dev/test usan `log` |
+| Resend | Correo transaccional de alertas | prod (`CORREO_CANAL=resend`); dev/test usan `log` |
 
 ## 6. Excluido explícitamente
 

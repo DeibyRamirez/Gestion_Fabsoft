@@ -66,7 +66,7 @@ Gestión de usuarios y roles, archivar clientes, catálogo de productos, cancela
 | `products` | staff, system, integración, cliente (sólo productos de sus suscripciones visibles) | admin | admin | ❌ |
 | `subscriptions` | staff, system; cliente sólo vía vista `portal_subscriptions` (0003); integración sólo vía vista `integration_subscriptions` con scope `subscriptions:read` y su `client_scope` (0004) | staff (costo sólo admin, trigger) | admin, system; operador salvo cancelar y salvo precio/costo (trigger `subscriptions_guard_pricing`) | ❌ |
 | `subscription_periods` | staff, system; cliente sólo vía vista `portal_subscription_periods` (0003); integración sólo vía vista `integration_subscription_periods` (0004, mismo scope y alcance) | staff | staff (trigger de inmutabilidad) | ❌ |
-| `renewal_requests` | staff, system, cliente propio, integración en alcance | staff, cliente propio, integración en alcance (siempre `pending_review`) | staff, system | ❌ |
+| `renewal_requests` | staff, system, cliente propio, integración en alcance | staff, cliente propio, integración en alcance (siempre `pendiente_revision`) | staff, system | ❌ |
 | `tasks` | staff, system, integración en alcance | staff, system | staff, system | ❌ |
 | `notifications` | staff, system | staff, system | staff, system | ❌ |
 | `alert_rules` | staff, system | admin | admin | ❌ |

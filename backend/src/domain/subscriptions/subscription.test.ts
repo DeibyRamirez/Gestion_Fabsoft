@@ -9,7 +9,7 @@ describe('resolveSubscription', () => {
       priceAmount: 100_000,
     });
     expect(result.currentPeriodEnd).toBe('2026-11-30');
-    expect(result.status).toBe('pending_activation');
+    expect(result.status).toBe('pendiente_activacion');
     expect(result.customCycleMonths).toBeNull();
   });
 

@@ -30,10 +30,27 @@ const EnvSchema = z
     JWT_ACTIVE_KID: z.string().default('dev'),
     JWT_ISSUER: z.string().default('fabsoft-api'),
     JWT_AUDIENCE: z.string().default('fabsoft-web'),
+    /** API keys de integraciones: HMAC-SHA256 con pepper; obligatorio en staging/prod. */
+    API_KEY_PEPPER: z.preprocess(
+      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+      z.string().min(32).optional(),
+    ),
+    API_KEY_PEPPER_PREVIOUS: z.preprocess(
+      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+      z.string().min(32).optional(),
+    ),
+    API_KEY_ENV: z.enum(['live', 'test']).default('test'),
     ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(14),
     CORS_ALLOWED_ORIGINS: csv,
     COOKIE_DOMAIN: z.string().optional(),
+    /** Anti-abuso del login. Los límites por IP/cuenta se aplican en ventanas de 60 s. */
+    LOGIN_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(20),
+    LOGIN_RATE_LIMIT_PER_EMAIL: z.coerce.number().int().positive().default(5),
+    /** Tras N fallos (401) desde la misma IP en la ventana, se bloquea la IP. */
+    LOGIN_IP_FAILURE_THRESHOLD: z.coerce.number().int().positive().default(10),
+    LOGIN_IP_FAILURE_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
+    LOGIN_IP_BLOCK_MINUTES: z.coerce.number().int().positive().default(15),
   })
   .superRefine((env, ctx) => {
     if (
@@ -52,6 +69,7 @@ const EnvSchema = z
         'WORKER_DATABASE_URL',
         'JWT_PRIVATE_KEY',
         'JWT_PUBLIC_KEYS',
+        'API_KEY_PEPPER',
       ] as const) {
         if (!env[key])
           ctx.addIssue({
@@ -59,6 +77,13 @@ const EnvSchema = z
             path: [key],
             message: `${key} es obligatoria en ${env.APP_ENV}`,
           });
+      }
+      if (env.APP_ENV === 'prod' && env.API_KEY_ENV !== 'live') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['API_KEY_ENV'],
+          message: 'API_KEY_ENV debe ser live en producción',
+        });
       }
     }
   });

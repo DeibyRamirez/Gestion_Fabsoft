@@ -32,7 +32,7 @@ export const ClientCreateSchema = z
     email: z.union([z.string().trim().email(), z.null()]).optional(),
     phone: z.union([z.string().trim().max(30), z.null()]).optional(),
     ownerUserId: z.union([z.string().uuid(), z.null()]).optional(),
-    status: z.enum(['active', 'inactive']).default('active'),
+    status: z.enum(['activo', 'inactivo']).default('activo'),
   })
   .strict();
 export type ClientCreateInput = z.infer<typeof ClientCreateSchema>;
@@ -44,7 +44,7 @@ export const ClientUpdateSchema = z
     email: z.union([z.string().trim().email(), z.null()]).optional(),
     phone: z.union([z.string().trim().max(30), z.null()]).optional(),
     ownerUserId: z.union([z.string().uuid(), z.null()]).optional(),
-    status: z.enum(['active', 'inactive']).optional(),
+    status: z.enum(['activo', 'inactivo']).optional(),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: 'Se requiere al menos un campo' });
@@ -65,7 +65,7 @@ export type ClientPage = z.infer<typeof ClientPageSchema>;
 
 const csvClientStatus = z
   .string()
-  .default('active,inactive')
+  .default('activo,inactivo')
   .transform((s) =>
     s
       .split(',')

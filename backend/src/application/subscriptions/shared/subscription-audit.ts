@@ -1,4 +1,5 @@
 import type { SubscriptionView } from './subscription-view.js';
+import type { SubscriptionPeriodView } from './subscription-view.js';
 
 export const subscriptionAuditSnapshot = (s: SubscriptionView) => ({
   clientId: s.clientId,
@@ -17,4 +18,16 @@ export const subscriptionAuditSnapshot = (s: SubscriptionView) => ({
   ownerUserId: s.ownerUserId,
   notes: s.notes,
   version: s.version,
+});
+
+export const subscriptionPeriodAuditSnapshot = (p: SubscriptionPeriodView) => ({
+  periodNumber: p.periodNumber,
+  startDate: p.startDate,
+  endDate: p.endDate,
+  billingCycle: p.billingCycle,
+  priceAmount: p.priceAmount,
+  renewalOutcome: p.renewalOutcome,
+  outcomeReason: p.outcomeReason,
+  paymentStatus: p.paymentStatus,
+  contractReference: p.contractReference,
 });

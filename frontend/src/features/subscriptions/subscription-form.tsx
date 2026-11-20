@@ -10,17 +10,22 @@ import {
   type SubscriptionDetailDto,
 } from '@fabsoft/shared';
 import { ApiError, apiFetch } from '@/shared/api/client';
+import { FormField } from '@/shared/components/form-field';
+import { FormActions, FormGrid } from '@/shared/components/form-layout';
+import { BILLING_CYCLE_LABELS } from '@/shared/lib/labels';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
-import { Label } from '@/shared/ui/label';
-
-const selectClassName =
-  'flex h-10 w-full rounded-md border border-border-input bg-bg px-3 py-2 text-sm text-fg shadow-sm focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2';
+import { nativeSelectClassName } from '@/shared/ui/native-select';
 
 type Props = {
   token: string | null;
   onCreated?: (subscription: SubscriptionDetailDto) => void;
 };
+
+const BILLING_CYCLES = Object.entries(BILLING_CYCLE_LABELS) as [
+  keyof typeof BILLING_CYCLE_LABELS,
+  string,
+][];
 
 export function SubscriptionForm({ token, onCreated }: Props) {
   const [clients, setClients] = useState<ClientDto[]>([]);
@@ -32,13 +37,13 @@ export function SubscriptionForm({ token, onCreated }: Props) {
   useEffect(() => {
     let alive = true;
     Promise.all([
-      apiFetch<ClientPage>('/clients?pageSize=100&status=active', { token }),
-      apiFetch<ProductPage>('/products?pageSize=100&status=active', { token }),
+      apiFetch<ClientPage>('/clients?pageSize=100&status=activo', { token }),
+      apiFetch<ProductPage>('/products?pageSize=100&status=activo', { token }),
     ])
       .then(([clientPage, productPage]) => {
         if (!alive) return;
-        setClients(clientPage.data.filter((c) => c.status === 'active'));
-        setProducts(productPage.data.filter((p) => p.status === 'active'));
+        setClients(clientPage.data.filter((c) => c.status === 'activo'));
+        setProducts(productPage.data.filter((p) => p.status === 'activo'));
       })
       .catch(() => {
         if (alive) setMessage('No se pudieron cargar clientes o productos.');
@@ -88,77 +93,72 @@ export function SubscriptionForm({ token, onCreated }: Props) {
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
+    <form onSubmit={submit}>
       {message ? (
-        <p role="status" className="md:col-span-2 text-sm">
+        <p role="status" className="mb-4 text-sm text-fg-muted">
           {message}
         </p>
       ) : null}
-      <div className="grid gap-2">
-        <Label htmlFor="clientId">Cliente activo</Label>
-        <select id="clientId" name="clientId" required className={selectClassName}>
-          <option value="">Seleccione…</option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.legalName}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="productId">Producto activo</Label>
-        <select id="productId" name="productId" required className={selectClassName}>
-          <option value="">Seleccione…</option>
-          {products.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="startDate">Fecha de inicio</Label>
-        <Input id="startDate" name="startDate" type="date" required />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="billingCycle">Periodicidad</Label>
-        <select
-          id="billingCycle"
-          name="billingCycle"
-          value={billingCycle}
-          onChange={(e) => setBillingCycle(e.target.value)}
-          className={selectClassName}
-        >
-          <option value="monthly">Mensual</option>
-          <option value="quarterly">Trimestral</option>
-          <option value="semiannual">Semestral</option>
-          <option value="annual">Anual</option>
-          <option value="biennial">Bienal</option>
-          <option value="custom">Personalizado</option>
-        </select>
-      </div>
-      {billingCycle === 'custom' ? (
-        <div className="grid gap-2">
-          <Label htmlFor="customCycleMonths">Meses (1–120)</Label>
-          <Input
-            id="customCycleMonths"
-            name="customCycleMonths"
-            type="number"
-            min={1}
-            max={120}
-            required
-          />
-        </div>
-      ) : null}
-      <div className="grid gap-2">
-        <Label htmlFor="priceAmount">Precio (COP)</Label>
-        <Input id="priceAmount" name="priceAmount" type="number" min={0} step="0.01" required />
-      </div>
-      <div className="md:col-span-2">
+      <FormGrid>
+        <FormField label="Cliente activo" htmlFor="clientId">
+          <select id="clientId" name="clientId" required className={nativeSelectClassName}>
+            <option value="">Seleccione…</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.legalName}
+              </option>
+            ))}
+          </select>
+        </FormField>
+        <FormField label="Producto activo" htmlFor="productId">
+          <select id="productId" name="productId" required className={nativeSelectClassName}>
+            <option value="">Seleccione…</option>
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </FormField>
+        <FormField label="Fecha de inicio" htmlFor="startDate">
+          <Input id="startDate" name="startDate" type="date" required />
+        </FormField>
+        <FormField label="Periodicidad" htmlFor="billingCycle">
+          <select
+            id="billingCycle"
+            name="billingCycle"
+            value={billingCycle}
+            onChange={(e) => setBillingCycle(e.target.value)}
+            className={nativeSelectClassName}
+          >
+            {BILLING_CYCLES.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </FormField>
+        {billingCycle === 'custom' ? (
+          <FormField label="Meses (1–120)" htmlFor="customCycleMonths">
+            <Input
+              id="customCycleMonths"
+              name="customCycleMonths"
+              type="number"
+              min={1}
+              max={120}
+              required
+            />
+          </FormField>
+        ) : null}
+        <FormField label="Precio (COP)" htmlFor="priceAmount">
+          <Input id="priceAmount" name="priceAmount" type="number" min={0} step="0.01" required />
+        </FormField>
+      </FormGrid>
+      <FormActions className="mt-5">
         <Button type="submit" disabled={pending}>
           Crear suscripción
         </Button>
-      </div>
+      </FormActions>
     </form>
   );
 }

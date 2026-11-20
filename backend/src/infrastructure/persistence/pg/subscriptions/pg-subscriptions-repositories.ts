@@ -14,6 +14,19 @@ import type { CancelSubscriptionRepository } from '../../../../application/subsc
 import type { ListSubscriptionPeriodsQuery } from '../../../../application/subscriptions/list-subscription-periods/ports.js';
 import type { RenewSubscriptionRepository } from '../../../../application/subscriptions/renew-subscription/ports.js';
 import type { RenewSubscriptionParams } from '../../../../application/subscriptions/renew-subscription/ports.js';
+import type { StartRenewalRepository } from '../../../../application/subscriptions/start-renewal/ports.js';
+import type {
+  MarkNotRenewedParams,
+  MarkNotRenewedRepository,
+} from '../../../../application/subscriptions/mark-not-renewed/ports.js';
+import type {
+  CorrectExpirationParams,
+  CorrectExpirationRepository,
+} from '../../../../application/subscriptions/correct-expiration/ports.js';
+import type {
+  PeriodPaymentPatch,
+  UpdatePeriodPaymentRepository,
+} from '../../../../application/subscriptions/update-period-payment/ports.js';
 import type {
   SubscriptionPeriodView,
   SubscriptionView,
@@ -218,6 +231,14 @@ export class PgListSubscriptionsQuery implements ListSubscriptionsQuery {
       values.push(q.followUpStatus);
       where.push(`s.follow_up_status = $${values.length}::app.follow_up_status`);
     }
+    if (q.expiresFrom) {
+      values.push(q.expiresFrom);
+      where.push(`s.current_period_end >= $${values.length}::date`);
+    }
+    if (q.expiresTo) {
+      values.push(q.expiresTo);
+      where.push(`s.current_period_end <= $${values.length}::date`);
+    }
     const filter = where.length ? `where ${where.join(' and ')}` : '';
     const count = await this.tx.query<{ n: string }>(
       `select count(*)::text as n ${SUBSCRIPTION_JOINS} ${filter}`,
@@ -268,7 +289,7 @@ export class PgCreateSubscriptionRepository implements CreateSubscriptionReposit
          (subscription_id, period_number, start_date, end_date, billing_cycle,
           custom_cycle_months, price_amount, currency, payment_status, renewal_outcome,
           contract_reference, created_by)
-       values ($1, $2, $3, $4, $5, $6, $7, 'COP', $8, 'pending', $9, $10)`,
+       values ($1, $2, $3, $4, $5, $6, $7, 'COP', $8, 'pendiente', $9, $10)`,
       [
         id,
         r.initialPeriod.periodNumber,
@@ -300,7 +321,7 @@ export class PgActivateSubscriptionRepository implements ActivateSubscriptionRep
   ): Promise<SubscriptionView | null> {
     const { rowCount } = await this.tx.query(
       `update app.subscriptions
-          set status = 'active', version = version + 1, updated_by = $2
+          set status = 'activa', version = version + 1, updated_by = $2
         where id = $1 and version = $3`,
       [id, updatedBy, expectedVersion],
     );
@@ -366,7 +387,7 @@ export class PgCancelSubscriptionRepository implements CancelSubscriptionReposit
   ): Promise<SubscriptionView | null> {
     const { rowCount } = await this.tx.query(
       `update app.subscriptions
-          set status = 'cancelled', cancelled_at = $2, cancellation_reason = $3,
+          set status = 'cancelada', cancelled_at = $2, cancellation_reason = $3,
               version = version + 1, updated_by = $4
         where id = $1 and version = $5`,
       [id, cancelledAt, reason, updatedBy, expectedVersion],
@@ -445,7 +466,8 @@ export class PgRenewSubscriptionRepository implements RenewSubscriptionRepositor
   ): Promise<SubscriptionView | null> {
     const { rowCount } = await this.tx.query(
       `update app.subscriptions
-          set current_period_end = $2, status = 'active', version = version + 1, updated_by = $3
+          set current_period_end = $2, status = 'activa', follow_up_status = 'sin_gestion',
+              version = version + 1, updated_by = $3
         where id = $1 and version = $4`,
       [id, p.endDate, updatedBy, expectedVersion],
     );
@@ -459,7 +481,8 @@ export class PgRenewSubscriptionRepository implements RenewSubscriptionRepositor
     if (previous > 0) {
       await this.tx.query(
         `update app.subscription_periods
-            set renewal_outcome = 'renewed', confirmed_at = $2, confirmed_by = $3
+            set renewal_outcome = 'renovada', outcome_reason = null,
+                confirmed_at = $2, confirmed_by = $3
           where subscription_id = $1 and period_number = $4`,
         [id, p.confirmedAt, updatedBy, previous],
       );
@@ -469,7 +492,7 @@ export class PgRenewSubscriptionRepository implements RenewSubscriptionRepositor
          (subscription_id, period_number, start_date, end_date, billing_cycle,
           custom_cycle_months, price_amount, currency, supplier_cost_amount,
           payment_status, renewal_outcome, contract_reference, created_by)
-       values ($1, $2, $3, $4, $5, $6, $7, 'COP', $8, $9, 'pending', $10, $11)`,
+       values ($1, $2, $3, $4, $5, $6, $7, 'COP', $8, $9, 'pendiente', $10, $11)`,
       [
         id,
         previous + 1,
@@ -485,5 +508,131 @@ export class PgRenewSubscriptionRepository implements RenewSubscriptionRepositor
       ],
     );
     return loadView(this.tx, id);
+  }
+}
+
+export class PgStartRenewalRepository implements StartRenewalRepository {
+  constructor(private readonly tx: Tx) {}
+  loadForUpdate(id: string): Promise<SubscriptionView | null> {
+    return loadView(this.tx, id);
+  }
+  async startRenewal(
+    id: string,
+    expectedVersion: number,
+    updatedBy: string,
+  ): Promise<SubscriptionView | null> {
+    const { rowCount } = await this.tx.query(
+      `update app.subscriptions
+          set status = 'en_renovacion', follow_up_status = 'en_gestion',
+              version = version + 1, updated_by = $2
+        where id = $1 and version = $3`,
+      [id, updatedBy, expectedVersion],
+    );
+    return rowCount === 1 ? loadView(this.tx, id) : null;
+  }
+}
+
+export class PgMarkNotRenewedRepository implements MarkNotRenewedRepository {
+  constructor(private readonly tx: Tx) {}
+  loadForUpdate(id: string): Promise<SubscriptionView | null> {
+    return loadView(this.tx, id);
+  }
+  async markNotRenewed(
+    id: string,
+    expectedVersion: number,
+    p: MarkNotRenewedParams,
+    updatedBy: string,
+  ): Promise<SubscriptionView | null> {
+    const { rowCount } = await this.tx.query(
+      `update app.subscriptions
+          set status = coalesce($2::app.subscription_status, status),
+              follow_up_status = 'cerrado', version = version + 1, updated_by = $3
+        where id = $1 and version = $4`,
+      [id, p.immediateStatus, updatedBy, expectedVersion],
+    );
+    if (rowCount !== 1) return null;
+
+    const period = await this.tx.query(
+      `update app.subscription_periods
+          set renewal_outcome = 'no_renovada', outcome_reason = $3,
+              confirmed_at = $4, confirmed_by = $5
+        where id = $1 and subscription_id = $2`,
+      [p.periodId, id, p.reason, p.confirmedAt, updatedBy],
+    );
+    if (period.rowCount !== 1) return null;
+    return loadView(this.tx, id);
+  }
+}
+
+export class PgCorrectExpirationRepository implements CorrectExpirationRepository {
+  constructor(private readonly tx: Tx) {}
+  loadForUpdate(id: string): Promise<SubscriptionView | null> {
+    return loadView(this.tx, id);
+  }
+  async correctExpiration(
+    id: string,
+    expectedVersion: number,
+    p: CorrectExpirationParams,
+    updatedBy: string,
+  ): Promise<SubscriptionView | null> {
+    const { rowCount } = await this.tx.query(
+      `update app.subscriptions
+          set current_period_end = $2, version = version + 1, updated_by = $3
+        where id = $1 and version = $4`,
+      [id, p.newCurrentPeriodEnd, updatedBy, expectedVersion],
+    );
+    if (rowCount !== 1) return null;
+
+    const period = await this.tx.query(
+      `update app.subscription_periods
+          set end_date = $3
+        where id = $1 and subscription_id = $2`,
+      [p.periodId, id, p.newCurrentPeriodEnd],
+    );
+    if (period.rowCount !== 1) return null;
+    return loadView(this.tx, id);
+  }
+}
+
+export class PgUpdatePeriodPaymentRepository implements UpdatePeriodPaymentRepository {
+  constructor(private readonly tx: Tx) {}
+  async loadPeriodForUpdate(
+    subscriptionId: string,
+    periodId: string,
+  ): Promise<SubscriptionPeriodView | null> {
+    const { rows } = await this.tx.query<PeriodRow>(
+      `${PERIOD_SELECT} where sp.id = $1 and sp.subscription_id = $2 for update of sp`,
+      [periodId, subscriptionId],
+    );
+    return rows[0] ? toPeriodView(rows[0]) : null;
+  }
+  async updatePayment(
+    subscriptionId: string,
+    periodId: string,
+    p: PeriodPaymentPatch,
+    _updatedBy: string,
+  ): Promise<SubscriptionPeriodView | null> {
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    const set = (column: string, value: unknown) => {
+      values.push(value);
+      sets.push(`${column} = $${values.length}`);
+    };
+    if (p.paymentStatus !== undefined) set('payment_status', p.paymentStatus);
+    if (p.contractReference !== undefined) set('contract_reference', p.contractReference);
+    if (sets.length === 0) return this.loadPeriodForUpdate(subscriptionId, periodId);
+
+    values.push(periodId);
+    const idParam = values.length;
+    values.push(subscriptionId);
+    const subParam = values.length;
+    const { rowCount } = await this.tx.query(
+      `update app.subscription_periods
+          set ${sets.join(', ')}
+        where id = $${idParam} and subscription_id = $${subParam}`,
+      values,
+    );
+    if (rowCount !== 1) return null;
+    return this.loadPeriodForUpdate(subscriptionId, periodId);
   }
 }

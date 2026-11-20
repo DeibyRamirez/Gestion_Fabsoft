@@ -56,21 +56,21 @@
   - `T-RN04-03` (integración/BD) insertar periodo solapado ⇒ error `23P01`.
 
 ### RN-05 — Una solicitud de renovación no equivale a una renovación confirmada
-- **Cumplimiento:** `renewal_requests` es entidad separada; crearla no cambia `subscriptions.status`, `current_period_end` ni periodos. `resolve` con `renewed` exige periodo renovado confirmado posterior a la solicitud (`422 renewal_not_confirmed`).
+- **Cumplimiento:** `renewal_requests` es entidad separada; crearla no cambia `subscriptions.status`, `current_period_end` ni periodos. `resolve` con `renovada` exige periodo renovado confirmado posterior a la solicitud (`422 renewal_not_confirmed`).
 - **Tests:**
-  - `T-RN05-01` (integración) crear solicitud desde portal: suscripción y periodos sin cambios; solicitud `pending_review`; el worker crea tarea `review_renewal_request`.
-  - `T-RN05-02` (unit) resolver `renewed` sin renovación ⇒ `renewal_not_confirmed`.
+  - `T-RN05-01` (integración) crear solicitud desde portal: suscripción y periodos sin cambios; solicitud `pendiente_revision`; el proceso de sistema crea tarea `review_renewal_request`.
+  - `T-RN05-02` (unit) resolver `renovada` sin renovación ⇒ `renewal_not_confirmed`.
 
 ### RN-06 — Una renovación confirmada no implica pago recibido
-- **Cumplimiento:** nuevo periodo con `payment_status='pending'` (o `not_tracked`); `RenewInput.newPeriod.paymentStatus` no admite `received`; sólo `PATCH .../periods/{periodId}` cambia el pago.
+- **Cumplimiento:** nuevo periodo con `payment_status='pendiente'` (o `sin_seguimiento`); `RenewInput.newPeriod.paymentStatus` no admite `recibido`; sólo `PATCH .../periods/{periodId}` cambia el pago.
 - **Tests:**
-  - `T-RN06-01` (unit) `renew()` nunca produce `received`.
-  - `T-RN06-02` (API) `POST /subscriptions/{id}/renew` con `paymentStatus: "received"` ⇒ `400`.
+  - `T-RN06-01` (unit) `renew()` nunca produce `recibido`.
+  - `T-RN06-02` (API) `POST /subscriptions/{id}/renew` con `paymentStatus: "recibido"` ⇒ `400`.
 
 ### RN-07 — Vigencia, pago y seguimiento se modelan por separado
 - **Cumplimiento:** `subscriptions.status` (vigencia), `subscription_periods.payment_status` (pago), `subscriptions.follow_up_status` + `renewal_outcome` + `renewal_requests.status` (seguimiento). El job de vencimiento no lee pago; cambiar el pago no cambia vigencia.
 - **Tests:**
-  - `T-RN07-01` (integración) marcar pago `received` en una suscripción vencida no la reactiva; vencer una con pago `pending` no altera el pago.
+  - `T-RN07-01` (integración) marcar pago `recibido` en una suscripción vencida no la reactiva; vencer una con pago `pendiente` no altera el pago.
   - `T-RN07-02` (unit) la máquina de estados de vigencia no tiene entradas dependientes del pago.
 
 ### RN-08 — Alertas idempotentes
@@ -83,16 +83,16 @@
 ### RN-09 — Al modificar fechas, periodicidad o estado se revisan alertas y tareas
 - **Cumplimiento:** `CorrectExpiration`, `RenewSubscription`, `CancelSubscription`, `MarkNotRenewed`, `UpdateSubscription` (`isRenewable`) invocan `AlertSchedulingRepository.cancelPendingForPeriod` + `scheduleForPeriod` y `RenewalTaskRepository.closeOrCancelAutoTasks` en la misma transacción.
 - **Tests:**
-  - `T-RN09-01` (integración) corregir vencimiento: alertas `pending` del antiguo `period_end` ⇒ `cancelled` (`period_end_changed`); nuevas creadas para la nueva fecha.
+  - `T-RN09-01` (integración) corregir vencimiento: alertas `pendiente` del antiguo `period_end` ⇒ `cancelada` (`period_end_changed`); nuevas creadas para la nueva fecha.
   - `T-RN09-02` (integración) renovar: tareas automáticas abiertas del periodo anterior cerradas y solicitudes abiertas resueltas.
-  - `T-RN09-03` (integración) cancelar: todas las alertas pendientes `cancelled` y tareas abiertas `cancelled`.
+  - `T-RN09-03` (integración) cancelar: todas las alertas pendientes `cancelada` y tareas abiertas `cancelada`.
 
 ### RN-10 — Canceladas o no renovables no generan alertas de renovación (salvo excepción)
-- **Cumplimiento:** el planificador excluye `status IN ('cancelled','not_renewed')` siempre, y `is_renewable=false` o `renewal_outcome='not_renewed'` salvo reglas con `applies_when_not_renewable=true`; el dispatcher revalida antes de enviar.
+- **Cumplimiento:** el planificador excluye `status IN ('cancelada','no_renovada')` siempre, y `is_renewable=false` o `renewal_outcome='no_renovada'` salvo reglas con `applies_when_not_renewable=true`; el dispatcher revalida antes de enviar.
 - **Tests:**
   - `T-RN10-01` (integración) suscripción cancelada ⇒ 0 notificaciones nuevas en reconcile.
   - `T-RN10-02` (integración) `is_renewable=false` + regla `D0` con excepción ⇒ sólo `D0`.
-  - `T-RN10-03` (integración) notificación pendiente cuya suscripción se cancela antes de enviarse ⇒ el dispatcher la marca `cancelled`, no la envía.
+  - `T-RN10-03` (integración) notificación pendiente cuya suscripción se cancela antes de enviarse ⇒ el dispatcher la marca `cancelada`, no la envía.
 
 ### RN-11 — El cliente sólo ve su organización y los campos autorizados
 - **Cumplimiento:** rutas `/portal/*` con proyecciones `Portal*`; `clientId` siempre del contexto (nunca de la petición); RLS `client_id = app.ctx_client_id()` y `visible_in_portal`; recursos ajenos ⇒ 404.

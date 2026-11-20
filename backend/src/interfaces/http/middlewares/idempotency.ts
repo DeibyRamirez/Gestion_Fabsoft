@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { RequestHandler } from 'express';
 import type { IdempotencyService } from '../../../application/idempotency/idempotency-service.js';
 import { sendProblem } from '../problem.js';
-import { actorOf } from './authenticate.js';
+import { requestActorOf } from './authenticate.js';
 
 const KEY = /^[\x21-\x7e]{8,255}$/;
 
@@ -40,7 +40,7 @@ export function idempotency(
         'validation_error',
         'Idempotency-Key debe tener 8–255 caracteres visibles',
       );
-    const actor = actorOf(res);
+    const actor = requestActorOf(res);
     const requestHash = createHash('sha256').update(canonicalJson(req.body)).digest('hex');
     const decision = await service.begin(actor, {
       key,

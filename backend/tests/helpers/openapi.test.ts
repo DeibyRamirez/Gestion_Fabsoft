@@ -44,7 +44,7 @@ describe('OpenAPI helper — productos (AJV)', () => {
       productType: 'own',
       vendor: null,
       referenceCode: null,
-      status: 'active',
+      status: 'activo',
       createdAt: '2026-11-01T12:00:00.000Z',
       updatedAt: '2026-11-01T12:00:00.000Z',
     };

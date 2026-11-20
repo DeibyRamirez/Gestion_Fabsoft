@@ -41,6 +41,7 @@ pnpm db:roles:dev                    # LOGIN para fabsoft_app / fabsoft_worker c
 pnpm db:seed                         # datos demo (docs/seed-data.md); --reset para resembrar
 pnpm dev                # API http://localhost:4000/api/v1  +  web http://localhost:3000
 curl http://localhost:4000/api/v1/health   # {"status":"ok","version":"0.1.0"}
+# Documentación interactiva: http://localhost:4000/api/v1/docs
 ```
 
 ### Tests (HT-05)
@@ -53,7 +54,7 @@ pnpm test:integration     # integración + contratos (Postgres)
 pnpm test:api             # API *.db.test.ts
 pnpm test:coverage        # cobertura domain/application
 pnpm test:perf            # genera backend/perf-results.json
-pnpm build && pnpm db:seed && pnpm test:e2e   # Playwright smoke
+pnpm build && pnpm db:seed && pnpm test:e2e   # Playwright (reconcilia alertas en global-setup)
 ```
 
 En local, `CORS_ALLOWED_ORIGINS` en `backend/.env` debe incluir el origen del frontend (p. ej. `http://localhost:3000`), alineado con `FRONTEND_URL` y con la URL que uses en el navegador.
@@ -74,5 +75,8 @@ Producción local: `pnpm build`, luego `pnpm --filter @fabsoft/backend start` y 
 | `pnpm test` / `pnpm test:unit`                                                    | Vitest: unit + API en memoria (backend); frontend tiene sus propios tests |
 | `pnpm test:integration` / `test:api` / `test:coverage` / `test:perf` / `test:e2e` | Suites HT-05 (Postgres / cobertura / Playwright); ver arriba              |
 | `pnpm db:migrate:test`                                                            | Migraciones sobre `TEST_DATABASE_MIGRATION_URL`                           |
+| `pnpm openapi:build` / `pnpm openapi:check`                                       | Genera/verifica `docs/api/openapi.json`; UI en `/api/v1/docs`              |
+| `pnpm audit:dependencies` / `pnpm secrets:check` / `pnpm security:dast`           | Hardening HT-06: dependencias, secretos y DAST smoke                       |
+| `pnpm smoke:deploy`                                                               | Smoke post-deploy (`SMOKE_API_URL`, `SMOKE_WEB_URL`; login opcional)        |
 
 Auth (HU-01): `POST /api/v1/auth/{login,refresh,logout,change-password}`, `GET /api/v1/auth/me`, `/api/v1/users*` (sólo admin). Web: `/login`, `/change-password`, `/dashboard`, `/admin/users`, `/portal`.

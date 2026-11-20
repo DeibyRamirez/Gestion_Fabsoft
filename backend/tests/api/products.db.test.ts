@@ -55,9 +55,9 @@ describe.skipIf(!dbTestsConfigured())('Products API (Postgres)', () => {
     const patch = await request(app)
       .patch(`/api/v1/products/${id}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ status: 'inactive' });
+      .send({ status: 'inactivo' });
     expect(patch.status).toBe(200);
-    expect(patch.body.status).toBe('inactive');
+    expect(patch.body.status).toBe('inactivo');
   });
 
   it('T-HU05 — operador lee y client recibe 403 forbidden al leer', async () => {
@@ -152,14 +152,14 @@ describe.skipIf(!dbTestsConfigured())('Products API (Postgres)', () => {
     const app = await buildTestApp();
     const admin = await factories.adminUser();
     const token = await factories.tokenFor(admin);
-    await factories.product({ status: 'active' });
-    await factories.product({ status: 'inactive' });
+    await factories.product({ status: 'activo' });
+    await factories.product({ status: 'inactivo' });
 
     const res = await request(app)
-      .get('/api/v1/products?status=inactive')
+      .get('/api/v1/products?status=inactivo')
       .set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
-    expect(res.body.data.every((p: { status: string }) => p.status === 'inactive')).toBe(true);
+    expect(res.body.data.every((p: { status: string }) => p.status === 'inactivo')).toBe(true);
     expect(res.body.meta.total).toBe(1);
   });
 
@@ -167,7 +167,7 @@ describe.skipIf(!dbTestsConfigured())('Products API (Postgres)', () => {
     const app = await buildTestApp();
     const admin = await factories.adminUser();
     const token = await factories.tokenFor(admin);
-    const product = await factories.product({ type: 'own', status: 'active' });
+    const product = await factories.product({ type: 'own', status: 'activo' });
 
     const res = await request(app)
       .get(`/api/v1/products/${product.id}`)
@@ -178,7 +178,7 @@ describe.skipIf(!dbTestsConfigured())('Products API (Postgres)', () => {
       id: product.id,
       name: product.name,
       productType: 'own',
-      status: 'active',
+      status: 'activo',
     });
     expect(res.body).not.toHaveProperty('priceAmount');
     expect(res.body).not.toHaveProperty('billingCycle');

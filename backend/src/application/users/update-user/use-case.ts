@@ -37,7 +37,7 @@ export class UpdateUser {
         changes: { before: snapshot(current), after: snapshot(saved) },
         requestId: actor.requestId,
       });
-      if (saved.status === 'disabled' && current.status !== 'disabled') {
+      if (saved.status === 'deshabilitado' && current.status !== 'deshabilitado') {
         await sessions.revokeAllForUser(id, 'user_disabled');
       } else if (saved.role !== current.role) {
         await sessions.revokeAllForUser(id, 'admin');
@@ -48,7 +48,7 @@ export class UpdateUser {
 }
 
 function auditAction(before: UserView, after: UserView): AuditAction {
-  if (after.status === 'disabled' && before.status !== 'disabled') return 'user.disabled';
+  if (after.status === 'deshabilitado' && before.status !== 'deshabilitado') return 'user.disabled';
   if (after.role !== before.role) return 'user.role_changed';
   return 'user.updated';
 }

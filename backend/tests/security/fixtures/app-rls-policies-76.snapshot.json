@@ -1,6 +1,6 @@
 {
   "schema": "app",
-  "policyCount": 76,
+  "policyCount": 77,
   "policies": [
     {
       "table": "alert_rules",
@@ -66,6 +66,17 @@
       "with_check": null,
       "roles": [
         "fabsoft_app"
+      ]
+    },
+    {
+      "table": "api_credentials",
+      "polname": "api_credentials_select_audit_definer",
+      "cmd": "r",
+      "permissive": true,
+      "qual": "true",
+      "with_check": null,
+      "roles": [
+        "fabsoft_audit_definer"
       ]
     },
     {
@@ -250,7 +261,7 @@
       "cmd": "a",
       "permissive": true,
       "qual": null,
-      "with_check": "(app.is_staff() AND (status <> 'archived'::app.client_status))",
+      "with_check": "(app.is_staff() AND (status <> 'archivado'::app.client_status))",
       "roles": [
         "fabsoft_app"
       ]
@@ -282,8 +293,8 @@
       "polname": "clients_update",
       "cmd": "w",
       "permissive": true,
-      "qual": "(app.is_admin() OR (app.is_operator() AND (status <> 'archived'::app.client_status)))",
-      "with_check": "(app.is_admin() OR (app.is_operator() AND (status <> 'archived'::app.client_status)))",
+      "qual": "(app.is_admin() OR (app.is_operator() AND (status <> 'archivado'::app.client_status)))",
+      "with_check": "(app.is_admin() OR (app.is_operator() AND (status <> 'archivado'::app.client_status)))",
       "roles": [
         "fabsoft_app"
       ]
@@ -558,7 +569,7 @@
       "cmd": "a",
       "permissive": true,
       "qual": null,
-      "with_check": "((status = 'pending_review'::app.renewal_request_status) AND ((app.is_staff() AND (requested_by_user_id = app.ctx_user_id())) OR (app.is_client_user() AND (client_id = app.ctx_client_id()) AND (requested_by_user_id = app.ctx_user_id())) OR (app.integration_sees_client(client_id) AND (requested_by_integration_id = app.ctx_integration_id()))))",
+      "with_check": "((status = 'pendiente_revision'::app.renewal_request_status) AND ((app.is_staff() AND (requested_by_user_id = app.ctx_user_id())) OR (app.is_client_user() AND (client_id = app.ctx_client_id()) AND (requested_by_user_id = app.ctx_user_id())) OR (app.integration_sees_client(client_id) AND (requested_by_integration_id = app.ctx_integration_id()))))",
       "roles": [
         "fabsoft_app"
       ]
@@ -657,7 +668,7 @@
       "cmd": "a",
       "permissive": true,
       "qual": null,
-      "with_check": "(app.is_staff() AND (status = ANY (ARRAY['pending_activation'::app.subscription_status, 'active'::app.subscription_status])))",
+      "with_check": "(app.is_staff() AND (status = ANY (ARRAY['pendiente_activacion'::app.subscription_status, 'activa'::app.subscription_status])))",
       "roles": [
         "fabsoft_app"
       ]
@@ -711,8 +722,8 @@
       "polname": "subscriptions_update",
       "cmd": "w",
       "permissive": true,
-      "qual": "(app.is_admin() OR app.is_system() OR (app.is_operator() AND (status <> 'cancelled'::app.subscription_status)))",
-      "with_check": "(app.is_admin() OR app.is_system() OR (app.is_operator() AND (status <> 'cancelled'::app.subscription_status)))",
+      "qual": "(app.is_admin() OR app.is_system() OR (app.is_operator() AND (status <> 'cancelada'::app.subscription_status)))",
+      "with_check": "(app.is_admin() OR app.is_system() OR (app.is_operator() AND (status <> 'cancelada'::app.subscription_status)))",
       "roles": [
         "fabsoft_app"
       ]

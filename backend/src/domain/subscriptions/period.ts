@@ -34,8 +34,8 @@ export function buildInitialPeriod(input: InitialPeriodInput): PeriodViewLike {
     endDate: input.endDate,
     billingCycle: input.billingCycle,
     priceAmount: input.priceAmount,
-    paymentStatus: input.paymentStatus ?? 'pending',
-    renewalOutcome: 'pending',
+    paymentStatus: input.paymentStatus ?? 'pendiente',
+    renewalOutcome: 'pendiente',
   };
 }
 

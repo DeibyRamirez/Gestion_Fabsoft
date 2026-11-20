@@ -9,15 +9,15 @@ type ShellNavItemProps = {
 };
 
 export function ShellNavItem({ item, active, onNavigate }: ShellNavItemProps) {
+  const Icon = item.icon;
   const baseClass =
-    'relative flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors';
+    'relative flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-[transform,background-color,color] duration-150';
 
   if (!item.implemented) {
+    // El textContent debe seguir siendo exactamente «<label> · Próximamente».
     return (
-      <span
-        aria-disabled="true"
-        className={cn(baseClass, 'cursor-not-allowed text-fg-muted opacity-60')}
-      >
+      <span aria-disabled="true" className={cn(baseClass, 'cursor-not-allowed text-fg-muted/60')}>
+        <Icon aria-hidden className="size-[18px] shrink-0" />
         {item.label} · Próximamente
       </span>
     );
@@ -29,12 +29,13 @@ export function ShellNavItem({ item, active, onNavigate }: ShellNavItemProps) {
       className={cn(
         baseClass,
         active
-          ? 'bg-nav-active-bg text-primary before:absolute before:top-1.5 before:bottom-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary'
-          : 'text-fg-muted hover:bg-nav-active-bg/60 hover:text-fg',
+          ? 'bg-night font-semibold text-white shadow-nav-active'
+          : 'text-fg-muted hover:bg-bg hover:text-fg',
       )}
       aria-current={active ? 'page' : undefined}
       {...(onNavigate ? { onClick: onNavigate } : {})}
     >
+      <Icon aria-hidden className="size-[18px] shrink-0" />
       {item.label}
     </Link>
   );

@@ -4,7 +4,7 @@ Backlog de construcción. Un corte a la vez. Estados: `hecho`, `en curso`, `pend
 
 Al cerrar un corte: cambiar su estado aquí y añadir una línea en la bitácora de [`memory.md`](memory.md). Cada ítem dice el resultado observable. El diseño está en `docs/`; no se amplía el alcance desde esta lista.
 
-El siguiente corte de producto es clientes. No abrir suscripciones antes de cerrarlo.
+El corte activo es Sprint 2 (renovaciones, tareas y alertas). El detalle por bloques está abajo; los ítems de `Pendiente` siguen siendo el backlog de producto.
 
 ## Hecho
 
@@ -18,18 +18,43 @@ El siguiente corte de producto es clientes. No abrir suscripciones antes de cerr
 - **Auditoría (HU-08)** — `hecho`. `GET /api/v1/audit-logs` (admin, con before/after vía `app.audit_log_changes_for_reader`), pantalla `/admin/audit` con filtros y detalle before/after, y `GET /api/v1/clients/{id}/activity` (admin/operator, sin before/after, con `summary`) visible en la ficha del cliente; auditoría append-only y tests unit/API/integración/E2E.
 - **Idempotencia y RLS** — `hecho`. Middleware de idempotencia HTTP y contexto RLS por transacción en la API.
 - **Sistema de diseño (HU-02)** — `hecho`. Tailwind CSS 4 + tokens en `globals.css`, shadcn/ui en `src/shared/ui`, `AppShell` / `PortalShell`, skip link y pantallas existentes estilizadas (login, cambio de contraseña, panel, usuarios, portal).
+- **Seguridad de login** — `hecho`. Rate limit configurable por IP y por IP+email, bloqueo temporal de IP tras fallos 401, botón mostrar/ocultar contraseña y prueba de inyección SQL con consultas parametrizadas.
+- **Estados de negocio en español** — `hecho` (2026-11-19). Migración `0007` renombra los valores de los 12 enums de estado y recrea función/policies; API, frontend, seed, tests, OpenAPI y docs usan los valores en español. Los nombres técnicos (tipos, columnas, campos, roles, ciclos, canales, scopes, motivos y acciones de auditoría) siguen en inglés. Cambio breaking: `status=active` pasa a `status=activa`.
+
+## Sprint 2 — en curso
+
+Orden por dependencias. Un bloque se cierra con código, tests y esta lista actualizada. Contexto y decisiones en [`memory.md`](memory.md).
+
+- **Bloque 0 — Base** — `hecho`. `pg-boss` 9; esquemas Zod compartidos (tareas, notificaciones, reglas, solicitudes, dashboard); enums y auditoría; `worker-env` con `CORREO_CANAL`, `RESEND_API_KEY`, `CORREO_DESDE`, `RESEND_MAX_RPS`; `.env.example` y docs.
+- **Bloque 1 — HU-09.2 + acciones de renovación** — `hecho`. `POST /start-renewal`, `POST /not-renewed`, `POST /correct-expiration`, `PATCH /periods/{periodId}`; renovación devuelve seguimiento a `none`; UI con acciones y pago por periodo; unit/API/DB guard tests RN-03/RN-04/RN-06/RN-07. Verificado en Postgres 18 temporal: 17 API + 3 integración en verde.
+- **Bloque 2 — HU-11.1 motor de alertas** — `hecho`. Programación en la misma transacción (activar, renovar, corregir, no renovar, cancelar y `isRenewable`), dedupe RN-08, elegibilidad RN-10, destinatario responsable→cliente→admins y cancelación de reglas inactivas; `ReconcileAlerts` + CLI `pnpm alerts:reconcile`. Tests unitarios y 8 de integración RN-08/RN-09/RN-10 en verde.
+- **Bloque 3 — HU-10 tareas** — `hecho`. `/api/v1/renewal-tasks` (list con filtros, create idempotente, get, PATCH, complete/cancel), UI `/tasks` y `/tasks/[taskId]`, tareas automáticas desde reglas (dedupe, vencimiento y asignación), cierre al renovar/corregir/no renovar/cancelar y resolución de solicitudes al renovar. API 4 + integración 8 en verde.
+- **Bloque 4 — HU-11.2 worker + Resend + notificaciones** — `hecho`. Worker pg-boss con `subscriptions.expire`, `alerts.reconcile`, `notifications.dispatch` (SKIP LOCKED, backoff, revalidación RN-10) y `maintenance.cleanup`; instalador `db:pgboss:install`; adaptador Resend (`fetch`, rate limit, 429/5xx) y log; `/api/v1/notifications` + bandeja `/notifications`. API 3 + integración worker 5 en verde.
+- **Bloque 5 — HU-12 dashboard** — `hecho`. `/api/v1/dashboard/summary` (9 KPIs) y `/activity`; `/dashboard` con tarjetas navegables, “Mis tareas de hoy” y actividad; filtros `expiresFrom/expiresTo` en suscripciones; lista read-only `/renewal-requests`.
+- **Bloque 6 — HU-13 umbrales** — `hecho`. `/api/v1/alert-rules` (lectura) y `PATCH /alert-rules/{id}` (admin), `/admin/alert-rules`; umbrales/canales/tareas, validación de offset único y auditoría. La plantilla de correo sigue fija (decisión de `docs/`).
+- **Bloque 7 — Cierre** — `pendiente`. Tests de contrato/integración/E2E, CI verde y handoff de despliegue Render/Vercel/Neon (proxy `/api/v1` en Vercel, seed cloud por dump).
+
+## Sprint 3 — en curso
+
+- **Bloque 1 — Portal del cliente (HU-14)** — `hecho`. `/api/v1/portal/*`, `/portal` con suscripciones, detalle, periodos, solicitud y contacto; `CreateRenewalRequest` + tarea/notificaciones idempotentes; tests RN-05/RN-11 y frontend.
+- **Bloque 2 — API keys e integraciones (HU-15.1)** — `hecho`. Manifest validado, CRUD de integraciones, credenciales HMAC con pepper y máximo 2 activas, `authenticateApiKey`/`requireScope`, `/api/v1/integrations/*` y `/admin/integrations`; migración `0008_audit_api_credential.sql` para auditoría de API credentials.
+- **Bloque 3 — API pública v1 y rate limiting (HU-15.2)** — `hecho`. Endpoints de integración con `X-Api-Key`, scopes, alcance `own/all`, proyecciones sin datos internos, idempotencia de integración, `POST /renewal-requests` y rate limit por manifest; `GET /subscriptions/expiring` también para humanos.
+- **Bloque 4 — OpenAPI navegable (HT-09)** — `hecho`. `docs/api/openapi.json` generado desde el YAML (`openapi:build`/`openapi:check`), Swagger UI en `GET /api/v1/docs` con assets locales, `GET /api/v1/docs/openapi.json`, operaciones pendientes marcadas `x-implementation-status`, cobertura automática de rutas Express vs OpenAPI y test de sincronía JSON/YAML. Añadido `GET /api/v1/renewal-requests/{id}` humano para completar el contrato.
+- **Bloque 5 — E2E críticos (HT-07)** — `hecho`. Flujos de roles, alta→suscripción→renovación, alerta, portal y API key con Playwright; `global-setup` reconcilia alertas, suite serializada por la cookie de refresh rotativa y correcciones de autenticación/selectores. 40 tests E2E en verde.
+- **Bloque 6 — Hardening de seguridad (HT-06)** — `hecho`. CSP/HSTS estrictos en API y frontend (Swagger con CSP propia), `payload_too_large` 413, `pnpm audit:dependencies` con riesgos aceptados, `pnpm secrets:check`, Dependabot, DAST smoke (`pnpm security:dast` + test E2E) y revisión RLS; documentado en `docs/security/hardening.md`.
+- **Bloque 7 — Despliegue y migración VPS (HT-08)** — `hecho`. Dockerfiles multi-stage (runtime/tools), `docker-compose.prod.yml` con Caddy/Postgres interno, pipeline GHCR + SSH (`.github/workflows/deploy.yml`), migraciones/pg-boss, smoke `pnpm smoke:deploy` + DAST, backups y guía `docs/migracion-vps.md`; validado localmente con imágenes reales y compose.
 
 ## Pendiente
 
 - **Clientes (notas/actividad)** — `pendiente`. Subrecursos `/notes` y `/activity` y portal con datos. El CRUD base (HU-03) y los contactos (HU-04) ya están hechos.
-- **Suscripciones** — `hecho` (HU-06.1/06.2/07). Dominio (`LocalDate`, ciclo, máquina de estados, periodo inmutable), API `GET/POST /api/v1/subscriptions`, `GET/PATCH /{id}`, `/{id}/activate`, `/{id}/cancel` (admin), `/{id}/renew`, `GET /{id}/periods`; idempotencia, versión optimista, `?productId`, RBAC; web `/subscriptions*` con historial de periodos y acción Renovar. Faltan las acciones de Sprint 2 (`start-renewal`, `not-renewed`, `correct-expiration`), pago manual y tests de integración RN-04…RN-07.
-- **Solicitudes y tareas** — `pendiente`. Crear y resolver solicitudes; tareas de renovación asignables. `/api/v1/renewal-requests` y `/api/v1/renewal-tasks`. Pantallas `/renewal-requests` y `/tasks`.
-- **Alertas y worker** — `pendiente`. Reglas D30, D15, D7, D1, D0 y POST1; notificaciones in-app y correo. Proceso worker pg-boss (ADR-005). `/api/v1/notifications`, `/api/v1/alert-rules`. Pantallas `/notifications` y `/admin/alert-rules`. Tests RN-08…RN-10.
-- **Dashboard y portal** — `pendiente`. KPIs y actividad en `/dashboard` (`/api/v1/dashboard/summary` y `/activity`). Portal con suscripciones, solicitud de renovación y contacto (`/api/v1/portal/*`, pantallas bajo `/portal`). RN-11.
+- **Suscripciones** — `hecho` (HU-06.1/06.2/07 + HU-09.2). Dominio (`LocalDate`, ciclo, máquina de estados, periodo inmutable), API `GET/POST /api/v1/subscriptions`, `GET/PATCH /{id}`, `/{id}/activate`, `/{id}/cancel` (admin), `/{id}/renew`, `/{id}/start-renewal`, `/{id}/not-renewed`, `/{id}/correct-expiration`, `GET /{id}/periods`, `PATCH /{id}/periods/{periodId}`; idempotencia, versión optimista, `?productId`, RBAC; web `/subscriptions*` con historial, acciones de renovación/no renovación/corrección y pago manual por periodo. Tests de integración RN-03/RN-04/RN-06/RN-07 ejecutados.
+- **Solicitudes y tareas** — `en curso`. Tareas de renovación `hecho` (API, automatización y `/tasks`); solicitudes: lista read-only `/api/v1/renewal-requests` y pantalla `/renewal-requests` hechas como enabler del dashboard; CRUD/resolución y portal siguen pendientes.
+- **Alertas y worker** — `hecho` (HU-11 y HU-13). Motor en línea, tareas automáticas, reconcile, worker pg-boss, dispatch/backoff, expiración, limpieza, adaptadores Resend/log, API `/notifications`, bandeja y reglas `/api/v1/alert-rules` + `/admin/alert-rules`. Tests RN-08/RN-09/RN-10 cubiertos; T-RN08-02 concurrente queda en cierre/CI.
+- **Dashboard y portal** — dashboard `hecho` (HU-12): KPIs y actividad en `/dashboard`. Portal `hecho` (HU-14): `/api/v1/portal/*`, `/portal` con suscripciones, detalle, historial, solicitud de renovación, estado de solicitudes y contacto; aislamiento por cliente, tarea `review_renewal_request` y notificaciones al equipo. RN-05/RN-11.
 - **Integraciones** — `pendiente`. Manifest, API keys hasheadas, scopes, alcance de clientes y rate limit. `/api/v1/integrations`. Pantallas `/admin/integrations`. RN-12.
 - **Settings** — `pendiente`. `GET /api/v1/settings` y `PATCH /api/v1/settings`. Pantalla `/admin/settings`.
 - **Pruebas de contrato** — `pendiente`. Tests `T-RNxx` que falten, suite RLS parametrizada y deriva del OpenAPI (redocly / zod-to-openapi) según [`docs/testing-strategy.md`](docs/testing-strategy.md).
 
 ## No bloqueante
 
-- **ClickUp** — `pendiente`. Cruzar la lista `1600300000011695` del workspace `1600300000002171` cuando una cuenta miembro reconecte el MCP. Anotar el resultado en `memory.md`. No copia tareas ni detiene los cortes de arriba.
+- **ClickUp** — `hecho` (2026-11-19). Contraste vía API v2 y cierre autorizado: Sprint 0/1 completos; Sprint 2 con HU-09/09.1/09.2, HU-10 y HU-11/11.1/11.2 en `complete`; HU-12/HU-13 ya implementadas localmente pero siguen `to do` en ClickUp hasta autorización del PO; Sprint 3 sin cambios. Backlog con HU-16 (export CSV, sin requisito en `docs/`) y W-01–W-04 fuera del MVP. Resultado en `memory.md`. Los estados los decide el PO.

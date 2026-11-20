@@ -139,7 +139,7 @@ describe('contrato OpenAPI — productos', () => {
     });
 
     it('ProductUpdate sin campos de precio es válido en OpenAPI', () => {
-      assertValidComponentSchema('ProductUpdate', { status: 'inactive' });
+      assertValidComponentSchema('ProductUpdate', { status: 'inactivo' });
     });
 
     it('Product no admite priceAmount en el contrato', () => {
@@ -147,7 +147,7 @@ describe('contrato OpenAPI — productos', () => {
         id: '00000000-0000-4000-8000-000000000001',
         name: 'X',
         productType: 'own',
-        status: 'active',
+        status: 'activo',
         createdAt: '2026-11-01T12:00:00.000Z',
         updatedAt: '2026-11-01T12:00:00.000Z',
         priceAmount: '1.00',

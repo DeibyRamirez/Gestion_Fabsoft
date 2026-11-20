@@ -46,7 +46,7 @@ export class UpdateProduct {
 }
 
 function auditAction(before: ProductView, after: ProductView): AuditAction {
-  if (after.status === 'inactive' && before.status !== 'inactive') return 'product.deactivated';
+  if (after.status === 'inactivo' && before.status !== 'inactivo') return 'product.deactivated';
   return 'product.updated';
 }
 

@@ -1,18 +1,21 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import type { AuditLogDto, AuditLogPage, ActorType } from '@fabsoft/shared';
+import { HistoryIcon } from 'lucide-react';
+import type { ActorType, AuditLogDto, AuditLogPage } from '@fabsoft/shared';
 import { ApiError, apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
+import { EmptyState } from '@/shared/components/empty-state';
+import { FilterBar, FilterField } from '@/shared/components/filter-bar';
+import { LoadingState } from '@/shared/components/loading-state';
 import { PageHeader } from '@/shared/components/page-header';
+import { formatDateTime } from '@/shared/lib/format';
+import { AUDIT_ACTOR_TYPE_LABELS } from '@/shared/lib/labels';
 import { Button } from '@/shared/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
+import { Card, CardContent } from '@/shared/ui/card';
 import { Input } from '@/shared/ui/input';
-import { Label } from '@/shared/ui/label';
+import { nativeSelectClassName } from '@/shared/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
-
-const selectClassName =
-  'flex h-10 w-full rounded-md border border-border-input bg-bg px-3 py-2 text-sm text-fg shadow-sm focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2';
 
 const PAGE_SIZE = 20;
 
@@ -36,22 +39,15 @@ const EMPTY_FILTERS: Filters = {
 
 const actorLabel = (log: AuditLogDto): string => {
   if (log.actor) return log.actor.name;
-  return log.actorType === 'system' ? 'Sistema' : '—';
+  return AUDIT_ACTOR_TYPE_LABELS[log.actorType];
 };
-
-const formatDate = (value: string): string =>
-  new Intl.DateTimeFormat('es-CO', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    timeZone: 'America/Bogota',
-  }).format(new Date(value));
 
 function ChangesCell({ changes }: { changes: AuditLogDto['changes'] }) {
   if (!changes) return <span className="text-fg-muted">—</span>;
   return (
     <details>
-      <summary className="cursor-pointer text-link">Ver before/after</summary>
-      <pre className="mt-2 max-h-72 overflow-auto rounded-md border border-border bg-bg p-3 text-xs">
+      <summary className="cursor-pointer text-sm font-semibold text-link">Ver before/after</summary>
+      <pre className="mt-2 max-h-72 overflow-auto rounded-md border border-border bg-bg p-3 font-mono text-xs">
         {JSON.stringify(changes, null, 2)}
       </pre>
     </details>
@@ -127,114 +123,93 @@ export function AuditLogsPage() {
     setDraft((current) => ({ ...current, [key]: value }));
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-5">
       <PageHeader
-        breadcrumbs={['Admin']}
         title="Auditoría"
         description="Registro append-only de cambios sensibles. Solo administradores. Conserva before/after."
       />
 
       {message ? (
-        <div
-          role="status"
-          className="rounded-md border border-border bg-surface px-4 py-3 text-sm text-fg"
-        >
+        <p role="status" className="text-sm text-fg-muted">
           {message}
-        </div>
+        </p>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filtros</CardTitle>
-          <CardDescription>
-            Filtra por actor, acción, recurso, cliente o rango de fechas.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={applyFilters} className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <div className="grid gap-2">
-              <Label htmlFor="audit-actor-type">Tipo de actor</Label>
-              <select
-                id="audit-actor-type"
-                value={draft.actorType}
-                onChange={(e) => set('actorType', e.target.value as Filters['actorType'])}
-                className={selectClassName}
-              >
-                <option value="">Todos</option>
-                <option value="user">Usuario</option>
-                <option value="integration">Integración</option>
-                <option value="system">Sistema</option>
-              </select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="audit-action">Acción</Label>
-              <Input
-                id="audit-action"
-                placeholder="subscription.updated"
-                value={draft.action}
-                onChange={(e) => set('action', e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="audit-resource-type">Tipo de recurso</Label>
-              <Input
-                id="audit-resource-type"
-                placeholder="subscription"
-                value={draft.resourceType}
-                onChange={(e) => set('resourceType', e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="audit-client-id">Cliente</Label>
-              <Input
-                id="audit-client-id"
-                placeholder="UUID del cliente"
-                value={draft.clientId}
-                onChange={(e) => set('clientId', e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="audit-from">Desde</Label>
-              <Input
-                id="audit-from"
-                type="datetime-local"
-                value={draft.from}
-                onChange={(e) => set('from', e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="audit-to">Hasta</Label>
-              <Input
-                id="audit-to"
-                type="datetime-local"
-                value={draft.to}
-                onChange={(e) => set('to', e.target.value)}
-              />
-            </div>
-            <div className="flex flex-wrap items-end gap-3 md:col-span-2 lg:col-span-3">
-              <Button type="submit" disabled={loading}>
-                Aplicar filtros
-              </Button>
+      <form onSubmit={applyFilters}>
+        <FilterBar
+          actions={
+            <>
               <Button type="button" variant="outline" onClick={clearFilters} disabled={loading}>
                 Limpiar
               </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+              <Button type="submit" disabled={loading}>
+                Aplicar filtros
+              </Button>
+            </>
+          }
+        >
+          <FilterField label="Tipo de actor" htmlFor="audit-actor-type">
+            <select
+              id="audit-actor-type"
+              value={draft.actorType}
+              onChange={(e) => set('actorType', e.target.value as Filters['actorType'])}
+              className={nativeSelectClassName}
+            >
+              <option value="">Todos</option>
+              <option value="user">Usuario</option>
+              <option value="integration">Integración</option>
+              <option value="system">Sistema</option>
+            </select>
+          </FilterField>
+          <FilterField label="Acción" htmlFor="audit-action">
+            <Input
+              id="audit-action"
+              placeholder="subscription.updated"
+              value={draft.action}
+              onChange={(e) => set('action', e.target.value)}
+            />
+          </FilterField>
+          <FilterField label="Tipo de recurso" htmlFor="audit-resource-type">
+            <Input
+              id="audit-resource-type"
+              placeholder="subscription"
+              value={draft.resourceType}
+              onChange={(e) => set('resourceType', e.target.value)}
+            />
+          </FilterField>
+          <FilterField label="Cliente" htmlFor="audit-client-id">
+            <Input
+              id="audit-client-id"
+              placeholder="UUID del cliente"
+              value={draft.clientId}
+              onChange={(e) => set('clientId', e.target.value)}
+            />
+          </FilterField>
+          <FilterField label="Desde" htmlFor="audit-from">
+            <Input
+              id="audit-from"
+              type="datetime-local"
+              value={draft.from}
+              onChange={(e) => set('from', e.target.value)}
+            />
+          </FilterField>
+          <FilterField label="Hasta" htmlFor="audit-to">
+            <Input
+              id="audit-to"
+              type="datetime-local"
+              value={draft.to}
+              onChange={(e) => set('to', e.target.value)}
+            />
+          </FilterField>
+        </FilterBar>
+      </form>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Eventos</CardTitle>
-          <CardDescription>Más reciente primero.</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-5">
           {loading ? (
-            <p role="status" aria-busy="true" className="text-sm text-fg-muted">
-              Cargando auditoría…
-            </p>
+            <LoadingState label="Cargando auditoría…" />
           ) : page && page.data.length === 0 ? (
-            <p className="text-sm text-fg-muted">Sin eventos de auditoría para los filtros.</p>
+            <EmptyState icon={HistoryIcon} title="Sin eventos de auditoría para los filtros." />
           ) : page ? (
             <>
               <Table>
@@ -251,16 +226,18 @@ export function AuditLogsPage() {
                 <TableBody>
                   {page.data.map((log) => (
                     <TableRow key={log.id}>
-                      <TableCell className="whitespace-nowrap">
-                        {formatDate(log.occurredAt)}
+                      <TableCell className="whitespace-nowrap text-xs text-fg-muted">
+                        {formatDateTime(log.occurredAt)}
                       </TableCell>
                       <TableCell>
-                        <span className="block">{actorLabel(log)}</span>
-                        <span className="text-xs text-fg-muted">{log.actorType}</span>
+                        <span className="block font-semibold text-fg">{actorLabel(log)}</span>
+                        <span className="text-xs text-fg-muted">
+                          {AUDIT_ACTOR_TYPE_LABELS[log.actorType]}
+                        </span>
                       </TableCell>
                       <TableCell className="font-mono text-xs">{log.action}</TableCell>
                       <TableCell>
-                        <span className="block">{log.resourceType}</span>
+                        <span className="block text-sm">{log.resourceType}</span>
                         <span className="font-mono text-xs text-fg-muted">{log.resourceId}</span>
                       </TableCell>
                       <TableCell className="font-mono text-xs">{log.clientId ?? '—'}</TableCell>

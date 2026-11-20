@@ -8,7 +8,7 @@ export async function assertInternalOwner(
 ): Promise<void> {
   if (ownerUserId === undefined || ownerUserId === null) return;
   const user = await userDetail.findById(ownerUserId);
-  if (!user || user.status !== 'active' || (user.role !== 'admin' && user.role !== 'operator')) {
+  if (!user || user.status !== 'activo' || (user.role !== 'admin' && user.role !== 'operator')) {
     throw new ApplicationError('validation_error', 'Responsable interno inválido');
   }
 }

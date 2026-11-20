@@ -38,7 +38,7 @@ async function conflictFromIndex(tx: Tx, normalized: string): Promise<CreateClie
   return {
     ok: false,
     reason: 'client_tax_id_taken',
-    conflict: { existingClientId: row.id, archived: row.status === 'archived' },
+    conflict: { existingClientId: row.id, archived: row.status === 'archivado' },
   };
 }
 
@@ -109,7 +109,7 @@ export class PgCreateClientRepository implements CreateClientRepository {
         return {
           ok: false,
           reason: 'client_tax_id_taken',
-          conflict: { existingClientId: existing.id, archived: existing.status === 'archived' },
+          conflict: { existingClientId: existing.id, archived: existing.status === 'archivado' },
         };
       }
     }
@@ -156,7 +156,7 @@ export class PgUpdateClientRepository implements UpdateClientRepository {
         return {
           ok: false,
           reason: 'client_tax_id_taken',
-          conflict: { existingClientId: existing.id, archived: existing.status === 'archived' },
+          conflict: { existingClientId: existing.id, archived: existing.status === 'archivado' },
         };
       }
     }
@@ -208,7 +208,7 @@ export class PgArchiveClientRepository implements ArchiveClientRepository {
   loadForUpdate = (id: string) => new PgUpdateClientRepository(this.tx).loadForUpdate(id);
   async archive(id: string, archivedAt: Date, updatedBy: string): Promise<ClientView> {
     await this.tx.query(
-      `update app.clients set status = 'archived', archived_at = $2, updated_by = $3 where id = $1`,
+      `update app.clients set status = 'archivado', archived_at = $2, updated_by = $3 where id = $1`,
       [id, archivedAt, updatedBy],
     );
     const detail = await new PgGetClientQuery(this.tx).findById(id);
@@ -222,7 +222,7 @@ export class PgReactivateClientRepository implements ReactivateClientRepository 
   loadForUpdate = (id: string) => new PgUpdateClientRepository(this.tx).loadForUpdate(id);
   async reactivate(id: string, updatedBy: string): Promise<ClientView> {
     await this.tx.query(
-      `update app.clients set status = 'active', archived_at = null, updated_by = $2 where id = $1`,
+      `update app.clients set status = 'activo', archived_at = null, updated_by = $2 where id = $1`,
       [id, updatedBy],
     );
     const detail = await new PgGetClientQuery(this.tx).findById(id);

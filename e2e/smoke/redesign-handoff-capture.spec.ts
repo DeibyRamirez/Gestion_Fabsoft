@@ -8,7 +8,7 @@ const visualOut = process.env.VISUAL_OUT_DIR ?? '/opt/cursor/artifacts/redesign'
 async function login(page: Page, email: string, password: string) {
   await page.goto('/login');
   await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Contraseña').fill(password);
+  await page.getByLabel('Contraseña', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Ingresar' }).click();
   await expect(page).not.toHaveURL(/\/login$/, { timeout: 15000 });
 }
@@ -44,24 +44,28 @@ test.describe('handoff QA — captura consolidada (solo PNG locales)', () => {
     const healthGate = new Promise<void>((res) => {
       releaseHealth = res;
     });
-    await page.route('**/api/v1/health', async (route) => {
+    await page.route('**/api/v1/dashboard/summary', async (route) => {
       await healthGate;
       await route.continue();
     });
     await page.goto('/dashboard');
-    await expect(page.getByText('Comprobando…')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Cargando indicadores…')).toBeVisible({ timeout: 5000 });
     await shot(page, '16-dashboard-api-loading-admin-desktop.png');
     releaseHealth();
-    await expect(page.getByText('Versión', { exact: false })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Indicadores' })).toBeVisible({
+      timeout: 15000,
+    });
 
-    await page.unroute('**/api/v1/health');
-    await page.route('**/api/v1/health', (route) =>
+    await page.unroute('**/api/v1/dashboard/summary');
+    await page.route('**/api/v1/dashboard/summary', (route) =>
       route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }),
     );
     await page.goto('/dashboard');
-    await expect(page.getByText('No disponible')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('No se pudieron cargar los indicadores del panel.')).toBeVisible({
+      timeout: 15000,
+    });
     await shot(page, '15-dashboard-api-unreachable-admin-desktop.png');
-    await page.unroute('**/api/v1/health');
+    await page.unroute('**/api/v1/dashboard/summary');
     await page.goto('/admin/users');
     await shot(page, '11-users-admin-desktop.png');
     await page.goto('/change-password');

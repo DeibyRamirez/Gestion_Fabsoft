@@ -1,4 +1,4 @@
-import type { UserActor } from '../../application/shared/actor.js';
+import type { Actor } from '../../application/shared/actor.js';
 
 /** Contrato ADR-004. */
 export type RlsContext =
@@ -41,7 +41,15 @@ export const SystemContext = {
   }),
 };
 
-export function toRlsContext(actor: UserActor): RlsContext {
+export function toRlsContext(actor: Actor): RlsContext {
+  if (actor.actorType === 'integration') {
+    return {
+      actorType: 'integration',
+      integrationId: actor.integrationId,
+      requestId: actor.requestId,
+      clientRequestId: actor.clientRequestId,
+    };
+  }
   if (actor.role === 'client') {
     if (!actor.clientId) throw new Error('Actor client sin clientId');
     return {

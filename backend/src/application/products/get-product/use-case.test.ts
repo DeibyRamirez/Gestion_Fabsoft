@@ -18,7 +18,7 @@ const sample: ProductView = {
   productType: 'third_party',
   vendor: 'Vendor',
   referenceCode: 'REF-1',
-  status: 'active',
+  status: 'activo',
   createdAt: new Date('2026-11-01T12:00:00.000Z'),
   updatedAt: new Date('2026-11-01T12:00:00.000Z'),
 };

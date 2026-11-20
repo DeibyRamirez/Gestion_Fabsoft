@@ -1,10 +1,16 @@
 import type { RequestHandler, Response } from 'express';
+import type { Scope } from '@fabsoft/shared';
 import type { Role } from '../../../domain/users/role.js';
-import type { UserActor } from '../../../application/shared/actor.js';
+import type { Actor, IntegrationActor, UserActor } from '../../../application/shared/actor.js';
 import type { AuthenticateAccessToken } from '../../../application/auth/authenticate/use-case.js';
+import type { AuthenticateApiKey } from '../../../application/integrations/authenticate-api-key/use-case.js';
 import { sendProblem } from '../problem.js';
 
 export const actorOf = (res: Response): UserActor => res.locals['actor'] as UserActor;
+export const integrationActorOf = (res: Response): IntegrationActor =>
+  res.locals['integrationActor'] as IntegrationActor;
+export const requestActorOf = (res: Response): Actor =>
+  (res.locals['actor'] as UserActor | undefined) ?? integrationActorOf(res);
 
 /** Bearer JWT. Ambas credenciales ⇒ 400 ambiguous_credentials (ADR-001). */
 export function authenticate(useCase: AuthenticateAccessToken): RequestHandler {
@@ -40,6 +46,41 @@ export function requireRole(...roles: Role[]): RequestHandler {
   return (_req, res, next) => {
     if (!roles.includes(actorOf(res).role))
       return sendProblem(res, 'forbidden', 'Permiso insuficiente');
+    next();
+  };
+}
+
+/** API key de integración (`X-Api-Key`), RN-12/ADR-001. Nunca se mezcla con Bearer. */
+export function authenticateApiKey(useCase: AuthenticateApiKey): RequestHandler {
+  return async (req, res, next) => {
+    const apiKey = req.header('x-api-key');
+    if (!apiKey) return sendProblem(res, 'unauthenticated', 'Falta la API key');
+    if (req.header('authorization')) {
+      return sendProblem(res, 'ambiguous_credentials', 'Use sólo una credencial');
+    }
+    const clientRequestId =
+      typeof res.locals['clientRequestId'] === 'string' ? res.locals['clientRequestId'] : undefined;
+    try {
+      const actor = await useCase.execute(
+        apiKey,
+        String(res.locals['requestId']),
+        clientRequestId,
+        req.ip ?? null,
+      );
+      res.locals['integrationActor'] = actor;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+/** Exige un scope del manifest para la integración autenticada. */
+export function requireScope(scope: Scope): RequestHandler {
+  return (_req, res, next) => {
+    if (!integrationActorOf(res).scopes.includes(scope)) {
+      return sendProblem(res, 'insufficient_scope', 'La integración no tiene el scope requerido');
+    }
     next();
   };
 }

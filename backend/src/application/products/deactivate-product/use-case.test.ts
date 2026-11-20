@@ -11,7 +11,7 @@ const admin: UserActor = {
   requestId: 'r',
 };
 
-const p = (status: 'active' | 'inactive'): ProductView => ({
+const p = (status: 'activo' | 'inactivo'): ProductView => ({
   id: 'p1',
   name: 'X',
   description: null,
@@ -29,12 +29,12 @@ describe('DeactivateProduct', () => {
       run: async (_a, work) =>
         work({
           productUpdate: {
-            loadForUpdate: async () => p('active'),
-            save: async () => ({ ok: true, product: p('inactive') }),
+            loadForUpdate: async () => p('activo'),
+            save: async () => ({ ok: true, product: p('inactivo') }),
           },
           audit: { write: async () => undefined },
         }),
     });
-    expect((await uc.execute(admin, 'p1')).status).toBe('inactive');
+    expect((await uc.execute(admin, 'p1')).status).toBe('inactivo');
   });
 });

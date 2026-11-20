@@ -17,6 +17,9 @@ export function testEnvSource(extra: Record<string, string | undefined> = {}): N
     ...extra,
     APP_ENV: 'test',
     DATABASE_URL: testUrl,
+    API_KEY_ENV: 'test',
+    API_KEY_PEPPER:
+      process.env.API_KEY_PEPPER || 'test-api-key-pepper-32-characters-minimum',
   };
   delete source.JWT_PRIVATE_KEY;
   delete source.JWT_PUBLIC_KEYS;

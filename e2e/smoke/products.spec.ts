@@ -23,9 +23,10 @@ test.describe('HU-05 — catálogo de productos', () => {
     ).toBeVisible();
     await expect(page.getByRole('cell', { name })).toBeVisible();
 
-    page.on('dialog', (dialog) => void dialog.accept());
     const row = page.getByRole('row', { name: new RegExp(name) });
     await row.getByRole('button', { name: 'Desactivar' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Desactivar' }).click();
 
     await expect(
       page.getByText(

@@ -16,8 +16,8 @@ describe('period', () => {
       endDate: '2026-11-30',
       billingCycle: 'monthly',
       priceAmount: 100,
-      paymentStatus: 'pending',
-      renewalOutcome: 'pending',
+      paymentStatus: 'pendiente',
+      renewalOutcome: 'pendiente',
     });
   });
 
@@ -28,9 +28,9 @@ describe('period', () => {
         endDate: '2026-11-30',
         billingCycle: 'monthly',
         priceAmount: 100,
-        paymentStatus: 'received',
+        paymentStatus: 'recibido',
       }).paymentStatus,
-    ).toBe('received');
+    ).toBe('recibido');
   });
 
   it('rechaza un periodo invertido', () => {

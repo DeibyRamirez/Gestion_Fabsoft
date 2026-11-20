@@ -1,0 +1,126 @@
+name: fabsoft
+
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: '10m'
+      max-file: '5'
+
+x-hardening: &hardening
+  security_opt: ['no-new-privileges:true']
+  cap_drop: ['ALL']
+  logging:
+    driver: json-file
+    options:
+      max-size: '10m'
+      max-file: '5'
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: ['./deploy/env/db.env']
+    command:
+      [
+        'postgres',
+        '-c',
+        'max_connections=100',
+        '-c',
+        'shared_buffers=256MB',
+        '-c',
+        'timezone=UTC',
+        '-c',
+        'log_min_duration_statement=500ms',
+      ]
+    volumes: ['db-data:/var/lib/postgresql/data']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+    security_opt: ['no-new-privileges:true']
+    <<: *logging
+
+  api:
+    image: ${API_IMAGE:-fabsoft-api:local}
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runtime
+    restart: unless-stopped
+    env_file: ['./deploy/env/api.env']
+    depends_on:
+      db:
+        condition: service_healthy
+    expose: ['4000']
+    networks: [internal]
+    <<: *hardening
+
+  worker:
+    image: ${API_IMAGE:-fabsoft-api:local}
+    restart: unless-stopped
+    command: ['node', 'dist/main-worker.js']
+    env_file: ['./deploy/env/worker.env']
+    depends_on:
+      db:
+        condition: service_healthy
+    # La imagen API trae HEALTHCHECK HTTP; el worker no expone puerto.
+    healthcheck:
+      disable: true
+    networks: [internal]
+    <<: *hardening
+
+  web:
+    image: ${WEB_IMAGE:-fabsoft-web:local}
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: runtime
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://api.example.com/api/v1}
+    restart: unless-stopped
+    expose: ['3000']
+    networks: [internal]
+    <<: *hardening
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file: ['./deploy/env/caddy.env']
+    ports: ['80:80', '443:443', '443:443/udp']
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [api, web]
+    networks: [edge, internal]
+    security_opt: ['no-new-privileges:true']
+    cap_add: ['NET_BIND_SERVICE']
+    <<: *logging
+
+  migrate:
+    profiles: ['tools']
+    image: ${TOOLS_IMAGE:-fabsoft-tools:local}
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: tools
+    env_file: ['./deploy/env/tools.env']
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [internal]
+    command: ['pnpm', '--filter', '@fabsoft/backend', 'db:status']
+    <<: *hardening
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  internal:
+    internal: true
+  edge:

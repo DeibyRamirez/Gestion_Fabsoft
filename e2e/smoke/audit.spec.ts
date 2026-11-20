@@ -21,8 +21,8 @@ test.describe('HU-08 — auditoría', () => {
     await page.getByLabel('Acción').fill('product.created');
     await page.getByRole('button', { name: 'Aplicar filtros' }).click();
 
-    await expect(page.getByText('product.created')).toBeVisible();
-    await expect(page.getByText('Ver before/after')).toBeVisible();
+    await expect(page.getByText('product.created').first()).toBeVisible();
+    await expect(page.getByText('Ver before/after').first()).toBeVisible();
 
     await context.storageState({ path: adminState });
     await context.close();

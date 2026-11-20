@@ -15,15 +15,15 @@ Las alertas (30/15/7/1/0/post) deben ser idempotentes, registrar estado (pendien
 3. Colas:
    | Cola | Disparo | Función |
    |---|---|---|
-   | `subscriptions.expire` | cron `5 0 * * *` (America/Bogota) | Pasa a `expired`/`not_renewed` las suscripciones cuyo `current_period_end` < hoy. |
+   | `subscriptions.expire` | cron `5 0 * * *` (America/Bogota) | Pasa a `vencida`/`no_renovada` las suscripciones cuyo `current_period_end` < hoy. |
    | `alerts.reconcile` | cron `10 0 * * *` (America/Bogota) y bajo demanda tras cambios | Crea notificaciones faltantes (`ON CONFLICT (dedupe_key) DO NOTHING`) y cancela las que ya no corresponden. |
-   | `notifications.dispatch` | cron `* * * * *` | Reclama notificaciones vencidas con `FOR UPDATE SKIP LOCKED`, marca in-app como `sent`, envía email vía Resend, crea tareas de la regla. |
+   | `notifications.dispatch` | cron `* * * * *` | Reclama notificaciones vencidas con `FOR UPDATE SKIP LOCKED`, marca in-app como `enviada`, envía email vía Resend, crea tareas de la regla. |
    | `renewal-requests.created` | `send()` transaccional desde el caso de uso | Crea tarea `review_renewal_request` y notificaciones al equipo. |
    | `maintenance.cleanup` | cron `30 3 * * *` | Borra `idempotency_keys` expiradas y `refresh_tokens` caducados hace > 30 días. |
-4. **Idempotencia doble:** `notifications.dedupe_key` único (`exp:<subscription_id>:<rule_code>:<period_end>:<channel>:<recipient>`) y la misma clave como cabecera `Idempotency-Key` de Resend (ventana de 24 h del proveedor) para cubrir el caso "Resend aceptó pero el worker murió antes de marcar `sent`".
-5. **Reintentos:** máximo 5 intentos con backoff 1 min, 5 min, 30 min, 2 h, 6 h (±20 % jitter). Errores 4xx no recuperables (salvo 429) ⇒ `failed` inmediato. Tras el último intento ⇒ `failed`, visible en UI y reintentable manualmente (`POST /api/v1/notifications/{id}/retry`).
+4. **Idempotencia doble:** `notifications.dedupe_key` único (`exp:<subscription_id>:<rule_code>:<period_end>:<channel>:<recipient>`) y la misma clave como cabecera `Idempotency-Key` de Resend (ventana de 24 h del proveedor) para cubrir el caso "Resend aceptó pero el worker murió antes de marcar `enviada`".
+5. **Reintentos:** máximo 5 intentos con backoff 1 min, 5 min, 30 min, 2 h, 6 h (±20 % jitter). Errores 4xx no recuperables (salvo 429) ⇒ `fallida` inmediato. Tras el último intento ⇒ `fallida`, visible en UI y reintentable manualmente (`POST /api/v1/notifications/{id}/retry`).
 6. **Límite de tasa:** el adaptador `ResendEmailSender` usa un limitador de ventana (token bucket en proceso) configurado por `RESEND_MAX_RPS` (por defecto 2) y respeta `Retry-After` ante 429.
-7. **Adaptadores:** puerto `EmailSender` con implementaciones `ResendEmailSender` (prod) y `LogEmailSender` (dev/test, escribe en el log). Selección por `EMAIL_TRANSPORT=resend|log`.
+7. **Adaptadores:** puerto `EmailSender` con implementaciones `ResendEmailSender` (prod) y `LogEmailSender` (dev/test, escribe en el log). Selección por `CORREO_CANAL=resend|log`.
 8. El worker usa una conexión de **sesión** (`WORKER_DATABASE_URL`: puerto 5432 del pooler de Supabase en modo sesión o conexión directa; en VPS, conexión directa), porque pg-boss mantiene conexiones y bloqueos de larga duración.
 
 ## Alternativas consideradas

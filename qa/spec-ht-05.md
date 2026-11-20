@@ -56,9 +56,9 @@ e2e/                   # raíz del monorepo
   - `client({ status?, document? })` — NIT válido con DV correcto, documento normalizado (solo dígitos, sin DV).
   - `contact(client, { isPrimary?, archived? })`.
   - `product({ type?, status? })` — sin precio ni ciclo.
-  - `subscription(client, product, { status='pending_activation', billingCycle='monthly', startDate, price })` — crea el periodo 1.
+  - `subscription(client, product, { status='pendiente_activacion', billingCycle='monthly', startDate, price })` — crea el periodo 1.
   - `period(subscription, { startDate, endDate, priceAmount, paymentStatus })` — contiguo al último.
-  - `renewalRequest(subscription, { status='pending_review' })`.
+  - `renewalRequest(subscription, { status='pendiente_revision' })`.
   - `bulkClients(n)` — inserción por lotes (`COPY` o `INSERT … SELECT`) para perf.
 - Determinismo: misma semilla ⇒ mismos datos (test de las propias factories).
 

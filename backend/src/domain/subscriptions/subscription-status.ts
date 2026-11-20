@@ -2,15 +2,15 @@ import type { SubscriptionStatus } from '@fabsoft/shared';
 import { DomainError } from '../shared/domain-error.js';
 import { compareLocalDate, type LocalDate } from './local-date.js';
 
-export const TERMINAL_STATUSES: readonly SubscriptionStatus[] = ['cancelled', 'not_renewed'];
+export const TERMINAL_STATUSES: readonly SubscriptionStatus[] = ['cancelada', 'no_renovada'];
 
 const TRANSITIONS: Record<SubscriptionStatus, readonly SubscriptionStatus[]> = {
-  pending_activation: ['active', 'cancelled'],
-  active: ['in_renewal', 'expired', 'cancelled', 'not_renewed'],
-  in_renewal: ['active', 'expired', 'cancelled', 'not_renewed'],
-  expired: ['active', 'in_renewal', 'cancelled', 'not_renewed'],
-  cancelled: [],
-  not_renewed: [],
+  pendiente_activacion: ['activa', 'cancelada'],
+  activa: ['en_renovacion', 'vencida', 'cancelada', 'no_renovada'],
+  en_renovacion: ['activa', 'vencida', 'cancelada', 'no_renovada'],
+  vencida: ['activa', 'en_renovacion', 'cancelada', 'no_renovada'],
+  cancelada: [],
+  no_renovada: [],
 };
 
 export function canTransition(from: SubscriptionStatus, to: SubscriptionStatus): boolean {
@@ -25,7 +25,7 @@ export function assertTransition(from: SubscriptionStatus, to: SubscriptionStatu
 
 /** Toda creación nace pendiente de activación (la activación es un paso aparte). */
 export function initialStatus(): SubscriptionStatus {
-  return 'pending_activation';
+  return 'pendiente_activacion';
 }
 
 /**
@@ -37,6 +37,6 @@ export function evaluateExpiration(
   currentPeriodEnd: LocalDate,
   today: LocalDate,
 ): SubscriptionStatus {
-  if (status !== 'active' && status !== 'in_renewal') return status;
-  return compareLocalDate(today, currentPeriodEnd) > 0 ? 'expired' : status;
+  if (status !== 'activa' && status !== 'en_renovacion') return status;
+  return compareLocalDate(today, currentPeriodEnd) > 0 ? 'vencida' : status;
 }
