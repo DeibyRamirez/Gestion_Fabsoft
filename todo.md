@@ -44,6 +44,18 @@ Orden por dependencias. Un bloque se cierra con código, tests y esta lista actu
 - **Bloque 6 — Hardening de seguridad (HT-06)** — `hecho`. CSP/HSTS estrictos en API y frontend (Swagger con CSP propia), `payload_too_large` 413, `pnpm audit:dependencies` con riesgos aceptados, `pnpm secrets:check`, Dependabot, DAST smoke (`pnpm security:dast` + test E2E) y revisión RLS; documentado en `docs/security/hardening.md`.
 - **Bloque 7 — Despliegue y migración VPS (HT-08)** — `hecho`. Dockerfiles multi-stage (runtime/tools), `docker-compose.prod.yml` con Caddy/Postgres interno, pipeline GHCR + SSH (`.github/workflows/deploy.yml`), migraciones/pg-boss, smoke `pnpm smoke:deploy` + DAST, backups y guía `docs/migracion-vps.md`; validado localmente con imágenes reales y compose.
 
+## Sprint 4 — Cierre de brechas MVP (en curso)
+
+Validación contra `SoftLab.md` (2026-11-20). El flujo principal cumple; estos bloques cierran las brechas detectadas antes de declarar el MVP completo. Un bloque se cierra con código, tests, documentación y ClickUp actualizado antes de abrir el siguiente.
+
+- **Bloque 0 — Registro y gobierno** — `hecho`. Matriz de cumplimiento, `todo.md`/`memory.md`, Sprint 4 en ClickUp y HU-16 (CSV) fuera del alcance del MVP.
+- **Bloque 1 — Solicitudes de renovación** — `en curso`. Asignación de responsable, paso a “en progreso”, resolución manual (`renovada`/`no_renovada`/`otra`) y resolución automática al renovar, no renovar o cancelar; OpenAPI y UI.
+- **Bloque 2 — Ficha de cliente** — `pendiente`. Selector de responsable interno y paneles de suscripciones, tareas y solicitudes dentro de la ficha.
+- **Bloque 3 — Suscripciones y tareas** — `pendiente`. Exponer en UI responsable, notas, condiciones, costo de proveedor, visibilidad en portal e `isRenewable`; filtros de tareas por cliente y suscripción.
+- **Bloque 4 — Alertas** — `pendiente`. Plantilla de correo editable si HU-13 sigue siendo vinculante; decisión sobre reglas por servicio.
+- **Bloque 5 — Despliegue real** — `pendiente`. VPS/DNS/GHCR/secretos, despliegue real, migraciones, smoke y backup para cerrar HT-08.
+- **Bloque 6 — Opcional CSV (HU-16)** — `pendiente`. Solo si el PO decide incluirlo; por defecto queda fuera del MVP.
+
 ## Pendiente
 
 - **Clientes (notas/actividad)** — `pendiente`. Subrecursos `/notes` y `/activity` y portal con datos. El CRUD base (HU-03) y los contactos (HU-04) ya están hechos.
@@ -57,4 +69,4 @@ Orden por dependencias. Un bloque se cierra con código, tests y esta lista actu
 
 ## No bloqueante
 
-- **ClickUp** — `hecho` (2026-11-20). Cierre autorizado por el PO: Sprint 0/1 completos; Sprint 2 9/9 en `complete`; Sprint 3 10/10 en `complete` (HU-14/14.1/14.2, HU-15/15.1/15.2 y HT-06–HT-09). El despliegue real en VPS sigue pendiente de infraestructura y secretos, aunque HT-08 quedó cerrada como entrega de código, pipeline y documentación. Backlog con HU-16 (export CSV, sin requisito en `docs/`) y W-01–W-04 fuera del MVP. Resultado en `memory.md`. Los estados los decide el PO.
+- **ClickUp** — `hecho` (2026-11-20). Cierre autorizado por el PO: Sprint 0/1 completos; Sprint 2 9/9 en `complete`; Sprint 3 10/10 en `complete` (HU-14/14.1/14.2, HU-15/15.1/15.2 y HT-06–HT-09). Se creó el Sprint 4 “Cierre de brechas MVP” con los bloques pendientes. HU-16 (export CSV) sigue en Backlog, no está implementada y no está en `SoftLab.md`: queda fuera del MVP salvo decisión posterior del PO. W-01–W-04 fuera del MVP. Resultado en `memory.md`.
