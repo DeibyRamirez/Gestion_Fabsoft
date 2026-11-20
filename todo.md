@@ -20,6 +20,7 @@ El corte activo es Sprint 2 (renovaciones, tareas y alertas). El detalle por blo
 - **Sistema de diseño (HU-02)** — `hecho`. Tailwind CSS 4 + tokens en `globals.css`, shadcn/ui en `src/shared/ui`, `AppShell` / `PortalShell`, skip link y pantallas existentes estilizadas (login, cambio de contraseña, panel, usuarios, portal).
 - **Seguridad de login** — `hecho`. Rate limit configurable por IP y por IP+email, bloqueo temporal de IP tras fallos 401, botón mostrar/ocultar contraseña y prueba de inyección SQL con consultas parametrizadas.
 - **Estados de negocio en español** — `hecho` (2026-11-19). Migración `0007` renombra los valores de los 12 enums de estado y recrea función/policies; API, frontend, seed, tests, OpenAPI y docs usan los valores en español. Los nombres técnicos (tipos, columnas, campos, roles, ciclos, canales, scopes, motivos y acciones de auditoría) siguen en inglés. Cambio breaking: `status=active` pasa a `status=activa`.
+- **Configuración (Settings)** — `hecho` (2026-11-20). `GET/PATCH /api/v1/settings` para el canal de contacto del portal (correo, teléfono y horario), lectura admin/operador, edición solo admin, auditoría `app_setting.updated` y pantalla `/admin/settings`; el portal refleja los cambios de inmediato. OpenAPI sin `pending`.
 
 ## Sprint 2 — en curso
 
@@ -64,7 +65,6 @@ Validación contra `SoftLab.md` (2026-11-20). El flujo principal cumple; estos b
 - **Alertas y worker** — `hecho` (HU-11 y HU-13). Motor en línea, tareas automáticas, reconcile, worker pg-boss, dispatch/backoff, expiración, limpieza, adaptadores Resend/log, API `/notifications`, bandeja y reglas `/api/v1/alert-rules` + `/admin/alert-rules`. Tests RN-08/RN-09/RN-10 cubiertos; T-RN08-02 concurrente queda en cierre/CI.
 - **Dashboard y portal** — dashboard `hecho` (HU-12): KPIs y actividad en `/dashboard`. Portal `hecho` (HU-14): `/api/v1/portal/*`, `/portal` con suscripciones, detalle, historial, solicitud de renovación, estado de solicitudes y contacto; aislamiento por cliente, tarea `review_renewal_request` y notificaciones al equipo. RN-05/RN-11.
 - **Integraciones** — `pendiente`. Manifest, API keys hasheadas, scopes, alcance de clientes y rate limit. `/api/v1/integrations`. Pantallas `/admin/integrations`. RN-12.
-- **Settings** — `pendiente`. `GET /api/v1/settings` y `PATCH /api/v1/settings`. Pantalla `/admin/settings`.
 - **Pruebas de contrato** — `pendiente`. Tests `T-RNxx` que falten, suite RLS parametrizada y deriva del OpenAPI (redocly / zod-to-openapi) según [`docs/testing-strategy.md`](docs/testing-strategy.md).
 
 ## No bloqueante

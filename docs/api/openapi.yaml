@@ -2060,7 +2060,6 @@ paths:
       tags: [Settings]
       operationId: getSettings
       summary: Configuración general
-      x-implementation-status: pending
       x-roles: [admin, operator]
       responses:
         '200':
@@ -2074,7 +2073,6 @@ paths:
       tags: [Settings]
       operationId: updateSettings
       summary: Actualiza la configuración general
-      x-implementation-status: pending
       x-roles: [admin]
       requestBody:
         required: true
@@ -3198,11 +3196,13 @@ components:
     Settings:
       type: object
       additionalProperties: false
+      required: [contactChannel]
       properties:
         contactChannel:
           type: object
           additionalProperties: false
+          required: [email, phone, hours]
           properties:
-            email: { type: [string, 'null'], format: email }
+            email: { type: [string, 'null'], format: email, maxLength: 254 }
             phone: { type: [string, 'null'], maxLength: 30 }
             hours: { type: [string, 'null'], maxLength: 200 }

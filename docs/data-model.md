@@ -342,4 +342,4 @@ Borrado físico permitido sólo en: `refresh_tokens` y `idempotency_keys` (limpi
 ## 10. Datos de referencia creados por migración
 
 - `alert_rules`: `D30`, `D15`, `D7`, `D1`, `D0`, `POST1` (ver `docs/notifications.md` §2).
-- `app_settings.contact_channel`: canal de contacto mostrado en el portal (valor de ejemplo `contacto@fabsoft.example`, **debe configurarse** por el admin).
+- `app_settings.contact_channel`: canal de contacto mostrado en el portal (valor de ejemplo `contacto@fabsoft.example`, **debe configurarse** por el admin desde `/admin/settings` o `PATCH /api/v1/settings`).

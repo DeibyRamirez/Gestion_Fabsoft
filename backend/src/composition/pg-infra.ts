@@ -5,6 +5,7 @@ import {
   PgUpdateAlertRuleRepository,
 } from '../infrastructure/persistence/pg/alerts/pg-alert-rules-repositories.js';
 import { PgAlertEmailTemplateRepository } from '../infrastructure/persistence/pg/alerts/pg-alert-email-template-repository.js';
+import { PgSettingsRepository } from '../infrastructure/persistence/pg/settings/pg-settings-repository.js';
 import {
   PgCloseTaskRepository,
   PgCreateTaskRepository,
@@ -209,6 +210,7 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     alertRulesList: new PgListAlertRulesQuery(tx),
     alertRuleUpdate: new PgUpdateAlertRuleRepository(tx),
     alertEmailTemplate: new PgAlertEmailTemplateRepository(tx),
+    settings: new PgSettingsRepository(tx),
     audit: new PgAuditWriter(tx),
   }));
   const authUow = new PgSystemUnitOfWork<AuthScopeRepos>(withRls, (tx) => ({

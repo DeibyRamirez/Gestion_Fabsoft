@@ -14,10 +14,8 @@ const HTTP_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete', 'options'
 const DOCS_PREFIX = '/api/v1/docs';
 const PENDING_OPERATIONS = new Set([
   'createClientNote',
-  'getSettings',
   'listClientNotes',
   'listSubscriptionNotifications',
-  'updateSettings',
 ]);
 
 type Operation = {
