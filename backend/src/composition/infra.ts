@@ -17,6 +17,7 @@ import type { RefreshSessionRepos } from '../application/auth/refresh-session/po
 import type { IdempotencyPurgeRepository } from '../application/maintenance/purge-idempotency-keys/ports.js';
 import type { MaintenanceRepos } from '../application/maintenance/cleanup/ports.js';
 import type { AlertSchedulingRepos } from '../application/alerts/shared/alert-scheduling.js';
+import type { AlertEmailTemplateRepos } from '../application/alerts/shared/email-template.js';
 import type { ListAlertRulesRepos } from '../application/alerts/list-alert-rules/ports.js';
 import type { UpdateAlertRuleRepos } from '../application/alerts/update-alert-rule/ports.js';
 import type { GetDashboardSummaryRepos } from '../application/dashboard/get-dashboard-summary/ports.js';
@@ -152,6 +153,7 @@ export type UserScopeRepos = GetMeRepos &
   RetryNotificationRepos &
   ChangePasswordRepos &
   AlertSchedulingRepos &
+  AlertEmailTemplateRepos &
   ListAlertRulesRepos &
   UpdateAlertRuleRepos &
   GetDashboardSummaryRepos &

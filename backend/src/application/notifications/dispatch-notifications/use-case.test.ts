@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { DEFAULT_ALERT_EMAIL_TEMPLATE, type AlertEmailTemplate } from '@fabsoft/shared';
 import {
   PermanentEmailError,
   RetryableEmailError,
@@ -26,7 +27,12 @@ const item = (over: Partial<DispatchableNotification> = {}): DispatchableNotific
   ...over,
 });
 
-function makeUc(rows: DispatchableNotification[], sender: EmailSender, cancelled = 0) {
+function makeUc(
+  rows: DispatchableNotification[],
+  sender: EmailSender,
+  cancelled = 0,
+  template: AlertEmailTemplate = { ...DEFAULT_ALERT_EMAIL_TEMPLATE },
+) {
   const claimDue = vi.fn(async () => ({ items: rows, cancelled }));
   const markSent = vi.fn(async () => true);
   const markFailure = vi.fn(async () => true);
@@ -35,6 +41,7 @@ function makeUc(rows: DispatchableNotification[], sender: EmailSender, cancelled
       run: async (_rid, work) =>
         work({
           notificationsDispatch: { claimDue, markSent, markFailure },
+          alertEmailTemplate: { get: async () => template },
         }),
     },
     sender,
@@ -93,6 +100,23 @@ describe('DispatchNotifications', () => {
       'fallida',
       'dirección inválida',
       null,
+    );
+  });
+
+  it('usa la plantilla editable de alertas', async () => {
+    const sender = { send: vi.fn(async () => ({ providerMessageId: 're_1' })) };
+    const template = {
+      subject: 'Vence {{clientName}}',
+      body: 'Hola {{recipientName}}: {{productName}} / {{subscriptionUrl}}',
+    };
+    const { uc } = makeUc([item()], sender, 0, template);
+
+    await expect(uc.execute('job-1')).resolves.toMatchObject({ sent: 1 });
+    expect(sender.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: 'Vence Acme',
+        text: 'Hola Ana Admin: M365 / http://localhost:3000/subscriptions/sub-1',
+      }),
     );
   });
 

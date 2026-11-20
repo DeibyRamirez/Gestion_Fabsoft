@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AlertRuleDto, AlertRuleList } from '@fabsoft/shared';
+import {
+  DEFAULT_ALERT_EMAIL_TEMPLATE,
+  type AlertRuleDto,
+  type AlertRuleList,
+} from '@fabsoft/shared';
 import { ApiError } from '@/shared/api/client';
 import { AlertRulesPage } from './alert-rules-page';
 
@@ -49,6 +53,8 @@ const r = (over: Partial<AlertRuleDto>): AlertRuleDto => ({
   ...over,
 });
 
+const template = { ...DEFAULT_ALERT_EMAIL_TEMPLATE };
+
 const list: AlertRuleList = {
   data: [
     r({}),
@@ -71,6 +77,7 @@ describe('AlertRulesPage', () => {
   it('lista reglas y guarda el nuevo umbral', async () => {
     fetchMock.mockImplementation((path: string) => {
       if (path === '/alert-rules') return Promise.resolve(list);
+      if (path === '/alert-rules/email-template') return Promise.resolve(template);
       if (path === '/alert-rules/00000000-0000-4000-8000-000000000301') {
         return Promise.resolve(r({ offsetDays: 45 }));
       }
@@ -102,6 +109,7 @@ describe('AlertRulesPage', () => {
   it('muestra el conflicto de umbral duplicado', async () => {
     fetchMock.mockImplementation((path: string) => {
       if (path === '/alert-rules') return Promise.resolve(list);
+      if (path === '/alert-rules/email-template') return Promise.resolve(template);
       if (path === '/alert-rules/00000000-0000-4000-8000-000000000301') {
         return Promise.reject(new ApiError(409, null));
       }
@@ -115,5 +123,32 @@ describe('AlertRulesPage', () => {
     await waitFor(() =>
       expect(screen.getByRole('status')).toHaveTextContent('Ya existe otra regla con ese umbral'),
     );
+  });
+
+  it('guarda la plantilla de correo editable', async () => {
+    fetchMock.mockImplementation((path: string, init?: { method?: string }) => {
+      if (path === '/alert-rules') return Promise.resolve(list);
+      if (path === '/alert-rules/email-template' && init?.method === 'PATCH') {
+        return Promise.resolve({ ...template, subject: 'Nuevo asunto' });
+      }
+      if (path === '/alert-rules/email-template') return Promise.resolve(template);
+      return Promise.resolve({});
+    });
+    render(<AlertRulesPage />);
+
+    const subject = await screen.findByLabelText('Asunto');
+    fireEvent.change(subject, { target: { value: 'Nuevo asunto {{clientName}}' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar plantilla' }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/alert-rules/email-template',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: expect.stringContaining('Nuevo asunto {{clientName}}'),
+        }),
+      ),
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Plantilla actualizada');
   });
 });

@@ -1,14 +1,24 @@
-import { AlertRuleUpdateSchema, type AlertRuleDto, type AlertRuleList } from '@fabsoft/shared';
+import {
+  AlertEmailTemplateSchema,
+  AlertRuleUpdateSchema,
+  type AlertEmailTemplate,
+  type AlertRuleDto,
+  type AlertRuleList,
+} from '@fabsoft/shared';
 import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
+import type { GetAlertEmailTemplate } from '../../../../application/alerts/get-email-template/use-case.js';
 import type { ListAlertRules } from '../../../../application/alerts/list-alert-rules/use-case.js';
 import type { AlertRuleView } from '../../../../application/alerts/shared/alert-rule-view.js';
+import type { UpdateAlertEmailTemplate } from '../../../../application/alerts/update-email-template/use-case.js';
 import type { UpdateAlertRule } from '../../../../application/alerts/update-alert-rule/use-case.js';
 import { actorOf, requireRole } from '../../middlewares/authenticate.js';
 
 export interface AlertRulesRouteDeps {
   listAlertRules: ListAlertRules;
   updateAlertRule: UpdateAlertRule;
+  getAlertEmailTemplate: GetAlertEmailTemplate;
+  updateAlertEmailTemplate: UpdateAlertEmailTemplate;
 }
 
 const IdSchema = z.string().uuid();
@@ -35,6 +45,15 @@ export function alertRulesRouter(deps: AlertRulesRouteDeps, guards: RequestHandl
     const rules = await deps.listAlertRules.execute(actorOf(res));
     const body: AlertRuleList = { data: rules.map(toAlertRuleDto) };
     res.json(body);
+  });
+
+  router.get('/alert-rules/email-template', ...staff, async (_req, res) => {
+    res.json(await deps.getAlertEmailTemplate.execute(actorOf(res)));
+  });
+
+  router.patch('/alert-rules/email-template', ...admin, async (req, res) => {
+    const template: AlertEmailTemplate = AlertEmailTemplateSchema.parse(req.body);
+    res.json(await deps.updateAlertEmailTemplate.execute(actorOf(res), template));
   });
 
   router.patch('/alert-rules/:id', ...admin, async (req, res) => {

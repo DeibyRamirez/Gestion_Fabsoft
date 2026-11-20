@@ -1532,6 +1532,39 @@ paths:
                     items: { $ref: '#/components/schemas/AlertRule' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/alert-rules/email-template:
+    get:
+      tags: [AlertRules]
+      operationId: getAlertEmailTemplate
+      summary: Plantilla de correo de las alertas
+      x-roles: [admin, operator]
+      responses:
+        '200':
+          description: Plantilla vigente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertEmailTemplate' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    patch:
+      tags: [AlertRules]
+      operationId: updateAlertEmailTemplate
+      summary: Actualiza asunto y cuerpo de la plantilla
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlertEmailTemplate' }
+      responses:
+        '200':
+          description: Plantilla actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertEmailTemplate' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/alert-rules/{id}:
     parameters:
       - $ref: '#/components/parameters/IdPath'
@@ -2809,6 +2842,21 @@ components:
             - type: 'null'
         appliesWhenNotRenewable: { type: boolean }
         isActive: { type: boolean }
+    AlertEmailTemplate:
+      type: object
+      required: [subject, body]
+      additionalProperties: false
+      properties:
+        subject:
+          type: string
+          minLength: 3
+          maxLength: 200
+          description: 'Admite placeholders: {{recipientName}}, {{clientName}}, {{productName}}, {{periodEnd}}, {{ruleCode}}, {{subscriptionUrl}}, {{frontendUrl}}'
+        body:
+          type: string
+          minLength: 10
+          maxLength: 5000
+          description: 'Admite los mismos placeholders que el asunto.'
     AlertRuleUpdate:
       type: object
       additionalProperties: false

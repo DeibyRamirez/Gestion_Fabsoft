@@ -40,3 +40,47 @@ export const AlertRuleListSchema = z.object({
   data: z.array(AlertRuleSchema),
 });
 export type AlertRuleList = z.infer<typeof AlertRuleListSchema>;
+
+export const ALERT_EMAIL_TEMPLATE_PLACEHOLDERS = [
+  'recipientName',
+  'clientName',
+  'productName',
+  'periodEnd',
+  'ruleCode',
+  'subscriptionUrl',
+  'frontendUrl',
+] as const;
+
+export type AlertEmailTemplatePlaceholder = (typeof ALERT_EMAIL_TEMPLATE_PLACEHOLDERS)[number];
+
+export const DEFAULT_ALERT_EMAIL_TEMPLATE = {
+  subject: 'Recordatorio de renovación — {{clientName}}',
+  body:
+    'Hola {{recipientName}},\n\n' +
+    'La suscripción de {{clientName}} a {{productName}} vence el {{periodEnd}}.\n' +
+    'Alerta: {{ruleCode}}.\n\n' +
+    'Revisa la suscripción en {{subscriptionUrl}}\n',
+} as const;
+
+const TEMPLATE_PLACEHOLDER = /\{\{\s*([a-zA-Z][a-zA-Z0-9]*)\s*\}\}/g;
+
+export const AlertEmailTemplateSchema = z
+  .object({
+    subject: z.string().trim().min(3).max(200),
+    body: z.string().trim().min(10).max(5000),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    const allowed = new Set<string>(ALERT_EMAIL_TEMPLATE_PLACEHOLDERS);
+    const invalid = [...`${value.subject}\n${value.body}`.matchAll(TEMPLATE_PLACEHOLDER)]
+      .map((match) => match[1] ?? '')
+      .filter((placeholder) => !allowed.has(placeholder));
+    if (invalid.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['body'],
+        message: `Placeholders no permitidos: ${[...new Set(invalid)].join(', ')}`,
+      });
+    }
+  });
+export type AlertEmailTemplate = z.infer<typeof AlertEmailTemplateSchema>;
