@@ -57,4 +57,4 @@ Orden por dependencias. Un bloque se cierra con código, tests y esta lista actu
 
 ## No bloqueante
 
-- **ClickUp** — `hecho` (2026-11-19). Contraste vía API v2 y cierre autorizado: Sprint 0/1 completos; Sprint 2 con HU-09/09.1/09.2, HU-10 y HU-11/11.1/11.2 en `complete`; HU-12/HU-13 ya implementadas localmente pero siguen `to do` en ClickUp hasta autorización del PO; Sprint 3 sin cambios. Backlog con HU-16 (export CSV, sin requisito en `docs/`) y W-01–W-04 fuera del MVP. Resultado en `memory.md`. Los estados los decide el PO.
+- **ClickUp** — `hecho` (2026-11-20). Cierre autorizado por el PO: Sprint 0/1 completos; Sprint 2 9/9 en `complete`; Sprint 3 10/10 en `complete` (HU-14/14.1/14.2, HU-15/15.1/15.2 y HT-06–HT-09). El despliegue real en VPS sigue pendiente de infraestructura y secretos, aunque HT-08 quedó cerrada como entrega de código, pipeline y documentación. Backlog con HU-16 (export CSV, sin requisito en `docs/`) y W-01–W-04 fuera del MVP. Resultado en `memory.md`. Los estados los decide el PO.
