@@ -1,6 +1,10 @@
 import { PgAuditWriter } from '../infrastructure/persistence/pg/shared/pg-audit-writer.js';
 import { PgAlertSchedulingRepository } from '../infrastructure/persistence/pg/alerts/pg-alert-scheduling-repository.js';
 import {
+  PgListAlertRulesQuery,
+  PgUpdateAlertRuleRepository,
+} from '../infrastructure/persistence/pg/alerts/pg-alert-rules-repositories.js';
+import {
   PgCloseTaskRepository,
   PgCreateTaskRepository,
   PgGetTaskQuery,
@@ -9,6 +13,8 @@ import {
   PgUpdateTaskRepository,
 } from '../infrastructure/persistence/pg/tasks/pg-task-repositories.js';
 import { PgRenewalRequestAutomationRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-automation-repository.js';
+import { PgListRenewalRequestsQuery } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-list-repository.js';
+import { PgGetDashboardSummaryQuery } from '../infrastructure/persistence/pg/dashboard/pg-dashboard-repositories.js';
 import { PgNotificationsRepository } from '../infrastructure/persistence/pg/notifications/pg-notifications-repositories.js';
 import { PgNotificationDispatchRepository } from '../infrastructure/persistence/pg/notifications/pg-notification-dispatch-repository.js';
 import { PgExpireSubscriptionsRepository } from '../infrastructure/persistence/pg/subscriptions/pg-expire-subscriptions-repository.js';
@@ -153,6 +159,8 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     taskClose: new PgCloseTaskRepository(tx),
     tasksAutomation: new PgTaskAutomationRepository(tx),
     renewalRequests: new PgRenewalRequestAutomationRepository(tx),
+    renewalRequestsList: new PgListRenewalRequestsQuery(tx),
+    dashboardSummary: new PgGetDashboardSummaryQuery(tx),
     notificationsList: new PgNotificationsRepository(tx),
     notificationsRead: new PgNotificationsRepository(tx),
     notificationsRetry: new PgNotificationsRepository(tx),
@@ -160,6 +168,8 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     sessions: new PgSessionRevocationRepository(tx),
     idempotency: new PgIdempotencyRepository(tx),
     alerts: new PgAlertSchedulingRepository(tx),
+    alertRulesList: new PgListAlertRulesQuery(tx),
+    alertRuleUpdate: new PgUpdateAlertRuleRepository(tx),
     audit: new PgAuditWriter(tx),
   }));
   const authUow = new PgSystemUnitOfWork<AuthScopeRepos>(withRls, (tx) => ({

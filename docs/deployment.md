@@ -32,6 +32,11 @@ Cada entorno tiene sus **propios** secretos, claves JWT, pepper y proyecto/BD. N
 | `JWT_ISSUER` / `JWT_AUDIENCE` | api | `fabsoft-api` / `fabsoft-web` |
 | `ACCESS_TOKEN_TTL_SECONDS` | api | `900` |
 | `REFRESH_TOKEN_TTL_DAYS` | api | `14` |
+| `LOGIN_RATE_LIMIT_PER_MINUTE` | api | `20` por IP |
+| `LOGIN_RATE_LIMIT_PER_EMAIL` | api | `5` por IP+email |
+| `LOGIN_IP_FAILURE_THRESHOLD` | api | `10` fallos 401 por IP antes de bloquear |
+| `LOGIN_IP_FAILURE_WINDOW_MINUTES` | api | `15` |
+| `LOGIN_IP_BLOCK_MINUTES` | api | `15` |
 | `API_KEY_PEPPER` (+ `API_KEY_PEPPER_PREVIOUS` opcional) | api | 32+ bytes aleatorios base64 |
 | `API_KEY_ENV` | api | `live` (prod) / `test` (resto) → prefijo `fsk_live_`/`fsk_test_` |
 | `CORS_ALLOWED_ORIGINS` | api | `https://app.fabsoft.example` |

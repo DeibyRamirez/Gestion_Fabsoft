@@ -31,3 +31,8 @@ export const DashboardActivityQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 export type DashboardActivityQuery = z.infer<typeof DashboardActivityQuerySchema>;
+
+export const DashboardSummaryQuerySchema = z.object({
+  ownerUserId: z.union([z.string().uuid(), z.literal('me')]).optional(),
+});
+export type DashboardSummaryQuery = z.infer<typeof DashboardSummaryQuerySchema>;

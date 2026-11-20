@@ -16,6 +16,7 @@ export const ProblemCodeSchema = z.enum([
   'primary_contact_conflict',
   'duplicate_email',
   'duplicate_product',
+  'alert_rule_offset_taken',
   'client_inactive',
   'idempotency_in_progress',
   'idempotency_key_reused',

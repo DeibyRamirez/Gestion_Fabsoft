@@ -23,6 +23,7 @@
 - **Destinatarios** (pregunta funcional 8 pendiente; regla inicial): responsable de la suscripción (`subscriptions.owner_user_id`) → si es nulo, responsable del cliente (`clients.owner_user_id`) → si es nulo, todos los admins activos. Sólo usuarios internos activos.
 - Las tareas automáticas se asignan al mismo destinatario principal, con `due_date = fecha de la alerta + 2 días` (y nunca posterior al vencimiento para reglas previas).
 - **Email:** habilitado por regla (`channels`) y globalmente por `CORREO_CANAL=resend`. Con `CORREO_CANAL=log` (dev/test) el envío se escribe en log y se marca `sent`.
+- **Plantilla:** el asunto/cuerpo es fijo en `infrastructure/email/`; no es editable desde la UI en el MVP. `/alert-rules` configura umbrales, canales, creación de tarea y excepción RN-10.
 
 ## 3. Programación (scheduling)
 
@@ -46,7 +47,7 @@ sequenceDiagram
 ```
 
 1. **En línea (misma transacción del caso de uso):** al crear, activar, renovar o corregir una suscripción se insertan las notificaciones del periodo vigente para todas las reglas activas aplicables cuya fecha programada sea **≥ hoy** (no se generan alertas retroactivas de anticipaciones ya pasadas; la regla más próxima no vencida sí). En la misma transacción se crean las tareas automáticas de las reglas con `creates_task` (`dedupe_key = alert:<subscription_id>:<rule_code>:<period_end>`), asignadas al destinatario principal.
-2. **Reconciliación (`alerts.reconcile`, diaria 00:10 Bogotá y tras cambiar reglas):** recorre suscripciones `active`/`in_renewal`/`expired` y:
+2. **Reconciliación (`alerts.reconcile`, diaria 00:10 Bogotá):** recorre suscripciones `active`/`in_renewal`/`expired` y:
    - inserta las faltantes (`ON CONFLICT DO NOTHING`);
    - cancela pendientes cuyo `period_end` ≠ `current_period_end`, cuya regla está inactiva o cambió de `offset_days`, o cuya suscripción ya no es elegible (RN-10).
 3. **Elegibilidad (RN-10):** `status ∉ {cancelled, not_renewed, pending_activation}` y (`is_renewable = true` y `renewal_outcome` del periodo vigente ≠ `not_renewed`) **o** `alert_rules.applies_when_not_renewable = true`. Las reglas `D0`/`POST1` aplican también a `expired`.
@@ -106,7 +107,7 @@ stateDiagram-v2
 | `POST /subscriptions/{id}/cancel` | Cancelar todas las `pending` (`subscription_cancelled`) | Cancelar todas las abiertas de la suscripción |
 | `PATCH isRenewable=false` | Cancelar `pending` sin excepción | — |
 | `PATCH isRenewable=true` | Programar las que correspondan | — |
-| `PATCH /alert-rules/{id}` | Encolar `alerts.reconcile` | — |
+| `PATCH /alert-rules/{id}` | La siguiente reconciliación diaria reprograma pendientes si cambia el umbral y cancela canales retirados o reglas inactivas | — |
 | Job `subscriptions.expire` | Nada que cancelar (las `D0`/`POST1` siguen válidas) | — |
 
 ## 7. Notificaciones por evento

@@ -152,6 +152,8 @@ export const SubscriptionListQuerySchema = PageQuerySchema.extend({
   ownerUserId: z.string().uuid().optional(),
   status: csvSubscriptionStatus.optional(),
   followUpStatus: FollowUpStatusSchema.optional(),
+  expiresFrom: isoDate.optional(),
+  expiresTo: isoDate.optional(),
   sort: z
     .enum([
       'currentPeriodEnd',
@@ -162,7 +164,12 @@ export const SubscriptionListQuerySchema = PageQuerySchema.extend({
       '-clientName',
     ])
     .default('currentPeriodEnd'),
-});
+})
+  .refine(
+    (query) =>
+      !query.expiresFrom || !query.expiresTo || query.expiresFrom <= query.expiresTo,
+    { message: 'expiresFrom no puede ser posterior a expiresTo', path: ['expiresTo'] },
+  );
 export type SubscriptionListQuery = z.infer<typeof SubscriptionListQuerySchema>;
 
 export const SubscriptionPageSchema = z.object({

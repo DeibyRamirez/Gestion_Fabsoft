@@ -34,6 +34,13 @@ const EnvSchema = z
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(14),
     CORS_ALLOWED_ORIGINS: csv,
     COOKIE_DOMAIN: z.string().optional(),
+    /** Anti-abuso del login. Los límites por IP/cuenta se aplican en ventanas de 60 s. */
+    LOGIN_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(20),
+    LOGIN_RATE_LIMIT_PER_EMAIL: z.coerce.number().int().positive().default(5),
+    /** Tras N fallos (401) desde la misma IP en la ventana, se bloquea la IP. */
+    LOGIN_IP_FAILURE_THRESHOLD: z.coerce.number().int().positive().default(10),
+    LOGIN_IP_FAILURE_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
+    LOGIN_IP_BLOCK_MINUTES: z.coerce.number().int().positive().default(15),
   })
   .superRefine((env, ctx) => {
     if (

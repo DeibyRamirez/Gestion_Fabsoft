@@ -16,6 +16,7 @@ export const STATUS_BY_CODE: Partial<Record<ProblemCode, number>> = {
   primary_contact_conflict: 409,
   duplicate_email: 409,
   duplicate_product: 409,
+  alert_rule_offset_taken: 409,
   idempotency_in_progress: 409,
   invalid_state_transition: 422,
   idempotency_key_reused: 422,

@@ -17,6 +17,10 @@ import type { RefreshSessionRepos } from '../application/auth/refresh-session/po
 import type { IdempotencyPurgeRepository } from '../application/maintenance/purge-idempotency-keys/ports.js';
 import type { MaintenanceRepos } from '../application/maintenance/cleanup/ports.js';
 import type { AlertSchedulingRepos } from '../application/alerts/shared/alert-scheduling.js';
+import type { ListAlertRulesRepos } from '../application/alerts/list-alert-rules/ports.js';
+import type { UpdateAlertRuleRepos } from '../application/alerts/update-alert-rule/ports.js';
+import type { GetDashboardSummaryRepos } from '../application/dashboard/get-dashboard-summary/ports.js';
+import type { ListRenewalRequestsRepos } from '../application/renewal-requests/list-renewal-requests/ports.js';
 import type { ListNotificationsRepos } from '../application/notifications/list-notifications/ports.js';
 import type { MarkNotificationReadRepos } from '../application/notifications/mark-notification-read/ports.js';
 import type { RetryNotificationRepos } from '../application/notifications/retry-notification/ports.js';
@@ -114,7 +118,11 @@ export type UserScopeRepos = GetMeRepos &
   MarkNotificationReadRepos &
   RetryNotificationRepos &
   ChangePasswordRepos &
-  AlertSchedulingRepos & { idempotency: IdempotencyRepository };
+  AlertSchedulingRepos &
+  ListAlertRulesRepos &
+  UpdateAlertRuleRepos &
+  GetDashboardSummaryRepos &
+  ListRenewalRequestsRepos & { idempotency: IdempotencyRepository };
 
 /** Repos disponibles en contexto system/auth. */
 export type AuthScopeRepos = LoginRepos &

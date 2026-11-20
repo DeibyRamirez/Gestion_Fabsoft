@@ -7,6 +7,8 @@ import type {
   RevokeReason,
 } from '../../src/application/auth/ports.js';
 import type { AuditEntry } from '../../src/application/shared/ports.js';
+import type { AlertRuleView } from '../../src/application/alerts/shared/alert-rule-view.js';
+import type { AlertRulePatch } from '../../src/application/alerts/update-alert-rule/ports.js';
 import type { UserView } from '../../src/application/users/shared/user-view.js';
 import type { ClientView } from '../../src/application/clients/shared/client-view.js';
 import type { ClientContactView } from '../../src/application/clients/shared/client-contact-view.js';
@@ -59,6 +61,7 @@ export class MemoryStore {
   contacts = new Map<string, ClientContactView>();
   subscriptions = new Map<string, SubscriptionView>();
   products = new Map<string, ProductView>();
+  alertRules = new Map<string, AlertRuleView>();
 
   addUser(p: Partial<MemUser> & Pick<MemUser, 'email' | 'role'> & { password: string }): MemUser {
     const now = new Date();
@@ -172,6 +175,49 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
   const userRepos: UserScopeRepos = {
     audit,
     alerts,
+    alertRulesList: {
+      list: async () =>
+        [...store.alertRules.values()].sort(
+          (a, b) => b.offsetDays - a.offsetDays || a.code.localeCompare(b.code),
+        ),
+    },
+    alertRuleUpdate: {
+      loadForUpdate: async (id) => store.alertRules.get(id) ?? null,
+      save: async (id, patch: AlertRulePatch) => {
+        const current = store.alertRules.get(id);
+        if (!current) throw new Error('alert rule not found');
+        const next: AlertRuleView = {
+          ...current,
+          ...(patch.description !== undefined ? { description: patch.description } : {}),
+          ...(patch.offsetDays !== undefined ? { offsetDays: patch.offsetDays } : {}),
+          ...(patch.channels !== undefined ? { channels: patch.channels } : {}),
+          ...(patch.createsTask !== undefined ? { createsTask: patch.createsTask } : {}),
+          ...(patch.taskType !== undefined ? { taskType: patch.taskType } : {}),
+          ...(patch.taskPriority !== undefined ? { taskPriority: patch.taskPriority } : {}),
+          ...(patch.appliesWhenNotRenewable !== undefined
+            ? { appliesWhenNotRenewable: patch.appliesWhenNotRenewable }
+            : {}),
+          ...(patch.isActive !== undefined ? { isActive: patch.isActive } : {}),
+        };
+        if (
+          next.offsetDays !== current.offsetDays &&
+          [...store.alertRules.values()].some(
+            (rule) => rule.id !== id && rule.offsetDays === next.offsetDays,
+          )
+        ) {
+          return { ok: false as const, reason: 'offset_taken' as const };
+        }
+        if (!next.createsTask) {
+          next.taskType = null;
+          next.taskPriority = null;
+        }
+        if (next.createsTask && (!next.taskType || !next.taskPriority)) {
+          return { ok: false as const, reason: 'invalid_task_configuration' as const };
+        }
+        store.alertRules.set(id, next);
+        return { ok: true as const, rule: next };
+      },
+    },
     auditLogs: {
       list: async (query: AuditLogListQuery) => {
         const filtered = auditLogs().filter(
@@ -791,6 +837,22 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
     },
     renewalRequests: {
       resolveOpenForSubscription: async () => 0,
+    },
+    renewalRequestsList: {
+      list: async () => ({ items: [], total: 0 }),
+    },
+    dashboardSummary: {
+      counts: async () => ({
+        activeSubscriptions: 0,
+        expiringIn30Days: 0,
+        expiringIn15Days: 0,
+        expiringIn7Days: 0,
+        expiredSubscriptions: 0,
+        renewalsPendingResponse: 0,
+        overdueTasks: 0,
+        upcomingTasks: 0,
+        newRenewalRequests: 0,
+      }),
     },
     notificationsList: {
       list: async () => ({ items: [], total: 0, unreadCount: 0 }),

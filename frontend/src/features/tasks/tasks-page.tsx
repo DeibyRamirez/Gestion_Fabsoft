@@ -7,22 +7,43 @@ import { useAuth } from '@/features/auth/auth-provider';
 import { PageHeader } from '@/shared/components/page-header';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
+import { Input } from '@/shared/ui/input';
 import { TaskForm } from './task-form';
 import { TasksTable } from './tasks-table';
 
 const selectClassName =
   'flex h-10 rounded-md border border-border-input bg-bg px-3 py-2 text-sm text-fg shadow-sm focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2';
 
-export function TasksPage() {
+export type TaskFilters = {
+  status: string;
+  priority: string;
+  assignee: string;
+  overdue: boolean;
+  dueFrom: string;
+  dueTo: string;
+};
+
+export const DEFAULT_TASK_FILTERS: TaskFilters = {
+  status: 'pending,in_progress',
+  priority: '',
+  assignee: '',
+  overdue: false,
+  dueFrom: '',
+  dueTo: '',
+};
+
+export function TasksPage({ initialFilters = DEFAULT_TASK_FILTERS }: { initialFilters?: TaskFilters }) {
   const { token, user } = useAuth();
   const [page, setPage] = useState<TaskPage | null>(null);
   const [clients, setClients] = useState<ClientDto[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [status, setStatus] = useState('pending,in_progress');
-  const [priority, setPriority] = useState('');
-  const [assignee, setAssignee] = useState('');
-  const [overdue, setOverdue] = useState(false);
+  const [status, setStatus] = useState(initialFilters.status);
+  const [priority, setPriority] = useState(initialFilters.priority);
+  const [assignee, setAssignee] = useState(initialFilters.assignee);
+  const [overdue, setOverdue] = useState(initialFilters.overdue);
+  const [dueFrom, setDueFrom] = useState(initialFilters.dueFrom);
+  const [dueTo, setDueTo] = useState(initialFilters.dueTo);
   const [version, setVersion] = useState(0);
   const reload = useCallback(() => setVersion((v) => v + 1), []);
 
@@ -43,13 +64,24 @@ export function TasksPage() {
     if (priority) params.set('priority', priority);
     if (assignee) params.set('assigneeUserId', assignee);
     if (overdue) params.set('overdue', 'true');
+    if (dueFrom) params.set('dueFrom', dueFrom);
+    if (dueTo) params.set('dueTo', dueTo);
     apiFetch<TaskPage>(`/renewal-tasks?${params.toString()}`, { token })
       .then((p) => alive && setPage(p))
       .catch(() => alive && setMessage('No se pudieron cargar las tareas.'));
     return () => {
       alive = false;
     };
-  }, [token, status, priority, assignee, overdue, version]);
+  }, [token, status, priority, assignee, overdue, dueFrom, dueTo, version]);
+
+  function clearFilters() {
+    setStatus(DEFAULT_TASK_FILTERS.status);
+    setPriority(DEFAULT_TASK_FILTERS.priority);
+    setAssignee(DEFAULT_TASK_FILTERS.assignee);
+    setOverdue(DEFAULT_TASK_FILTERS.overdue);
+    setDueFrom(DEFAULT_TASK_FILTERS.dueFrom);
+    setDueTo(DEFAULT_TASK_FILTERS.dueTo);
+  }
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
@@ -137,12 +169,37 @@ export function TasksPage() {
             <option value="me">Mis tareas</option>
           </select>
         </div>
+        <div className="grid gap-1">
+          <label className="text-xs text-fg-muted" htmlFor="filter-due-from">
+            Vence desde
+          </label>
+          <Input
+            id="filter-due-from"
+            type="date"
+            value={dueFrom}
+            onChange={(e) => setDueFrom(e.target.value)}
+          />
+        </div>
+        <div className="grid gap-1">
+          <label className="text-xs text-fg-muted" htmlFor="filter-due-to">
+            Vence hasta
+          </label>
+          <Input
+            id="filter-due-to"
+            type="date"
+            value={dueTo}
+            onChange={(e) => setDueTo(e.target.value)}
+          />
+        </div>
         <label className="flex h-10 items-center gap-2 text-sm">
           <input type="checkbox" checked={overdue} onChange={(e) => setOverdue(e.target.checked)} />
           Sólo vencidas
         </label>
         <Button type="button" variant="outline" onClick={reload}>
           Actualizar
+        </Button>
+        <Button type="button" variant="ghost" onClick={clearFilters}>
+          Limpiar
         </Button>
       </div>
       {page ? (

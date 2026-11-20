@@ -286,6 +286,44 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
     return rowCount ?? 0;
   }
 
+  /**
+   * HU-13: si cambia el umbral de una regla, la clave de idempotencia
+   * (subscription/rule/period/channel/recipient) no cambia. En vez de cancelar
+   * y no poder recrear la alerta, se reprograma la pendiente a la nueva fecha.
+   * Si la nueva fecha ya pasó, el UPDATE no la toca y el cancel de abajo la cierra.
+   */
+  private async rescheduleRuleChanges(
+    subscriptionId: string,
+    periodEnd: LocalDate,
+    eligible: boolean,
+    notRenewable: boolean,
+    today: LocalDate,
+  ): Promise<number> {
+    if (!eligible) return 0;
+    const { rowCount } = await this.tx.query(
+      `update app.notifications n
+          set scheduled_for = (
+                ((n.period_end - r.offset_days)::timestamp + time '08:00')
+                  at time zone 'America/Bogota'
+              )
+         from app.alert_rules r
+        where n.subscription_id = $1
+          and n.status = 'pending'
+          and n.notification_type = 'expiration_alert'
+          and n.alert_rule_id = r.id
+          and n.period_end = $2::date
+          and r.is_active
+          and (not $3::boolean or r.applies_when_not_renewable)
+          and (n.period_end - r.offset_days) >= $4::date
+          and n.scheduled_for <> (
+                ((n.period_end - r.offset_days)::timestamp + time '08:00')
+                  at time zone 'America/Bogota'
+              )`,
+      [subscriptionId, periodEnd, notRenewable, today],
+    );
+    return rowCount ?? 0;
+  }
+
   private async cancelStaleForReconcile(
     subscriptionId: string,
     periodEnd: LocalDate,
@@ -303,6 +341,7 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
                   ((n.period_end - r.offset_days)::timestamp + time '08:00')
                     at time zone 'America/Bogota'
                 ) then 'rule_changed'
+                when not (n.channel = any(r.channels)) then 'rule_changed'
                 when not $3 then 'not_eligible'
                 when $4 and not r.applies_when_not_renewable then 'not_renewable'
                 else 'not_eligible'
@@ -318,6 +357,7 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
               ((n.period_end - r.offset_days)::timestamp + time '08:00')
                 at time zone 'America/Bogota'
             )
+            or not (n.channel = any(r.channels))
             or not $3
             or ($4 and not r.applies_when_not_renewable)
           )`,
@@ -349,6 +389,13 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
         isRenewable: subscription.is_renewable,
         renewalOutcome: subscription.renewal_outcome ?? 'pending',
       });
+      await this.rescheduleRuleChanges(
+        id,
+        subscription.current_period_end,
+        eligible,
+        notRenewable,
+        today,
+      );
       cancelled += await this.cancelStaleForReconcile(
         id,
         subscription.current_period_end,

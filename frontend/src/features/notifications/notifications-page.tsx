@@ -19,12 +19,12 @@ const STATUS_LABELS: Record<NotificationDto['status'], string> = {
   cancelled: 'Cancelada',
 };
 
-export function NotificationsPage() {
+export function NotificationsPage({ initialStatus = '' }: { initialStatus?: string }) {
   const { token, user } = useAuth();
   const [page, setPage] = useState<NotificationPage | null>(null);
   const [mine, setMine] = useState(true);
   const [unread, setUnread] = useState(false);
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(initialStatus);
   const [message, setMessage] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const reload = useCallback(() => setVersion((v) => v + 1), []);

@@ -20,6 +20,22 @@ describe('LoginForm', () => {
     router.replace.mockReset();
   });
 
+  it('permite mostrar y ocultar la contraseña con un botón accesible', async () => {
+    render(<LoginForm />);
+    const input = screen.getByLabelText('Contraseña');
+    expect(input).toHaveAttribute('type', 'password');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Mostrar contraseña' }));
+    expect(input).toHaveAttribute('type', 'text');
+    expect(screen.getByRole('button', { name: 'Ocultar contraseña' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Ocultar contraseña' }));
+    expect(input).toHaveAttribute('type', 'password');
+  });
+
   it('valida en cliente con el esquema compartido', async () => {
     render(<LoginForm />);
     await submit('no-es-email', 'x');

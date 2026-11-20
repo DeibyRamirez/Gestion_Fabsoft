@@ -231,6 +231,14 @@ export class PgListSubscriptionsQuery implements ListSubscriptionsQuery {
       values.push(q.followUpStatus);
       where.push(`s.follow_up_status = $${values.length}::app.follow_up_status`);
     }
+    if (q.expiresFrom) {
+      values.push(q.expiresFrom);
+      where.push(`s.current_period_end >= $${values.length}::date`);
+    }
+    if (q.expiresTo) {
+      values.push(q.expiresTo);
+      where.push(`s.current_period_end <= $${values.length}::date`);
+    }
     const filter = where.length ? `where ${where.join(' and ')}` : '';
     const count = await this.tx.query<{ n: string }>(
       `select count(*)::text as n ${SUBSCRIPTION_JOINS} ${filter}`,

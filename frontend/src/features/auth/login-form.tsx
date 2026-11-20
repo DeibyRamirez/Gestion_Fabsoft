@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { Eye, EyeOff } from 'lucide-react';
 import { homePathForRole, LoginInputSchema } from '@fabsoft/shared';
 import { ApiError } from '@/shared/api/client';
 import { FormField } from '@/shared/components/form-field';
@@ -15,6 +16,7 @@ export function LoginForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -32,7 +34,7 @@ export function LoginForm() {
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 429
-          ? 'Demasiados intentos. Espera un minuto.'
+          ? 'Demasiados intentos. Espera unos minutos.'
           : 'Credenciales inválidas.',
       );
     } finally {
@@ -53,13 +55,29 @@ export function LoginForm() {
         />
       </FormField>
       <FormField label="Contraseña" htmlFor="login-password">
-        <Input
-          id="login-password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-        />
+        <div className="relative">
+          <Input
+            id="login-password"
+            name="password"
+            type={showPassword ? 'text' : 'password'}
+            autoComplete="current-password"
+            className="pr-12"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((visible) => !visible)}
+            aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            aria-pressed={showPassword}
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-fg-muted transition-colors hover:text-fg focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
+          >
+            {showPassword ? (
+              <EyeOff aria-hidden="true" className="size-4" />
+            ) : (
+              <Eye aria-hidden="true" className="size-4" />
+            )}
+          </button>
+        </div>
       </FormField>
       {error ? (
         <Alert variant="destructive">

@@ -19,7 +19,13 @@ export const AlertRuleUpdateSchema = z
   .object({
     description: z.string().trim().min(3).max(200).optional(),
     offsetDays: z.number().int().min(-90).max(365).optional(),
-    channels: z.array(NotificationChannelSchema).min(1).optional(),
+    channels: z
+      .array(NotificationChannelSchema)
+      .min(1)
+      .refine((channels) => new Set(channels).size === channels.length, {
+        message: 'Los canales no pueden repetirse',
+      })
+      .optional(),
     createsTask: z.boolean().optional(),
     taskType: TaskTypeSchema.nullable().optional(),
     taskPriority: TaskPrioritySchema.nullable().optional(),

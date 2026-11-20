@@ -9,9 +9,15 @@ import { idempotency } from './middlewares/idempotency.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { requestId } from './middlewares/request-id.js';
 import { sendProblem } from './problem.js';
+import { alertRulesRouter, type AlertRulesRouteDeps } from './routes/v1/alert-rules.js';
 import { auditLogsRouter, type AuditLogsRouteDeps } from './routes/v1/audit-logs.js';
 import { authRouter, type AuthRouteDeps } from './routes/v1/auth.js';
 import { clientActivityRouter, type ClientActivityRouteDeps } from './routes/v1/client-activity.js';
+import { dashboardRouter, type DashboardRouteDeps } from './routes/v1/dashboard.js';
+import {
+  renewalRequestsRouter,
+  type RenewalRequestsRouteDeps,
+} from './routes/v1/renewal-requests.js';
 import { healthRouter, type HealthRouteDeps } from './routes/v1/health.js';
 import { clientsRouter, type ClientsRouteDeps } from './routes/v1/clients.js';
 import { clientContactsRouter, type ClientContactsRouteDeps } from './routes/v1/client-contacts.js';
@@ -30,6 +36,9 @@ export type AppDeps = HealthRouteDeps &
   SubscriptionsRouteDeps &
   TasksRouteDeps &
   NotificationsRouteDeps &
+  AlertRulesRouteDeps &
+  DashboardRouteDeps &
+  RenewalRequestsRouteDeps &
   AuditLogsRouteDeps &
   ClientActivityRouteDeps & {
     corsOrigins: string[];
@@ -64,6 +73,9 @@ export function createApp(deps: AppDeps): Express {
   const guards = [authenticate(deps.authenticateAccessToken), requirePasswordChanged];
   app.use(API_VERSION_PREFIX, healthRouter(deps));
   app.use(`${API_VERSION_PREFIX}/auth`, authRouter(deps));
+  app.use(API_VERSION_PREFIX, alertRulesRouter(deps, guards));
+  app.use(API_VERSION_PREFIX, dashboardRouter(deps, guards));
+  app.use(API_VERSION_PREFIX, renewalRequestsRouter(deps, guards));
   // La contraseña temporal nunca se persiste en idempotency_keys: un replay no la vuelve a mostrar.
   const createUserIdempotency = idempotency(deps.idempotencyService, {
     redact: (body) =>
