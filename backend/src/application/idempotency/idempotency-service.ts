@@ -29,7 +29,10 @@ export class IdempotencyService {
     }>,
   ) {}
 
-  begin(actor: Actor, req: Omit<IdempotencyRequest, 'actorId' | 'actorType'>): Promise<IdempotencyDecision> {
+  begin(
+    actor: Actor,
+    req: Omit<IdempotencyRequest, 'actorId' | 'actorType'>,
+  ): Promise<IdempotencyDecision> {
     const { actorType, actorId } = actorKey(actor);
     const full: IdempotencyRequest = { ...req, actorType, actorId };
     return this.uow.run(actor, async ({ idempotency }) => {

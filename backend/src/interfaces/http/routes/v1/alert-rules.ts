@@ -1,8 +1,4 @@
-import {
-  AlertRuleUpdateSchema,
-  type AlertRuleDto,
-  type AlertRuleList,
-} from '@fabsoft/shared';
+import { AlertRuleUpdateSchema, type AlertRuleDto, type AlertRuleList } from '@fabsoft/shared';
 import { Router, type RequestHandler } from 'express';
 import { z } from 'zod';
 import type { ListAlertRules } from '../../../../application/alerts/list-alert-rules/use-case.js';
@@ -30,10 +26,7 @@ export const toAlertRuleDto = (rule: AlertRuleView): AlertRuleDto => ({
   isActive: rule.isActive,
 });
 
-export function alertRulesRouter(
-  deps: AlertRulesRouteDeps,
-  guards: RequestHandler[],
-): Router {
+export function alertRulesRouter(deps: AlertRulesRouteDeps, guards: RequestHandler[]): Router {
   const router = Router();
   const staff = [...guards, requireRole('admin', 'operator')];
   const admin = [...guards, requireRole('admin')];

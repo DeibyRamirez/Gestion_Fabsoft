@@ -55,10 +55,7 @@ const toPortalMe = (view: PortalMeView): PortalMe => ({
   contactChannel: view.contactChannel,
 });
 
-const toPortalSubscription = (
-  view: PortalSubscriptionView,
-  today: string,
-): PortalSubscription => ({
+const toPortalSubscription = (view: PortalSubscriptionView, today: string): PortalSubscription => ({
   id: view.id,
   productName: view.productName,
   contractReference: view.contractReference,
@@ -95,9 +92,7 @@ const toPortalRenewalRequest = (view: PortalRenewalRequestView): PortalRenewalRe
   resolvedAt: view.resolvedAt?.toISOString() ?? null,
 });
 
-const toCreatedPortalRenewalRequest = (
-  view: CreatedRenewalRequestView,
-): PortalRenewalRequest => ({
+const toCreatedPortalRenewalRequest = (view: CreatedRenewalRequestView): PortalRenewalRequest => ({
   id: view.id,
   subscriptionId: view.subscriptionId,
   productName: view.productName,
@@ -173,10 +168,7 @@ export function portalRouter(
     const input = RenewalRequestCreateSchema.parse(req.body);
     const created = await deps.createRenewalRequest.execute(actorOf(res), input);
     await deps.processRenewalRequestCreated.execute(created.id);
-    res.setHeader(
-      'Location',
-      `${API_VERSION_PREFIX}/portal/renewal-requests/${created.id}`,
-    );
+    res.setHeader('Location', `${API_VERSION_PREFIX}/portal/renewal-requests/${created.id}`);
     res.status(201).json(toCreatedPortalRenewalRequest(created));
   });
 

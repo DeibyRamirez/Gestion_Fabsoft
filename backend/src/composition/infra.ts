@@ -182,8 +182,7 @@ export type AuthScopeRepos = LoginRepos &
   };
 
 /** Repos de jobs: purgas, expiración, dispatch y reconciliación. */
-export type WorkerScopeRepos = { idempotency: IdempotencyPurgeRepository } &
-  AlertSchedulingRepos &
+export type WorkerScopeRepos = { idempotency: IdempotencyPurgeRepository } & AlertSchedulingRepos &
   NotificationDispatchRepos &
   ExpireSubscriptionsRepos &
   MaintenanceRepos &

@@ -216,12 +216,12 @@ describe.skipIf(!dbTestsConfigured())('Portal API (Postgres)', () => {
     expectMatchesOperation(byId, 'getPortalRenewalRequest');
     expect(PortalRenewalRequestSchema.parse(byId.body).id).toBe(dto.id);
 
-    const internal = await request(app)
-      .get('/api/v1/renewal-requests')
-      .set(auth(operatorToken));
+    const internal = await request(app).get('/api/v1/renewal-requests').set(auth(operatorToken));
     expect(internal.status).toBe(200);
     expect(
-      internal.body.data.some((r: { id: string; requestedBy: { actorType: string } }) => r.id === dto.id),
+      internal.body.data.some(
+        (r: { id: string; requestedBy: { actorType: string } }) => r.id === dto.id,
+      ),
     ).toBe(true);
   });
 

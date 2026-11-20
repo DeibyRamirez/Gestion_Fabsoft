@@ -1,8 +1,4 @@
-import type {
-  DashboardIndicator,
-  DashboardSummary,
-  DashboardSummaryQuery,
-} from '@fabsoft/shared';
+import type { DashboardIndicator, DashboardSummary, DashboardSummaryQuery } from '@fabsoft/shared';
 import { addDays } from '../../../domain/subscriptions/local-date.js';
 import { toBogotaLocalDate } from '../../../domain/subscriptions/bogota-date.js';
 import type { UserActor } from '../../shared/actor.js';
@@ -46,16 +42,8 @@ export class GetDashboardSummary {
           { status: 'activa,en_renovacion', ...owner },
           counts.activeSubscriptions,
         ),
-        expiringIn30Days: indicator(
-          'subscriptions',
-          expiringFilter(30),
-          counts.expiringIn30Days,
-        ),
-        expiringIn15Days: indicator(
-          'subscriptions',
-          expiringFilter(15),
-          counts.expiringIn15Days,
-        ),
+        expiringIn30Days: indicator('subscriptions', expiringFilter(30), counts.expiringIn30Days),
+        expiringIn15Days: indicator('subscriptions', expiringFilter(15), counts.expiringIn15Days),
         expiringIn7Days: indicator('subscriptions', expiringFilter(7), counts.expiringIn7Days),
         expiredSubscriptions: indicator(
           'subscriptions',

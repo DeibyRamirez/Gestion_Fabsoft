@@ -54,11 +54,7 @@ export type FollowUpStatus = z.infer<typeof FollowUpStatusSchema>;
 export const RenewalOutcomeSchema = z.enum(['pendiente', 'renovada', 'no_renovada']);
 export type RenewalOutcome = z.infer<typeof RenewalOutcomeSchema>;
 
-export const RenewalRequestStatusSchema = z.enum([
-  'pendiente_revision',
-  'en_progreso',
-  'resuelta',
-]);
+export const RenewalRequestStatusSchema = z.enum(['pendiente_revision', 'en_progreso', 'resuelta']);
 export type RenewalRequestStatus = z.infer<typeof RenewalRequestStatusSchema>;
 
 export const RenewalRequestResolutionSchema = z.enum(['renovada', 'no_renovada', 'otra']);

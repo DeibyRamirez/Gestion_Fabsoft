@@ -131,7 +131,9 @@ export class PgListTasksQuery implements ListTasksQuery {
     }
     if (q.overdue) {
       values.push(q.today);
-      where.push(`t.status in ('pendiente','en_progreso') and t.due_date < $${values.length}::date`);
+      where.push(
+        `t.status in ('pendiente','en_progreso') and t.due_date < $${values.length}::date`,
+      );
     }
     const filter = where.length ? `where ${where.join(' and ')}` : '';
     const count = await this.tx.query<{ n: string }>(

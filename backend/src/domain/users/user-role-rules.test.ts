@@ -12,7 +12,11 @@ describe('applyUserChange', () => {
   });
   it('impide desactivar al último admin activo', () => {
     expect(() =>
-      applyUserChange(admin, { status: 'deshabilitado' }, { actorUserId: 'b', activeAdminCount: 1 }),
+      applyUserChange(
+        admin,
+        { status: 'deshabilitado' },
+        { actorUserId: 'b', activeAdminCount: 1 },
+      ),
     ).toThrow(/al menos un admin/);
   });
   it('exige clientId para rol client', () => {

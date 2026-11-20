@@ -98,9 +98,7 @@ describe.skipIf(!dbTestsConfigured())('Integrations API (Postgres)', () => {
     expectMatchesOperation(list, 'listIntegrations');
     expect(IntegrationPageSchema.parse(list.body).meta.total).toBe(1);
 
-    const get = await request(app)
-      .get(`/api/v1/integrations/${dto.id}`)
-      .set(auth(adminToken));
+    const get = await request(app).get(`/api/v1/integrations/${dto.id}`).set(auth(adminToken));
     expect(get.status).toBe(200);
     expectMatchesOperation(get, 'getIntegration');
 

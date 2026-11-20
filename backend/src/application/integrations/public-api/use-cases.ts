@@ -90,7 +90,10 @@ export class GetIntegrationSubscription {
 
 export class ListIntegrationSubscriptionPeriods {
   constructor(private readonly uow: UnitOfWork<IntegrationPeriodsRepos>) {}
-  async execute(actor: IntegrationActorType, subscriptionId: string): Promise<SubscriptionPeriodView[]> {
+  async execute(
+    actor: IntegrationActorType,
+    subscriptionId: string,
+  ): Promise<SubscriptionPeriodView[]> {
     return this.uow.run(actor, ({ integrationPeriods }) =>
       integrationPeriods.listPeriods(subscriptionId),
     );

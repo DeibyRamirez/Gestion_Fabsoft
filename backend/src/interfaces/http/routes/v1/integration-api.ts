@@ -130,62 +130,77 @@ export function integrationApiRouter(
     res.json(toProductDto(product));
   });
 
-  router.get('/subscriptions/expiring', ...keyGuards, requireScope('subscriptions:read'), async (req, res) => {
-    const withinDays = withinDaysSchema.parse(req.query.withinDays);
-    const today = toBogotaLocalDate(deps.clock.now());
-    const query = SubscriptionListQuerySchema.parse({
-      page: req.query.page,
-      pageSize: req.query.pageSize,
-      clientId: req.query.clientId,
-      status: 'activa,en_renovacion',
-      expiresFrom: today,
-      expiresTo: addDays(today, withinDays),
-      sort: 'currentPeriodEnd',
-    });
-    const result = await deps.listIntegrationSubscriptions.execute(
-      integrationActorOf(res),
-      query,
-    );
-    const body: ExpiringSubscriptionPage = {
-      data: result.items.map((item) => toSubscriptionDto(item, today)),
-      meta: {
-        page: query.page,
-        pageSize: query.pageSize,
-        total: result.total,
-        totalPages: Math.ceil(result.total / query.pageSize),
-        today,
-        withinDays,
-      },
-    };
-    res.json(body);
-  });
+  router.get(
+    '/subscriptions/expiring',
+    ...keyGuards,
+    requireScope('subscriptions:read'),
+    async (req, res) => {
+      const withinDays = withinDaysSchema.parse(req.query.withinDays);
+      const today = toBogotaLocalDate(deps.clock.now());
+      const query = SubscriptionListQuerySchema.parse({
+        page: req.query.page,
+        pageSize: req.query.pageSize,
+        clientId: req.query.clientId,
+        status: 'activa,en_renovacion',
+        expiresFrom: today,
+        expiresTo: addDays(today, withinDays),
+        sort: 'currentPeriodEnd',
+      });
+      const result = await deps.listIntegrationSubscriptions.execute(
+        integrationActorOf(res),
+        query,
+      );
+      const body: ExpiringSubscriptionPage = {
+        data: result.items.map((item) => toSubscriptionDto(item, today)),
+        meta: {
+          page: query.page,
+          pageSize: query.pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / query.pageSize),
+          today,
+          withinDays,
+        },
+      };
+      res.json(body);
+    },
+  );
 
-  router.get('/subscriptions', ...keyGuards, requireScope('subscriptions:read'), async (req, res) => {
-    const query = SubscriptionListQuerySchema.parse(req.query);
-    const today = toBogotaLocalDate(deps.clock.now());
-    const result = await deps.listIntegrationSubscriptions.execute(
-      integrationActorOf(res),
-      query,
-    );
-    const body: SubscriptionPage = {
-      data: result.items.map((item) => toSubscriptionDto(item, today)),
-      meta: {
-        page: query.page,
-        pageSize: query.pageSize,
-        total: result.total,
-        totalPages: Math.ceil(result.total / query.pageSize),
-      },
-    };
-    res.json(body);
-  });
+  router.get(
+    '/subscriptions',
+    ...keyGuards,
+    requireScope('subscriptions:read'),
+    async (req, res) => {
+      const query = SubscriptionListQuerySchema.parse(req.query);
+      const today = toBogotaLocalDate(deps.clock.now());
+      const result = await deps.listIntegrationSubscriptions.execute(
+        integrationActorOf(res),
+        query,
+      );
+      const body: SubscriptionPage = {
+        data: result.items.map((item) => toSubscriptionDto(item, today)),
+        meta: {
+          page: query.page,
+          pageSize: query.pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / query.pageSize),
+        },
+      };
+      res.json(body);
+    },
+  );
 
-  router.get('/subscriptions/:id', ...keyGuards, requireScope('subscriptions:read'), async (req, res) => {
-    const subscription = await deps.getIntegrationSubscription.execute(
-      integrationActorOf(res),
-      IdSchema.parse(req.params.id),
-    );
-    res.json(toSubscriptionDto(subscription, toBogotaLocalDate(deps.clock.now())));
-  });
+  router.get(
+    '/subscriptions/:id',
+    ...keyGuards,
+    requireScope('subscriptions:read'),
+    async (req, res) => {
+      const subscription = await deps.getIntegrationSubscription.execute(
+        integrationActorOf(res),
+        IdSchema.parse(req.params.id),
+      );
+      res.json(toSubscriptionDto(subscription, toBogotaLocalDate(deps.clock.now())));
+    },
+  );
 
   router.get(
     '/subscriptions/:id/periods',
@@ -268,29 +283,39 @@ export function integrationApiRouter(
     },
   );
 
-  router.get('/renewal-tasks', ...keyGuards, requireScope('renewal-tasks:read'), async (req, res) => {
-    const query = TaskListQuerySchema.parse(req.query);
-    const result = await deps.listIntegrationTasks.execute(integrationActorOf(res), query);
-    const today = toBogotaLocalDate(deps.clock.now());
-    const body: TaskPage = {
-      data: result.items.map((item) => toTaskDto(item, today)),
-      meta: {
-        page: query.page,
-        pageSize: query.pageSize,
-        total: result.total,
-        totalPages: Math.ceil(result.total / query.pageSize),
-      },
-    };
-    res.json(body);
-  });
+  router.get(
+    '/renewal-tasks',
+    ...keyGuards,
+    requireScope('renewal-tasks:read'),
+    async (req, res) => {
+      const query = TaskListQuerySchema.parse(req.query);
+      const result = await deps.listIntegrationTasks.execute(integrationActorOf(res), query);
+      const today = toBogotaLocalDate(deps.clock.now());
+      const body: TaskPage = {
+        data: result.items.map((item) => toTaskDto(item, today)),
+        meta: {
+          page: query.page,
+          pageSize: query.pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / query.pageSize),
+        },
+      };
+      res.json(body);
+    },
+  );
 
-  router.get('/renewal-tasks/:id', ...keyGuards, requireScope('renewal-tasks:read'), async (req, res) => {
-    const task = await deps.getIntegrationTask.execute(
-      integrationActorOf(res),
-      IdSchema.parse(req.params.id),
-    );
-    res.json(toTaskDto(task, toBogotaLocalDate(deps.clock.now())));
-  });
+  router.get(
+    '/renewal-tasks/:id',
+    ...keyGuards,
+    requireScope('renewal-tasks:read'),
+    async (req, res) => {
+      const task = await deps.getIntegrationTask.execute(
+        integrationActorOf(res),
+        IdSchema.parse(req.params.id),
+      );
+      res.json(toTaskDto(task, toBogotaLocalDate(deps.clock.now())));
+    },
+  );
 
   return router;
 }

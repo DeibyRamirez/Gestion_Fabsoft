@@ -92,17 +92,14 @@ describe.skipIf(!dbTestsConfigured())('Integration public API (Postgres)', () =>
     subscriptionB = (
       await factories.subscription(clientB, product, { status: 'activa', startDate: today })
     ).id;
-    const task = await request(app)
-      .post('/api/v1/renewal-tasks')
-      .set(auth(adminToken))
-      .send({
-        taskType: 'contact_client',
-        title: 'Contactar al cliente',
-        clientId: clientA.id,
-        subscriptionId: subscriptionA,
-        priority: 'medium',
-        dueDate: today,
-      });
+    const task = await request(app).post('/api/v1/renewal-tasks').set(auth(adminToken)).send({
+      taskType: 'contact_client',
+      title: 'Contactar al cliente',
+      clientId: clientA.id,
+      subscriptionId: subscriptionA,
+      priority: 'medium',
+      dueDate: today,
+    });
     expect(task.status).toBe(201);
   });
 
@@ -172,9 +169,7 @@ describe.skipIf(!dbTestsConfigured())('Integration public API (Postgres)', () =>
       requestedBy: { actorType: 'integration', id: integration.id },
     });
 
-    const internal = await request(app)
-      .get('/api/v1/renewal-requests')
-      .set(auth(adminToken));
+    const internal = await request(app).get('/api/v1/renewal-requests').set(auth(adminToken));
     expect(internal.status).toBe(200);
     expect(internal.body.data.some((r: { id: string }) => r.id === requestDto.id)).toBe(true);
 
@@ -200,9 +195,9 @@ describe.skipIf(!dbTestsConfigured())('Integration public API (Postgres)', () =>
     const clients = await request(app).get('/api/v1/clients').set(api(apiKey));
     expect(clients.status).toBe(200);
     expect(clients.body.data.map((c: { id: string }) => c.id)).toEqual([clientA.id]);
-    expect(
-      (await request(app).get(`/api/v1/clients/${clientB.id}`).set(api(apiKey))).status,
-    ).toBe(404);
+    expect((await request(app).get(`/api/v1/clients/${clientB.id}`).set(api(apiKey))).status).toBe(
+      404,
+    );
     expect(
       (await request(app).get(`/api/v1/subscriptions/${subscriptionB}`).set(api(apiKey))).status,
     ).toBe(404);
@@ -210,9 +205,7 @@ describe.skipIf(!dbTestsConfigured())('Integration public API (Postgres)', () =>
 
   it('T-RN12-03 — sin scope ⇒ 403; key revocada o integración deshabilitada ⇒ 401', async () => {
     const { integration, apiKey } = await createIntegration({ scopes: ['clients:read'] });
-    expect(
-      (await request(app).get('/api/v1/subscriptions').set(api(apiKey))).status,
-    ).toBe(403);
+    expect((await request(app).get('/api/v1/subscriptions').set(api(apiKey))).status).toBe(403);
 
     const credentials = await request(app)
       .get(`/api/v1/integrations/${integration.id}/credentials`)

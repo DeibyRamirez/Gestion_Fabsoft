@@ -138,20 +138,12 @@ describe.skipIf(!dbTestsConfigured())('HU-13 — umbrales y reconciliación', ()
     const d15 = rules.data.find((r) => r.code === 'D15')!;
 
     expect(
-      (
-        await request(app)
-          .patch(`/api/v1/alert-rules/${d30.id}`)
-          .set(auth)
-          .send({ offsetDays: 45 })
-      ).status,
+      (await request(app).patch(`/api/v1/alert-rules/${d30.id}`).set(auth).send({ offsetDays: 45 }))
+        .status,
     ).toBe(200);
     expect(
-      (
-        await request(app)
-          .patch(`/api/v1/alert-rules/${d15.id}`)
-          .set(auth)
-          .send({ offsetDays: 10 })
-      ).status,
+      (await request(app).patch(`/api/v1/alert-rules/${d15.id}`).set(auth).send({ offsetDays: 10 }))
+        .status,
     ).toBe(200);
 
     const result = await reconciler.execute('hu13-reconcile');
@@ -175,9 +167,9 @@ describe.skipIf(!dbTestsConfigured())('HU-13 — umbrales y reconciliación', ()
         return rows;
       },
     );
-    expect(cancelledD30.some((n) => n.status === 'cancelada' && n.cancel_reason === 'rule_changed')).toBe(
-      true,
-    );
+    expect(
+      cancelledD30.some((n) => n.status === 'cancelada' && n.cancel_reason === 'rule_changed'),
+    ).toBe(true);
 
     // D15 pasa a 10: se reprograma la misma fila, sin cambiar la dedupe key ni duplicar.
     expect(d15After).toBeDefined();

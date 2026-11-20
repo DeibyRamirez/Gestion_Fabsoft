@@ -39,11 +39,8 @@ function app(scopes: ('clients:read' | 'subscriptions:read')[] = ['clients:read'
     res.locals['requestId'] = 'test-request';
     next();
   });
-  server.get(
-    '/probe',
-    authenticateApiKey(useCase),
-    requireScope('clients:read'),
-    (_req, res) => res.json({ ok: true }),
+  server.get('/probe', authenticateApiKey(useCase), requireScope('clients:read'), (_req, res) =>
+    res.json({ ok: true }),
   );
   server.use(errorHandler(() => undefined));
   return server;
@@ -55,9 +52,7 @@ describe('middleware API key', () => {
   });
 
   it('200 con key válida y scope', async () => {
-    const res = await request(app())
-      .get('/probe')
-      .set('X-Api-Key', 'fsk_test_ab12cd34_secret');
+    const res = await request(app()).get('/probe').set('X-Api-Key', 'fsk_test_ab12cd34_secret');
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
   });

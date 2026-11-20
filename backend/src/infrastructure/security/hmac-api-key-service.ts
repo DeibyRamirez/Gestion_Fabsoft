@@ -1,5 +1,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import type { ApiKeyService, GeneratedApiKey } from '../../application/integrations/shared/api-key.js';
+import type {
+  ApiKeyService,
+  GeneratedApiKey,
+} from '../../application/integrations/shared/api-key.js';
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 

@@ -292,8 +292,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
         const row = store.idem.get(`${actorType}|${actorId}|${key}`);
         return row ? { ...row, expired: row.expiresAt <= new Date() } : null;
       },
-      restart: async (r) =>
-        void store.idem.set(`${r.actorType}|${r.actorId}|${r.key}`, idemRow(r)),
+      restart: async (r) => void store.idem.set(`${r.actorType}|${r.actorId}|${r.key}`, idemRow(r)),
       saveResponse: async (actorType, actorId, key, status, body) =>
         void Object.assign(store.idem.get(`${actorType}|${actorId}|${key}`)!, {
           responseStatus: status,
@@ -999,19 +998,17 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
         const items = [...store.renewalRequests.values()]
           .filter((r) => r.clientId === clientId)
           .filter((r) => !query.subscriptionId || r.subscriptionId === query.subscriptionId)
-          .map(
-            (r): PortalRenewalRequestView => ({
-              id: r.id,
-              subscriptionId: r.subscriptionId,
-              productName: r.productName,
-              comment: r.comment,
-              status: r.status,
-              resolution: null,
-              resolutionNote: null,
-              createdAt: r.createdAt,
-              resolvedAt: null,
-            }),
-          );
+          .map((r): PortalRenewalRequestView => ({
+            id: r.id,
+            subscriptionId: r.subscriptionId,
+            productName: r.productName,
+            comment: r.comment,
+            status: r.status,
+            resolution: null,
+            resolutionNote: null,
+            createdAt: r.createdAt,
+            resolvedAt: null,
+          }));
         return { items, total: items.length };
       },
     },
@@ -1159,7 +1156,10 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
       },
     },
     integrationSubscriptions: {
-      list: async () => ({ items: [...store.subscriptions.values()], total: store.subscriptions.size }),
+      list: async () => ({
+        items: [...store.subscriptions.values()],
+        total: store.subscriptions.size,
+      }),
     },
     integrationSubscriptionDetail: {
       findById: async (id) => store.subscriptions.get(id) ?? null,

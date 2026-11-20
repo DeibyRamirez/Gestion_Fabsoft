@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { assertManifestClients, assertManifestSlug, assertManifestVersion, compareSemver } from './manifest.js';
+import {
+  assertManifestClients,
+  assertManifestSlug,
+  assertManifestVersion,
+  compareSemver,
+} from './manifest.js';
 import type { IntegrationManifest } from '@fabsoft/shared';
 
 const manifest: IntegrationManifest = {
@@ -28,18 +33,14 @@ describe('manifest semántico', () => {
   it('valida clientes existentes y no archivados', async () => {
     const query = {
       findClientStatuses: async () =>
-        new Map([
-          ['00000000-0000-4000-8000-000000000001', 'activo' as const],
-        ]),
+        new Map([['00000000-0000-4000-8000-000000000001', 'activo' as const]]),
     };
     await expect(assertManifestClients(query, manifest)).resolves.toBeUndefined();
     await expect(
       assertManifestClients(
         {
           findClientStatuses: async () =>
-            new Map([
-              ['00000000-0000-4000-8000-000000000001', 'archivado' as const],
-            ]),
+            new Map([['00000000-0000-4000-8000-000000000001', 'archivado' as const]]),
         },
         manifest,
       ),

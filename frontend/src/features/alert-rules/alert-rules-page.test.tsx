@@ -94,7 +94,9 @@ describe('AlertRulesPage', () => {
         }),
       ),
     );
-    expect(screen.getByRole('status')).toHaveTextContent('Se aplicará en la próxima reconciliación');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Se aplicará en la próxima reconciliación',
+    );
   });
 
   it('muestra el conflicto de umbral duplicado', async () => {

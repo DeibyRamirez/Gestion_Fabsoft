@@ -15,7 +15,9 @@ export const portalApi = {
   subscriptions: (token: string | null, status = '') => {
     const params = new URLSearchParams({ pageSize: '50' });
     if (status) params.set('status', status);
-    return apiFetch<PortalSubscriptionPage>(`/portal/subscriptions?${params.toString()}`, { token });
+    return apiFetch<PortalSubscriptionPage>(`/portal/subscriptions?${params.toString()}`, {
+      token,
+    });
   },
 
   subscription: (token: string | null, id: string) =>
@@ -27,10 +29,9 @@ export const portalApi = {
   renewalRequests: (token: string | null, subscriptionId = '') => {
     const params = new URLSearchParams({ pageSize: '50' });
     if (subscriptionId) params.set('subscriptionId', subscriptionId);
-    return apiFetch<PortalRenewalRequestPage>(
-      `/portal/renewal-requests?${params.toString()}`,
-      { token },
-    );
+    return apiFetch<PortalRenewalRequestPage>(`/portal/renewal-requests?${params.toString()}`, {
+      token,
+    });
   },
 
   renewalRequest: (token: string | null, id: string) =>

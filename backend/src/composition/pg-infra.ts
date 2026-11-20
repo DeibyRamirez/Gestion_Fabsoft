@@ -214,7 +214,8 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     audit: new PgAuditWriter(tx),
   }));
   const apiKeyPepper =
-    env.API_KEY_PEPPER ?? (env.APP_ENV === 'prod' ? '' : 'dev-api-key-pepper-32-characters-minimum');
+    env.API_KEY_PEPPER ??
+    (env.APP_ENV === 'prod' ? '' : 'dev-api-key-pepper-32-characters-minimum');
   const apiKeys = new HmacApiKeyService({
     pepper: apiKeyPepper,
     previousPepper: env.API_KEY_PEPPER_PREVIOUS,

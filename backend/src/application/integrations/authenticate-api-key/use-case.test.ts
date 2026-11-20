@@ -50,7 +50,9 @@ describe('AuthenticateApiKey', () => {
 
   it('autentica una key válida y actualiza last_used', async () => {
     const { uc, updateLastUsed } = useCase();
-    await expect(uc.execute('fsk_test_ab12cd34_secret', 'req-1', undefined, '1.2.3.4')).resolves.toMatchObject({
+    await expect(
+      uc.execute('fsk_test_ab12cd34_secret', 'req-1', undefined, '1.2.3.4'),
+    ).resolves.toMatchObject({
       actorType: 'integration',
       integrationId: 'int-1',
       scopes: ['clients:read'],
@@ -69,10 +71,7 @@ describe('AuthenticateApiKey', () => {
       ),
     ).rejects.toMatchObject({ code: 'unauthenticated' });
     await expect(
-      useCase({ integrationStatus: 'deshabilitada' }).uc.execute(
-        'fsk_test_ab12cd34_secret',
-        'r',
-      ),
+      useCase({ integrationStatus: 'deshabilitada' }).uc.execute('fsk_test_ab12cd34_secret', 'r'),
     ).rejects.toMatchObject({ code: 'unauthenticated' });
   });
 

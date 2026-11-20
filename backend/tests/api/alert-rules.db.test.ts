@@ -71,14 +71,7 @@ describe.skipIf(!dbTestsConfigured())('Alert rules API (Postgres)', () => {
     expect(adminRes.status).toBe(200);
     expectMatchesOperation(adminRes, 'listAlertRules');
     const list = AlertRuleListSchema.parse(adminRes.body);
-    expect(list.data.map((rule) => rule.code)).toEqual([
-      'D30',
-      'D15',
-      'D7',
-      'D1',
-      'D0',
-      'POST1',
-    ]);
+    expect(list.data.map((rule) => rule.code)).toEqual(['D30', 'D15', 'D7', 'D1', 'D0', 'POST1']);
 
     expect((await request(app).get('/api/v1/alert-rules').set(auth(operatorToken))).status).toBe(
       200,

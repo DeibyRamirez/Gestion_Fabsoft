@@ -1,9 +1,4 @@
-import type {
-  ClientScope,
-  IntegrationManifest,
-  IntegrationStatus,
-  Scope,
-} from '@fabsoft/shared';
+import type { ClientScope, IntegrationManifest, IntegrationStatus, Scope } from '@fabsoft/shared';
 
 export interface IntegrationView {
   id: string;

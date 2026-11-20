@@ -87,15 +87,18 @@ describe('StartRenewal', () => {
     });
   });
 
-  it.each(['pendiente_activacion', 'en_renovacion', 'vencida', 'cancelada', 'no_renovada'] as const)(
-    'no inicia renovación desde %s',
-    async (status) => {
-      const { uc } = makeUc(sample({ status }), sample());
-      await expect(uc.execute(admin, 'sub-1', 1)).rejects.toMatchObject({
-        code: 'invalid_state_transition',
-      });
-    },
-  );
+  it.each([
+    'pendiente_activacion',
+    'en_renovacion',
+    'vencida',
+    'cancelada',
+    'no_renovada',
+  ] as const)('no inicia renovación desde %s', async (status) => {
+    const { uc } = makeUc(sample({ status }), sample());
+    await expect(uc.execute(admin, 'sub-1', 1)).rejects.toMatchObject({
+      code: 'invalid_state_transition',
+    });
+  });
 
   it('activa pasa a en_renovacion/en_gestion y audita', async () => {
     const updated = sample({ status: 'en_renovacion', followUpStatus: 'en_gestion', version: 2 });

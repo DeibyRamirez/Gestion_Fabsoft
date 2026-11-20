@@ -12,10 +12,7 @@ export function integrationRateLimit(
     const actor = integrationActorOf(res);
     const now = clock.now();
     const result = limiter.check(actor.integrationId, actor.rateLimitPerMinute, now);
-    const resetSeconds = Math.max(
-      1,
-      Math.ceil((result.resetAt.getTime() - now.getTime()) / 1000),
-    );
+    const resetSeconds = Math.max(1, Math.ceil((result.resetAt.getTime() - now.getTime()) / 1000));
     res.setHeader(
       'RateLimit',
       `limit=${result.limit}, remaining=${result.remaining}, reset=${resetSeconds}`,

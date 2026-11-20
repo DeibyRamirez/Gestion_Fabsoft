@@ -5,10 +5,7 @@ import { requireRole } from '../../shared/authorizer.js';
 import type { AuditWriter, UnitOfWork } from '../../shared/ports.js';
 import type { IntegrationView } from '../shared/integration-views.js';
 import { assertManifestClients } from '../shared/manifest.js';
-import type {
-  IntegrationClientQuery,
-  IntegrationCreateRepository,
-} from '../shared/ports.js';
+import type { IntegrationClientQuery, IntegrationCreateRepository } from '../shared/ports.js';
 
 type Repos = {
   integrationCreate: IntegrationCreateRepository;

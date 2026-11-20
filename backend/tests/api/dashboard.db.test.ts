@@ -80,52 +80,52 @@ describe.skipIf(!dbTestsConfigured())('Dashboard API (Postgres)', () => {
             );
           }
         };
-      await insertSubscription(ids.s1, 30, 'activa');
-      await insertSubscription(ids.s2, 15, 'en_renovacion');
-      await insertSubscription(ids.s3, 7, 'activa');
-      await insertSubscription(ids.s4, 0, 'activa');
-      await insertSubscription(ids.s5, 31, 'activa');
-      await insertSubscription(ids.s6, -1, 'vencida');
-      await insertSubscription(ids.s7, 15, 'activa', 'esperando_cliente');
-      await insertSubscription(ids.s8, 75, 'activa');
+        await insertSubscription(ids.s1, 30, 'activa');
+        await insertSubscription(ids.s2, 15, 'en_renovacion');
+        await insertSubscription(ids.s3, 7, 'activa');
+        await insertSubscription(ids.s4, 0, 'activa');
+        await insertSubscription(ids.s5, 31, 'activa');
+        await insertSubscription(ids.s6, -1, 'vencida');
+        await insertSubscription(ids.s7, 15, 'activa', 'esperando_cliente');
+        await insertSubscription(ids.s8, 75, 'activa');
 
-      const insertTask = async (id: string, dueOffset: number, status: string) =>
-        c.query(
-          `insert into app.tasks
+        const insertTask = async (id: string, dueOffset: number, status: string) =>
+          c.query(
+            `insert into app.tasks
              (id, task_type, client_id, subscription_id, assignee_user_id, priority,
               due_date, status, title, completed_at)
            values ($1, 'other', $2, $3, $4, 'medium', $5, $6::app.task_status, 'Tarea',
                    case when $6::app.task_status in ('completada','cancelada') then now() end)`,
-          [id, clientRow.id, ids.s1, admin.id, addDays(today, dueOffset), status],
-        );
-      await insertTask(randomUUID(), -1, 'pendiente');
-      await insertTask(randomUUID(), 0, 'pendiente');
-      await insertTask(randomUUID(), 5, 'en_progreso');
-      await insertTask(randomUUID(), -2, 'completada');
-      await insertTask(randomUUID(), 1, 'cancelada');
+            [id, clientRow.id, ids.s1, admin.id, addDays(today, dueOffset), status],
+          );
+        await insertTask(randomUUID(), -1, 'pendiente');
+        await insertTask(randomUUID(), 0, 'pendiente');
+        await insertTask(randomUUID(), 5, 'en_progreso');
+        await insertTask(randomUUID(), -2, 'completada');
+        await insertTask(randomUUID(), 1, 'cancelada');
 
-      const pendingRequestId = randomUUID();
-      const inProgressRequestId = randomUUID();
-      await c.query(
-        `insert into app.renewal_requests
+        const pendingRequestId = randomUUID();
+        const inProgressRequestId = randomUUID();
+        await c.query(
+          `insert into app.renewal_requests
            (id, subscription_id, client_id, requested_by_user_id, status, assigned_user_id)
          values
            ($1, $2, $3, $4, 'pendiente_revision', $4),
            ($5, $2, $3, $4, 'pendiente_revision', $4)`,
-        [pendingRequestId, ids.s1, clientRow.id, admin.id, inProgressRequestId],
-      );
-      await c.query(
-        `update app.renewal_requests set status = 'en_progreso' where id = $1`,
-        [inProgressRequestId],
-      );
+          [pendingRequestId, ids.s1, clientRow.id, admin.id, inProgressRequestId],
+        );
+        await c.query(`update app.renewal_requests set status = 'en_progreso' where id = $1`, [
+          inProgressRequestId,
+        ]);
 
-      await c.query(
-        `insert into app.alert_rules
+        await c.query(
+          `insert into app.alert_rules
            (code, description, offset_days, channels, creates_task, applies_when_not_renewable)
          values ('D30', 'Preparar renovación', 30, '{in_app}', false, false)
          on conflict (code) do nothing`,
-      );
-    });
+        );
+      },
+    );
 
     return { clientRow, product, ids };
   }
@@ -214,9 +214,11 @@ describe.skipIf(!dbTestsConfigured())('Dashboard API (Postgres)', () => {
     expect(mine.overdueTasks.filter.assigneeUserId).toBe(admin.id);
 
     const none = DashboardSummarySchema.parse(
-      (await request(app)
-        .get(`/api/v1/dashboard/summary?ownerUserId=${operator.id}`)
-        .set(auth(adminToken))).body,
+      (
+        await request(app)
+          .get(`/api/v1/dashboard/summary?ownerUserId=${operator.id}`)
+          .set(auth(adminToken))
+      ).body,
     );
     expect(none.activeSubscriptions.count).toBe(0);
     expect(none.overdueTasks.count).toBe(0);
@@ -257,9 +259,9 @@ describe.skipIf(!dbTestsConfigured())('Dashboard API (Postgres)', () => {
     expect(operatorActivity.data).toHaveLength(1);
     expect(operatorActivity.data[0]?.resourceType).toBe('client');
 
-    expect((await request(app).get('/api/v1/dashboard/summary').set(auth(clientToken))).status).toBe(
-      403,
-    );
+    expect(
+      (await request(app).get('/api/v1/dashboard/summary').set(auth(clientToken))).status,
+    ).toBe(403);
     expect(
       (await request(app).get('/api/v1/dashboard/activity').set(auth(clientToken))).status,
     ).toBe(403);

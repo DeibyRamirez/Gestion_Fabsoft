@@ -24,9 +24,10 @@ describe('ListPortalSubscriptions', () => {
           },
         }),
     });
-    await expect(
-      uc.execute(client, { page: 1, pageSize: 20 }),
-    ).resolves.toEqual({ items: [], total: 0 });
+    await expect(uc.execute(client, { page: 1, pageSize: 20 })).resolves.toEqual({
+      items: [],
+      total: 0,
+    });
   });
 
   it('rechaza usuarios internos', async () => {

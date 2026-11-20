@@ -51,9 +51,7 @@ export const IntegrationManifestSchema = manifestBase.superRefine((manifest, ctx
 });
 export type IntegrationManifest = z.infer<typeof IntegrationManifestSchema>;
 
-export const IntegrationCreateSchema = z
-  .object({ manifest: IntegrationManifestSchema })
-  .strict();
+export const IntegrationCreateSchema = z.object({ manifest: IntegrationManifestSchema }).strict();
 export type IntegrationCreateInput = z.infer<typeof IntegrationCreateSchema>;
 
 export const IntegrationUpdateSchema = z

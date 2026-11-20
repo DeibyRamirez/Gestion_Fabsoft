@@ -17,9 +17,6 @@ export function portalModule(infra: Infra) {
     listPortalRenewalRequests: new ListPortalRenewalRequests(infra.userUow),
     getPortalRenewalRequest: new GetPortalRenewalRequest(infra.userUow),
     createRenewalRequest: new CreateRenewalRequest(infra.userUow),
-    processRenewalRequestCreated: new ProcessRenewalRequestCreated(
-      infra.workerUow,
-      infra.clock,
-    ),
+    processRenewalRequestCreated: new ProcessRenewalRequestCreated(infra.workerUow, infra.clock),
   };
 }

@@ -1,7 +1,10 @@
 import type { SubscriptionListQuery } from '@fabsoft/shared';
 import type { GetSubscriptionQuery } from '../../../../application/subscriptions/get-subscription/ports.js';
 import type { ListSubscriptionsQuery } from '../../../../application/subscriptions/list-subscriptions/ports.js';
-import type { SubscriptionPeriodView, SubscriptionView } from '../../../../application/subscriptions/shared/subscription-view.js';
+import type {
+  SubscriptionPeriodView,
+  SubscriptionView,
+} from '../../../../application/subscriptions/shared/subscription-view.js';
 import type { IntegrationPeriodsQuery } from '../../../../application/integrations/public-api/ports.js';
 import type { Tx } from '../../../db/with-rls-context.js';
 

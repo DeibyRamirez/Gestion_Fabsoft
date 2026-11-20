@@ -40,7 +40,9 @@ describe('GetPortalMe', () => {
   });
 
   it('rechaza roles internos', async () => {
-    const uc = new GetPortalMe({ run: async () => Promise.reject(new Error('no debe ejecutarse')) });
+    const uc = new GetPortalMe({
+      run: async () => Promise.reject(new Error('no debe ejecutarse')),
+    });
     await expect(uc.execute({ ...client, role: 'admin', clientId: null })).rejects.toMatchObject({
       code: 'forbidden',
     });

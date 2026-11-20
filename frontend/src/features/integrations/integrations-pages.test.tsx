@@ -1,10 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type {
-  ApiCredentialCreatedDto,
-  ApiCredentialDto,
-  IntegrationDto,
-} from '@fabsoft/shared';
+import type { ApiCredentialCreatedDto, ApiCredentialDto, IntegrationDto } from '@fabsoft/shared';
 import { IntegrationDetail } from './integration-detail';
 import { IntegrationsPage } from './integrations-page';
 
@@ -87,7 +83,10 @@ beforeEach(() => {
   mocks.update.mockResolvedValue(integration);
   mocks.replaceManifest.mockResolvedValue(integration);
   mocks.createCredential.mockResolvedValue(createdCredential);
-  mocks.revokeCredential.mockResolvedValue({ ...credential, revokedAt: '2026-11-20T13:00:00.000Z' });
+  mocks.revokeCredential.mockResolvedValue({
+    ...credential,
+    revokedAt: '2026-11-20T13:00:00.000Z',
+  });
 });
 
 describe('Integrations pages', () => {
@@ -97,7 +96,10 @@ describe('Integrations pages', () => {
     expect(screen.getByText(/erp-contable · v1.0.0/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Crear integración' }));
     await waitFor(() => expect(mocks.create).toHaveBeenCalled());
-    const manifest = mocks.create.mock.calls[0]![1] as { integration: string; client_scope: string };
+    const manifest = mocks.create.mock.calls[0]![1] as {
+      integration: string;
+      client_scope: string;
+    };
     expect(manifest.client_scope).toBe('all');
     expect(manifest.integration).toMatch(/^nueva-integracion-/);
   });

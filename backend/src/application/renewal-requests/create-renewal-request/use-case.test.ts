@@ -101,5 +101,4 @@ describe('CreateRenewalRequest', () => {
       code: 'invalid_state_transition',
     });
   });
-
 });
