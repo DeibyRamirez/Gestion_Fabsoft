@@ -78,8 +78,8 @@ beforeAll(async () => {
     await c.query(
       `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
          price_amount, supplier_cost_amount, status, visible_in_portal)
-       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1,1,'active',true),
-              ($4,$5,$3,'2026-01-01','2026-12-31','annual',2,2,'active',true) on conflict do nothing`,
+       values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1,1,'activa',true),
+              ($4,$5,$3,'2026-01-01','2026-12-31','annual',2,2,'activa',true) on conflict do nothing`,
       [ids.subA, ids.clientA, ids.product, ids.subB, ids.clientB],
     );
     await c.query(
@@ -108,8 +108,8 @@ beforeAll(async () => {
     );
     await c.query(
       `insert into app.tasks (id, task_type, client_id, title, due_date, status, assignee_user_id) values
-        ($1,'contact_client',$2,'Task A','2026-12-31','pending',$3),
-        ($4,'contact_client',$5,'Task B','2026-12-31','pending',$3) on conflict do nothing`,
+        ($1,'contact_client',$2,'Task A','2026-12-31','pendiente',$3),
+        ($4,'contact_client',$5,'Task B','2026-12-31','pendiente',$3) on conflict do nothing`,
       [ids.taskA, ids.clientA, ids.admin, ids.taskB, ids.clientB],
     );
     await c.query(
@@ -131,7 +131,7 @@ beforeAll(async () => {
     );
     await c.query(
       `insert into app.renewal_requests (id, subscription_id, client_id, requested_by_user_id, status)
-       values ($1,$2,$3,$4,'pending_review'),($5,$6,$7,$8,'pending_review') on conflict do nothing`,
+       values ($1,$2,$3,$4,'pendiente_revision'),($5,$6,$7,$8,'pendiente_revision') on conflict do nothing`,
       [ids.renewalA, ids.subA, ids.clientA, ids.clientUserA, ids.renewalB, ids.subB, ids.clientB, ids.clientUserB],
     );
     await c.query('commit');
@@ -331,7 +331,7 @@ describe.skipIf(!appUrl)('F0 — aislamiento (T-F0-09)', () => {
       await expectPgError(
         c,
         `insert into app.renewal_requests (subscription_id, client_id, requested_by_user_id, status)
-         values ($1,$2,$3,'pending_review')`,
+         values ($1,$2,$3,'pendiente_revision')`,
         [ids.subB, ids.clientB, ids.clientUserA],
         '42501',
       );

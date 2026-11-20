@@ -22,9 +22,9 @@ const rule = (over: Partial<AlertRulePolicy> = {}): AlertRulePolicy => ({
 });
 
 const state = (over: Partial<AlertSubscriptionState> = {}): AlertSubscriptionState => ({
-  status: 'active',
+  status: 'activa',
   isRenewable: true,
-  renewalOutcome: 'pending',
+  renewalOutcome: 'pendiente',
   ...over,
 });
 
@@ -47,11 +47,11 @@ describe('alert-policy', () => {
   });
 
   it('excluye estados terminales y pendientes', () => {
-    for (const status of ['cancelled', 'not_renewed', 'pending_activation'] as const) {
+    for (const status of ['cancelada', 'no_renovada', 'pendiente_activacion'] as const) {
       expect(hasAlertEligibleStatus(status)).toBe(false);
       expect(ruleAppliesToSubscription(rule(), state({ status }))).toBe(false);
     }
-    for (const status of ['active', 'in_renewal', 'expired'] as const) {
+    for (const status of ['activa', 'en_renovacion', 'vencida'] as const) {
       expect(hasAlertEligibleStatus(status)).toBe(true);
       expect(ruleAppliesToSubscription(rule(), state({ status }))).toBe(true);
     }
@@ -59,7 +59,7 @@ describe('alert-policy', () => {
 
   it('no renovable sólo recibe reglas con excepción', () => {
     expect(isRenewableForAlerts(state({ isRenewable: false }))).toBe(false);
-    expect(isRenewableForAlerts(state({ renewalOutcome: 'not_renewed' }))).toBe(false);
+    expect(isRenewableForAlerts(state({ renewalOutcome: 'no_renovada' }))).toBe(false);
     expect(ruleAppliesToSubscription(rule(), state({ isRenewable: false }))).toBe(false);
     expect(
       ruleAppliesToSubscription(

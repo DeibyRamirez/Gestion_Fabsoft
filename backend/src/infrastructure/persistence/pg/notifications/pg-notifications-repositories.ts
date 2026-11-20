@@ -65,17 +65,17 @@ const RETRY_SELECT = `
          case
            when n.notification_type = 'expiration_alert' then (
              s.id is null
-             or s.status in ('cancelled','not_renewed','pending_activation')
+             or s.status in ('cancelada','no_renovada','pendiente_activacion')
              or n.period_end is distinct from s.current_period_end
              or r.id is null
              or not r.is_active
              or (
-               (not s.is_renewable or per.renewal_outcome = 'not_renewed')
+               (not s.is_renewable or per.renewal_outcome = 'no_renovada')
                and not coalesce(r.applies_when_not_renewable, false)
              )
            )
            when n.notification_type = 'renewal_request_created' then (
-             rr.id is null or rr.status = 'resolved'
+             rr.id is null or rr.status = 'resuelta'
            )
            else false
          end as obsolete
@@ -143,7 +143,7 @@ export class PgNotificationsRepository
       values.push(q.actorUserId);
       where.push(`n.recipient_user_id = $${values.length}`);
       where.push(`n.channel = 'in_app'`);
-      where.push(`n.status = 'sent'`);
+      where.push(`n.status = 'enviada'`);
     }
     if (q.unread) where.push(`n.read_at is null`);
     if (q.status?.length) {
@@ -173,7 +173,7 @@ export class PgNotificationsRepository
     const unread = await this.tx.query<{ n: string }>(
       `select count(*)::text as n from app.notifications
         where recipient_user_id = $1 and channel = 'in_app'
-          and status = 'sent' and read_at is null`,
+          and status = 'enviada' and read_at is null`,
       [q.actorUserId],
     );
     return {
@@ -196,7 +196,7 @@ export class PgNotificationsRepository
       `update app.notifications
           set read_at = $3
         where id = $1 and recipient_user_id = $2 and channel = 'in_app'
-          and status = 'sent' and read_at is null`,
+          and status = 'enviada' and read_at is null`,
       [id, userId, readAt],
     );
     return (rowCount ?? 0) > 0;
@@ -211,10 +211,10 @@ export class PgNotificationsRepository
   async restart(id: string, now: Date): Promise<NotificationView | null> {
     const { rowCount } = await this.tx.query(
       `update app.notifications
-          set status = 'pending', attempts = 0, next_attempt_at = $2, locked_until = null,
+          set status = 'pendiente', attempts = 0, next_attempt_at = $2, locked_until = null,
               last_error = null, sent_at = null, cancelled_at = null, cancel_reason = null,
               read_at = null, provider_message_id = null
-        where id = $1 and status = 'failed'`,
+        where id = $1 and status = 'fallida'`,
       [id, now],
     );
     return rowCount === 1 ? this.findById(id) : null;

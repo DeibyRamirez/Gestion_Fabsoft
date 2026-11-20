@@ -34,8 +34,8 @@ const sample = (over: Partial<SubscriptionView> = {}): SubscriptionView => ({
   supplierCostAmount: null,
   renewalTerms: null,
   isRenewable: true,
-  status: 'active',
-  followUpStatus: 'none',
+  status: 'activa',
+  followUpStatus: 'sin_gestion',
   visibleInPortal: true,
   ownerUserId: null,
   owner: null,
@@ -56,6 +56,7 @@ function makeUc(current: SubscriptionView | null, updated: SubscriptionView | nu
   const auditWrite = vi.fn(async () => undefined);
   const cancelAllPending = vi.fn(async () => 1);
   const cancelOpenTasksForSubscription = vi.fn(async () => 1);
+  const resolveOpenForSubscription = vi.fn(async () => 1);
   const uc = new CancelSubscription(
     {
       run: async (_a, work) =>
@@ -75,12 +76,20 @@ function makeUc(current: SubscriptionView | null, updated: SubscriptionView | nu
             cancelOpenAutoTasksForSubscription: async () => 0,
             cancelOpenTasksForSubscription,
           },
+          renewalRequests: { resolveOpenForSubscription },
           audit: { write: auditWrite },
         }),
     },
     clock,
   );
-  return { uc, cancel, auditWrite, cancelAllPending, cancelOpenTasksForSubscription };
+  return {
+    uc,
+    cancel,
+    auditWrite,
+    cancelAllPending,
+    cancelOpenTasksForSubscription,
+    resolveOpenForSubscription,
+  };
 }
 
 describe('CancelSubscription', () => {
@@ -106,17 +115,21 @@ describe('CancelSubscription', () => {
   });
 
   it('estado terminal no permite cancelar de nuevo', async () => {
-    const { uc } = makeUc(sample({ status: 'cancelled' }), sample());
+    const { uc } = makeUc(sample({ status: 'cancelada' }), sample());
     await expect(
       uc.execute(admin, 'sub-1', { version: 1, reason: 'motivo' }),
     ).rejects.toMatchObject({ code: 'invalid_state_transition' });
   });
 
   it('cancela con fecha del reloj y audita', async () => {
-    const { uc, cancel, auditWrite, cancelAllPending, cancelOpenTasksForSubscription } = makeUc(
-      sample(),
-      sample({ status: 'cancelled', version: 2, cancellationReason: 'motivo' }),
-    );
+    const {
+      uc,
+      cancel,
+      auditWrite,
+      cancelAllPending,
+      cancelOpenTasksForSubscription,
+      resolveOpenForSubscription,
+    } = makeUc(sample(), sample({ status: 'cancelada', version: 2, cancellationReason: 'motivo' }));
     const result = await uc.execute(admin, 'sub-1', { version: 1, reason: 'motivo' });
     expect(cancel).toHaveBeenCalledWith(
       'sub-1',
@@ -131,7 +144,13 @@ describe('CancelSubscription', () => {
       'Suscripción cancelada',
       'a',
     );
-    expect(result.status).toBe('cancelled');
+    expect(resolveOpenForSubscription).toHaveBeenCalledWith(
+      'sub-1',
+      'otra',
+      'Suscripción cancelada',
+      'a',
+    );
+    expect(result.status).toBe('cancelada');
     expect(auditWrite).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'subscription.cancelled' }),
     );

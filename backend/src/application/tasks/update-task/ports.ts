@@ -7,7 +7,7 @@ export interface TaskPatch {
   assigneeUserId?: string | null;
   priority?: TaskPriority;
   dueDate?: LocalDate;
-  status?: 'pending' | 'in_progress';
+  status?: 'pendiente' | 'en_progreso';
   notes?: string | null;
   nextAction?: string | null;
 }

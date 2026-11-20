@@ -112,15 +112,15 @@ describe.skipIf(!ownerUrl || !appUrl)('audit_log_changes_for_reader · parity au
       );
       await boot.query(
         `insert into app.users (id, email, full_name, password_hash, role, client_id, status) values
-          ($1,'andina@t.co','User Andina','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','client',$3,'active'),
-          ($2,'reader-admin@t.co','Reader Admin','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','admin',null,'active'),
-          ($4,'reader-op@t.co','Reader Op','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','operator',null,'active')
+          ($1,'andina@t.co','User Andina','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','client',$3,'activo'),
+          ($2,'reader-admin@t.co','Reader Admin','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','admin',null,'activo'),
+          ($4,'reader-op@t.co','Reader Op','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','operator',null,'activo')
          on conflict do nothing`,
         [userAndina, userAdmin, clientAndina, userOp],
       );
       await boot.query(
         `insert into app.products (id, name, product_type, status)
-         values ($1,'Reader Product','third_party','active') on conflict do nothing`,
+         values ($1,'Reader Product','third_party','activo') on conflict do nothing`,
         [productId],
       );
       await boot.query(

@@ -1,0 +1,119 @@
+name: Deploy VPS
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  images:
+    name: build y publicar imágenes
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      owner: ${{ steps.meta.outputs.owner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Login en GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        name: Metadatos de imagen
+        run: |
+          TAG="${GITHUB_SHA}"
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "owner=$OWNER" >> "$GITHUB_OUTPUT"
+      - name: Build y push API
+        run: |
+          IMAGE="ghcr.io/${{ steps.meta.outputs.owner }}/fabsoft-api:${{ steps.meta.outputs.tag }}"
+          docker build --target runtime -t "$IMAGE" -f backend/Dockerfile .
+          docker push "$IMAGE"
+      - name: Build y push herramientas de migración
+        run: |
+          IMAGE="ghcr.io/${{ steps.meta.outputs.owner }}/fabsoft-tools:${{ steps.meta.outputs.tag }}"
+          docker build --target tools -t "$IMAGE" -f backend/Dockerfile .
+          docker push "$IMAGE"
+      - name: Build y push frontend
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+        run: |
+          if [ -z "${NEXT_PUBLIC_API_BASE_URL:-}" ]; then
+            echo "Defina la variable NEXT_PUBLIC_API_BASE_URL (p. ej. https://api.example.com/api/v1)" >&2
+            exit 1
+          fi
+          IMAGE="ghcr.io/${{ steps.meta.outputs.owner }}/fabsoft-web:${{ steps.meta.outputs.tag }}"
+          docker build --target runtime \
+            --build-arg NEXT_PUBLIC_API_BASE_URL="$NEXT_PUBLIC_API_BASE_URL" \
+            -t "$IMAGE" -f frontend/Dockerfile .
+          docker push "$IMAGE"
+
+  deploy:
+    name: desplegar en VPS
+    runs-on: ubuntu-latest
+    needs: images
+    environment: production
+    steps:
+      - name: Desplegar por SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          API_IMAGE: ghcr.io/${{ needs.images.outputs.owner }}/fabsoft-api:${{ needs.images.outputs.tag }}
+          WEB_IMAGE: ghcr.io/${{ needs.images.outputs.owner }}/fabsoft-web:${{ needs.images.outputs.tag }}
+          TOOLS_IMAGE: ghcr.io/${{ needs.images.outputs.owner }}/fabsoft-tools:${{ needs.images.outputs.tag }}
+          APP_DIR: ${{ vars.VPS_APP_DIR }}
+          GHCR_ACTOR: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          fingerprint: ${{ secrets.VPS_FINGERPRINT }}
+          envs: API_IMAGE,WEB_IMAGE,TOOLS_IMAGE,APP_DIR,GHCR_ACTOR,GHCR_TOKEN
+          script_stop: true
+          script: |
+            set -eu
+            : "${APP_DIR:=/opt/fabsoft}"
+            cd "$APP_DIR"
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_ACTOR" --password-stdin
+            export API_IMAGE WEB_IMAGE TOOLS_IMAGE
+            docker compose -f docker-compose.prod.yml pull api worker web migrate
+            docker compose -f docker-compose.prod.yml run --rm migrate \
+              sh -lc 'pnpm --filter @fabsoft/backend exec dbmate --url "$DATABASE_MIGRATION_URL" --migrations-dir migrations --migrations-table public.schema_migrations --no-dump-schema up'
+            docker compose -f docker-compose.prod.yml run --rm migrate \
+              pnpm --filter @fabsoft/backend db:pgboss:install
+            docker compose -f docker-compose.prod.yml up -d --no-build api worker web caddy
+            docker image prune -f
+
+  smoke:
+    name: smoke post-deploy
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Health, docs, web y login opcional
+        env:
+          SMOKE_API_URL: ${{ vars.PRODUCTION_API_URL }}
+          SMOKE_WEB_URL: ${{ vars.PRODUCTION_WEB_URL }}
+          SMOKE_ADMIN_EMAIL: ${{ secrets.SMOKE_ADMIN_EMAIL }}
+          SMOKE_ADMIN_PASSWORD: ${{ secrets.SMOKE_ADMIN_PASSWORD }}
+        run: node scripts/smoke-deploy.mjs
+      - name: DAST smoke
+        env:
+          DAST_BASE_URL: ${{ vars.PRODUCTION_API_URL }}
+          DAST_ALLOWED_ORIGIN: ${{ vars.PRODUCTION_WEB_URL }}
+        run: node scripts/security-dast.mjs

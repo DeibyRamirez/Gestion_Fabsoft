@@ -4,12 +4,13 @@ import type {
   RenewalRequestStatus,
 } from '@fabsoft/shared';
 import type {
+  GetRenewalRequestQuery,
   ListRenewalRequestsQuery,
   RenewalRequestView,
 } from '../../../../application/renewal-requests/list-renewal-requests/ports.js';
 import type { Tx } from '../../../db/with-rls-context.js';
 
-interface RenewalRequestRow {
+export interface RenewalRequestRow {
   id: string;
   subscription_id: string;
   client_id: string;
@@ -28,7 +29,7 @@ interface RenewalRequestRow {
   updated_at: Date;
 }
 
-const COLUMNS = `r.id::text as id, r.subscription_id::text as subscription_id,
+export const RENEWAL_REQUEST_COLUMNS = `r.id::text as id, r.subscription_id::text as subscription_id,
   r.client_id::text as client_id,
   r.requested_by_user_id::text as requested_by_user_id,
   ru.full_name as requested_by_user_name,
@@ -40,12 +41,12 @@ const COLUMNS = `r.id::text as id, r.subscription_id::text as subscription_id,
   r.resolution::text as resolution, r.resolution_note,
   r.resolved_at, r.created_at, r.updated_at`;
 
-const JOINS = `from app.renewal_requests r
+export const RENEWAL_REQUEST_JOINS = `from app.renewal_requests r
   left join app.users ru on ru.id = r.requested_by_user_id
   left join app.integrations i on i.id = r.requested_by_integration_id
   left join app.users au on au.id = r.assigned_user_id`;
 
-const toView = (row: RenewalRequestRow): RenewalRequestView => {
+export const toRenewalRequestView = (row: RenewalRequestRow): RenewalRequestView => {
   const requestedBy = row.requested_by_user_id
     ? {
         actorType: 'user' as const,
@@ -77,8 +78,18 @@ const toView = (row: RenewalRequestRow): RenewalRequestView => {
   };
 };
 
-export class PgListRenewalRequestsQuery implements ListRenewalRequestsQuery {
+export class PgListRenewalRequestsQuery
+  implements ListRenewalRequestsQuery, GetRenewalRequestQuery
+{
   constructor(private readonly tx: Tx) {}
+
+  async findById(id: string): Promise<RenewalRequestView | null> {
+    const { rows } = await this.tx.query<RenewalRequestRow>(
+      `select ${RENEWAL_REQUEST_COLUMNS} ${RENEWAL_REQUEST_JOINS} where r.id = $1 limit 1`,
+      [id],
+    );
+    return rows[0] ? toRenewalRequestView(rows[0]) : null;
+  }
 
   async list(query: RenewalRequestListQuery) {
     const where: string[] = [];
@@ -103,15 +114,15 @@ export class PgListRenewalRequestsQuery implements ListRenewalRequestsQuery {
     const filter = where.length ? `where ${where.join(' and ')}` : '';
     const order = query.sort === 'createdAt' ? 'asc' : 'desc';
     const count = await this.tx.query<{ n: string }>(
-      `select count(*)::bigint as n ${JOINS} ${filter}`,
+      `select count(*)::bigint as n ${RENEWAL_REQUEST_JOINS} ${filter}`,
       values,
     );
     const { rows } = await this.tx.query<RenewalRequestRow>(
-      `select ${COLUMNS} ${JOINS} ${filter}
+      `select ${RENEWAL_REQUEST_COLUMNS} ${RENEWAL_REQUEST_JOINS} ${filter}
         order by r.created_at ${order}, r.id
         limit $${values.length + 1} offset $${values.length + 2}`,
       [...values, query.pageSize, (query.page - 1) * query.pageSize],
     );
-    return { items: rows.map(toView), total: Number(count.rows[0]?.n ?? 0) };
+    return { items: rows.map(toRenewalRequestView), total: Number(count.rows[0]?.n ?? 0) };
   }
 }

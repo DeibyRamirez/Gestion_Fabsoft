@@ -23,7 +23,10 @@ info:
     - Importes como string decimal con 2 decimales y `currency: "COP"`.
     - Paginación: `page` (≥1) y `pageSize` (1–100, por defecto 20). Respuesta `{ data, meta }`.
     - Ordenación: `sort=campo` (asc) o `sort=-campo` (desc) sobre la lista blanca de cada operación.
-    - Filtros multivalor separados por comas (`status=active,in_renewal`).
+    - Filtros multivalor separados por comas (`status=activa,en_renovacion`).
+    - Los valores de estado (`status`, `paymentStatus`, `followUpStatus`, `renewalOutcome`, `resolution`) están en español
+      desde la migración `0007` (cambio breaking: `status=active` deja de aceptarse; usar `status=activa`). Los nombres de campos,
+      roles, tipos, ciclos, prioridades, canales y scopes siguen en inglés.
     - Errores: RFC 9457 `application/problem+json` con `code` estable y `requestId`.
     - Idempotencia: cabecera `Idempotency-Key` (8–255 caracteres) en POST de escritura. Misma clave + mismo cuerpo
       durante 24 h → se devuelve la respuesta original (cabecera `Idempotency-Replayed: true`); misma clave con cuerpo distinto → `422 idempotency_key_reused`;
@@ -31,6 +34,7 @@ info:
     - Bloqueo optimista: campo `version` en el cuerpo de PATCH/acciones de suscripciones y tareas → `409 version_conflict`.
     - Límites de consumo: cabeceras `RateLimit` y `RateLimit-Policy` (draft IETF); exceso → `429` con `Retry-After`.
     - Cada respuesta incluye `X-Request-Id` (se respeta el recibido si es un UUID válido).
+    - Las operaciones con `x-implementation-status: pending` documentan alcance planificado y todavía no están expuestas por la API.
   contact:
     name: Equipo FabSoft
   license:
@@ -128,6 +132,7 @@ paths:
               schema: { $ref: '#/components/schemas/TokenResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/v1/auth/refresh:
     post:
@@ -325,8 +330,8 @@ paths:
         - $ref: '#/components/parameters/Q'
         - name: status
           in: query
-          description: 'Multivalor `ClientStatus`. Por defecto `active,inactive`.'
-          schema: { type: string, examples: ['active,inactive'] }
+          description: 'Multivalor `ClientStatus`. Por defecto `activo,inactivo`.'
+          schema: { type: string, examples: ['activo,inactivo'] }
         - name: taxId
           in: query
           description: Búsqueda exacta por identificación (normalizada) para evitar duplicados.
@@ -386,6 +391,47 @@ paths:
                       existingClientId: { type: string, format: uuid }
                       archived: { type: boolean }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
+  /api/v1/clients/export:
+    get:
+      tags: [Clients]
+      operationId: exportClientsCsv
+      summary: Exporta los clientes filtrados a CSV UTF-8
+      x-roles: [admin, operator]
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string, description: 'Lista separada por comas' }
+        - name: taxId
+          in: query
+          schema: { type: string }
+        - name: ownerUserId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Archivo CSV
+          content:
+            text/csv:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/clients/assignable-owners:
+    get:
+      tags: [Clients]
+      operationId: listClientOwnerCandidates
+      summary: Lista usuarios internos activos para asignar como responsable
+      x-roles: [admin, operator]
+      responses:
+        '200':
+          description: Candidatos a responsable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ClientOwnerCandidateList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/clients/{id}:
     parameters:
       - $ref: '#/components/parameters/IdPath'
@@ -407,11 +453,12 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     patch:
       tags: [Clients]
       operationId: updateClient
       summary: Actualiza datos del cliente
-      description: Auditado (`client.updated`) con antes/después. `status` sólo admite `active`/`inactive`; archivar usa `/archive`.
+      description: Auditado (`client.updated`) con antes/después. `status` sólo admite `activo`/`inactivo`; archivar usa `/archive`.
       x-roles: [admin, operator]
       requestBody:
         required: true
@@ -570,6 +617,7 @@ paths:
       tags: [Clients]
       operationId: listClientNotes
       summary: Notas internas de seguimiento (más recientes primero)
+      x-implementation-status: pending
       x-roles: [admin, operator]
       parameters:
         - $ref: '#/components/parameters/Page'
@@ -587,6 +635,7 @@ paths:
       tags: [Clients]
       operationId: createClientNote
       summary: Añade una nota interna (inmutable)
+      x-implementation-status: pending
       x-roles: [admin, operator]
       requestBody:
         required: true
@@ -706,10 +755,11 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     patch:
       tags: [Products]
       operationId: updateProduct
-      summary: Actualiza o desactiva (`status=inactive`) un producto
+      summary: Actualiza o desactiva (`status=inactivo`) un producto
       x-roles: [admin]
       security:
         - bearerAuth: []
@@ -757,7 +807,7 @@ paths:
         - name: status
           in: query
           description: Multivalor `SubscriptionStatus`
-          schema: { type: string, examples: ['active,in_renewal'] }
+          schema: { type: string, examples: ['activa,en_renovacion'] }
         - name: followUpStatus
           in: query
           schema: { $ref: '#/components/schemas/FollowUpStatus' }
@@ -848,6 +898,45 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
+  /api/v1/subscriptions/export:
+    get:
+      tags: [Subscriptions]
+      operationId: exportSubscriptionsCsv
+      summary: Exporta las suscripciones filtradas a CSV UTF-8
+      x-roles: [admin, operator]
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: clientId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: productId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: ownerUserId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string, description: 'Lista separada por comas' }
+        - name: followUpStatus
+          in: query
+          schema: { type: string }
+        - name: expiresFrom
+          in: query
+          schema: { type: string, format: date }
+        - name: expiresTo
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Archivo CSV
+          content:
+            text/csv:
+              schema: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/subscriptions/{id}:
     parameters:
       - $ref: '#/components/parameters/IdPath'
@@ -868,6 +957,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     patch:
       tags: [Subscriptions]
       operationId: updateSubscription
@@ -899,7 +989,7 @@ paths:
     post:
       tags: [Subscriptions]
       operationId: activateSubscription
-      summary: pending_activation → active
+      summary: pendiente_activacion → activa
       x-roles: [admin, operator]
       requestBody:
         required: true
@@ -919,7 +1009,7 @@ paths:
     post:
       tags: [Subscriptions]
       operationId: startSubscriptionRenewal
-      summary: active → in_renewal y followUpStatus = in_progress
+      summary: activa → en_renovacion y followUpStatus = en_gestion
       x-roles: [admin, operator]
       requestBody:
         required: true
@@ -941,10 +1031,10 @@ paths:
       operationId: renewSubscription
       summary: Confirma la renovación y registra el nuevo periodo (§6.5, Flujo B)
       description: |
-        Atómico: marca el periodo actual `renewed`, crea el periodo siguiente (por defecto empieza el día siguiente al fin
-        actual y su fin se calcula con el ciclo), actualiza `currentPeriodEnd`, deja el estado `active`, cancela alertas del
+        Atómico: marca el periodo actual `renovada`, crea el periodo siguiente (por defecto empieza el día siguiente al fin
+        actual y su fin se calcula con el ciclo), actualiza `currentPeriodEnd`, deja el estado `activa`, cancela alertas del
         periodo anterior y programa las nuevas, cierra tareas abiertas de renovación, resuelve solicitudes abiertas y audita
-        `subscription.renewed`. El nuevo periodo nace con `paymentStatus=pending` salvo que se indique `not_tracked` (RN-06).
+        `subscription.renewed`. El nuevo periodo nace con `paymentStatus=pendiente` salvo que se indique `sin_seguimiento` (RN-06).
       x-roles: [admin, operator]
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -968,7 +1058,7 @@ paths:
       tags: [Subscriptions]
       operationId: markSubscriptionNotRenewed
       summary: Registra la decisión de no renovar (motivo obligatorio)
-      description: Si la suscripción sigue vigente, el estado cambia a `not_renewed` al terminar el periodo (job); si está `expired`, cambia inmediatamente. Cancela las alertas de renovación pendientes.
+      description: Si la suscripción sigue vigente, el estado cambia a `no_renovada` al terminar el periodo (job); si está `vencida`, cambia inmediatamente. Cancela las alertas de renovación pendientes.
       x-roles: [admin, operator]
       requestBody:
         required: true
@@ -1052,6 +1142,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
   /api/v1/subscriptions/{id}/periods/{periodId}:
     parameters:
       - $ref: '#/components/parameters/IdPath'
@@ -1087,6 +1178,7 @@ paths:
       tags: [Subscriptions]
       operationId: listSubscriptionNotifications
       summary: Alertas de la suscripción (cualquier estado)
+      x-implementation-status: pending
       x-roles: [admin, operator]
       responses:
         '200':
@@ -1118,7 +1210,7 @@ paths:
         - $ref: '#/components/parameters/PageSize'
         - name: status
           in: query
-          schema: { type: string, examples: ['pending_review,in_progress'] }
+          schema: { type: string, examples: ['pendiente_revision,en_progreso'] }
         - name: clientId
           in: query
           schema: { type: string, format: uuid }
@@ -1146,13 +1238,13 @@ paths:
       operationId: createRenewalRequest
       summary: Registra una solicitud de renovación (integración o equipo interno)
       description: |
-        Crea la solicitud en `pending_review` (no es una renovación confirmada, RN-05). El worker crea la tarea
+        Crea la solicitud en `pendiente_revision` (no es una renovación confirmada, RN-05). El proceso de sistema crea la tarea
         `review_renewal_request` y notifica al equipo. `Idempotency-Key` obligatoria para integraciones.
         Los usuarios cliente usan `POST /api/v1/portal/renewal-requests`.
       x-roles: [admin, operator]
       security:
         - bearerAuth: []
-        - apiKeyAuth: ['renewal-requests:write']
+        - apiKeyAuth: ['renewal-requests:write', 'subscriptions:read']
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -1196,10 +1288,11 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     patch:
       tags: [RenewalRequests]
       operationId: updateRenewalRequest
-      summary: Asigna responsable o pasa a `in_progress`
+      summary: Asigna responsable o pasa a `en_progreso`
       x-roles: [admin, operator]
       requestBody:
         required: true
@@ -1223,8 +1316,8 @@ paths:
     post:
       tags: [RenewalRequests]
       operationId: resolveRenewalRequest
-      summary: Resuelve la solicitud (renewed | not_renewed | other)
-      description: Resolver como `renewed` exige un periodo renovado confirmado posterior a la solicitud (usar antes `/subscriptions/{id}/renew`; si no, `422 renewal_not_confirmed`). La solicitud nunca renueva por sí misma (RN-05).
+      summary: Resuelve la solicitud (renovada | no_renovada | otra)
+      description: Resolver como `renovada` exige un periodo renovado confirmado posterior a la solicitud (usar antes `/subscriptions/{id}/renew`; si no, `422 renewal_not_confirmed`). La solicitud nunca renueva por sí misma (RN-05).
       x-roles: [admin, operator]
       requestBody:
         required: true
@@ -1261,7 +1354,7 @@ paths:
           schema: { type: string }
         - name: status
           in: query
-          schema: { type: string, examples: ['pending,in_progress'] }
+          schema: { type: string, examples: ['pendiente,en_progreso'] }
         - name: priority
           in: query
           schema: { type: string, examples: ['high,urgent'] }
@@ -1339,11 +1432,12 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
     patch:
       tags: [RenewalTasks]
       operationId: updateRenewalTask
       summary: Reasigna, reprograma, cambia prioridad, estado abierto o notas
-      description: '`status` sólo admite `pending` o `in_progress`; cerrar usa `/complete` o `/cancel`.'
+      description: '`status` sólo admite `pendiente` o `en_progreso`; cerrar usa `/complete` o `/cancel`.'
       x-roles: [admin, operator]
       requestBody:
         required: true
@@ -1424,14 +1518,14 @@ paths:
         - $ref: '#/components/parameters/PageSize'
         - name: mine
           in: query
-          description: '`true` = sólo alertas in-app del usuario autenticado ya visibles (`sent`)'
+          description: '`true` = sólo alertas in-app del usuario autenticado ya visibles (`enviada`)'
           schema: { type: boolean, default: false }
         - name: unread
           in: query
           schema: { type: boolean }
         - name: status
           in: query
-          schema: { type: string, examples: ['failed'] }
+          schema: { type: string, examples: ['fallida'] }
         - name: channel
           in: query
           schema: { $ref: '#/components/schemas/NotificationChannel' }
@@ -1470,7 +1564,7 @@ paths:
     post:
       tags: [Notifications]
       operationId: retryNotification
-      summary: Reintenta una alerta `failed` (vuelve a `pending` y reinicia intentos)
+      summary: Reintenta una alerta `fallida` (vuelve a `pendiente` y reinicia intentos)
       description: Sólo si la alerta sigue siendo válida para el periodo vigente; si no, `422 notification_obsolete`. Auditado (`notification.retried`).
       x-roles: [admin]
       responses:
@@ -1502,6 +1596,39 @@ paths:
                   data:
                     type: array
                     items: { $ref: '#/components/schemas/AlertRule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/alert-rules/email-template:
+    get:
+      tags: [AlertRules]
+      operationId: getAlertEmailTemplate
+      summary: Plantilla de correo de las alertas
+      x-roles: [admin, operator]
+      responses:
+        '200':
+          description: Plantilla vigente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertEmailTemplate' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    patch:
+      tags: [AlertRules]
+      operationId: updateAlertEmailTemplate
+      summary: Actualiza asunto y cuerpo de la plantilla
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AlertEmailTemplate' }
+      responses:
+        '200':
+          description: Plantilla actualizada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertEmailTemplate' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
   /api/v1/alert-rules/{id}:
@@ -1599,7 +1726,7 @@ paths:
         - $ref: '#/components/parameters/PageSize'
         - name: status
           in: query
-          schema: { type: string, examples: ['active,in_renewal,expired'] }
+          schema: { type: string, examples: ['activa,en_renovacion,vencida'] }
       responses:
         '200':
           description: Página de suscripciones
@@ -1682,7 +1809,7 @@ paths:
             schema: { $ref: '#/components/schemas/RenewalRequestCreate' }
       responses:
         '201':
-          description: Solicitud creada en `pending_review`
+          description: Solicitud creada en `pendiente_revision`
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PortalRenewalRequest' }
@@ -1774,7 +1901,7 @@ paths:
     patch:
       tags: [Integrations]
       operationId: updateIntegration
-      summary: Cambia nombre, descripción o estado (`disabled` corta el acceso de inmediato)
+      summary: Cambia nombre, descripción o estado (`deshabilitado` corta el acceso de inmediato)
       x-roles: [admin]
       requestBody:
         required: true
@@ -2043,7 +2170,7 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     Conflict:
-      description: Conflicto (`version_conflict`, `client_tax_id_taken`, `primary_contact_conflict`, `duplicate_email`, `duplicate_product`, `idempotency_in_progress`)
+      description: Conflicto (`version_conflict`, `client_tax_id_taken`, `primary_contact_conflict`, `duplicate_email`, `duplicate_product`, `duplicate_integration`, `idempotency_in_progress`)
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
@@ -2057,6 +2184,11 @@ components:
       headers:
         Retry-After:
           schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    PayloadTooLarge:
+      description: Cuerpo de la petición supera 100 KB (`payload_too_large`)
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
@@ -2085,10 +2217,10 @@ components:
           type: string
           enum: [validation_error, ambiguous_credentials, unauthenticated, invalid_credentials, token_expired,
                  password_change_required, forbidden, insufficient_scope, not_found, version_conflict,
-                 client_tax_id_taken, primary_contact_conflict, duplicate_email, duplicate_product, alert_rule_offset_taken, idempotency_in_progress,
+                 client_tax_id_taken, primary_contact_conflict, duplicate_email, duplicate_product, duplicate_integration, alert_rule_offset_taken, idempotency_in_progress,
                  idempotency_key_reused, invalid_state_transition, period_overlap, client_archived, client_inactive,
                  product_inactive, notification_obsolete, credential_limit_reached, manifest_invalid,
-                 renewal_not_confirmed, rate_limited, maintenance, dependency_unavailable, internal_error]
+                 renewal_not_confirmed, payload_too_large, rate_limited, maintenance, dependency_unavailable, internal_error]
         requestId: { type: string }
         errors:
           type: array
@@ -2150,24 +2282,24 @@ components:
           additionalProperties: { type: string, enum: [ok, fail] }
 
     UserRole: { type: string, enum: [admin, operator, client] }
-    UserStatus: { type: string, enum: [active, disabled] }
-    ClientStatus: { type: string, enum: [active, inactive, archived] }
+    UserStatus: { type: string, enum: [activo, deshabilitado] }
+    ClientStatus: { type: string, enum: [activo, inactivo, archivado] }
     ProductType: { type: string, enum: [third_party, own, recurring_service] }
-    ProductStatus: { type: string, enum: [active, inactive] }
+    ProductStatus: { type: string, enum: [activo, inactivo] }
     BillingCycle: { type: string, enum: [monthly, quarterly, semiannual, annual, biennial, custom] }
-    SubscriptionStatus: { type: string, enum: [pending_activation, active, in_renewal, expired, cancelled, not_renewed] }
-    PaymentStatus: { type: string, enum: [not_tracked, pending, received] }
-    FollowUpStatus: { type: string, enum: [none, in_progress, awaiting_client, closed] }
-    RenewalOutcome: { type: string, enum: [pending, renewed, not_renewed] }
-    RenewalRequestStatus: { type: string, enum: [pending_review, in_progress, resolved] }
-    RenewalRequestResolution: { type: string, enum: [renewed, not_renewed, other] }
+    SubscriptionStatus: { type: string, enum: [pendiente_activacion, activa, en_renovacion, vencida, cancelada, no_renovada] }
+    PaymentStatus: { type: string, enum: [sin_seguimiento, pendiente, recibido] }
+    FollowUpStatus: { type: string, enum: [sin_gestion, en_gestion, esperando_cliente, cerrado] }
+    RenewalOutcome: { type: string, enum: [pendiente, renovada, no_renovada] }
+    RenewalRequestStatus: { type: string, enum: [pendiente_revision, en_progreso, resuelta] }
+    RenewalRequestResolution: { type: string, enum: [renovada, no_renovada, otra] }
     TaskType: { type: string, enum: [contact_client, send_proposal, confirm_terms, verify_payment, confirm_renewal, record_non_renewal, review_renewal_request, review_expired, other] }
     TaskPriority: { type: string, enum: [low, medium, high, urgent] }
-    TaskStatus: { type: string, enum: [pending, in_progress, completed, cancelled] }
+    TaskStatus: { type: string, enum: [pendiente, en_progreso, completada, cancelada] }
     NotificationType: { type: string, enum: [expiration_alert, renewal_request_created] }
     NotificationChannel: { type: string, enum: [in_app, email] }
-    NotificationStatus: { type: string, enum: [pending, sent, failed, cancelled] }
-    IntegrationStatus: { type: string, enum: [active, disabled] }
+    NotificationStatus: { type: string, enum: [pendiente, enviada, fallida, cancelada] }
+    IntegrationStatus: { type: string, enum: [activa, deshabilitada] }
     ClientScope: { type: string, enum: [all, own] }
     ActorType: { type: string, enum: [user, integration, system] }
     Scope: { type: string, enum: ['clients:read', 'products:read', 'subscriptions:read', 'renewal-tasks:read', 'renewal-requests:read', 'renewal-requests:write'] }
@@ -2294,7 +2426,7 @@ components:
         email: { type: [string, 'null'], format: email }
         phone: { type: [string, 'null'], maxLength: 30 }
         ownerUserId: { type: [string, 'null'], format: uuid }
-        status: { type: string, enum: [active, inactive], default: active }
+        status: { type: string, enum: [activo, inactivo], default: activo }
     ClientUpdate:
       type: object
       additionalProperties: false
@@ -2305,13 +2437,27 @@ components:
         email: { type: [string, 'null'], format: email }
         phone: { type: [string, 'null'], maxLength: 30 }
         ownerUserId: { type: [string, 'null'], format: uuid }
-        status: { type: string, enum: [active, inactive] }
+        status: { type: string, enum: [activo, inactivo] }
     ClientPage:
       type: object
       required: [data, meta]
       properties:
         data: { type: array, items: { $ref: '#/components/schemas/Client' } }
         meta: { $ref: '#/components/schemas/PaginationMeta' }
+    ClientOwnerCandidate:
+      type: object
+      required: [id, fullName, role]
+      properties:
+        id: { type: string, format: uuid }
+        fullName: { type: string }
+        role: { type: string, enum: [admin, operator] }
+    ClientOwnerCandidateList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ClientOwnerCandidate' }
     ClientContact:
       type: object
       required: [id, clientId, fullName, isPrimary]
@@ -2479,7 +2625,7 @@ components:
         visibleInPortal: { type: boolean, default: true }
         ownerUserId: { type: [string, 'null'], format: uuid }
         notes: { type: [string, 'null'], maxLength: 5000 }
-        activate: { type: boolean, default: false, description: 'true ⇒ nace `active`; false ⇒ `pending_activation`' }
+        activate: { type: boolean, default: false, description: 'true ⇒ nace `activa`; false ⇒ `pendiente_activacion`' }
         initialPaymentStatus: { $ref: '#/components/schemas/PaymentStatus' }
     SubscriptionUpdate:
       type: object
@@ -2494,7 +2640,7 @@ components:
         visibleInPortal: { type: boolean }
         ownerUserId: { type: [string, 'null'], format: uuid }
         notes: { type: [string, 'null'], maxLength: 5000 }
-        followUpStatus: { type: string, enum: [in_progress, awaiting_client] }
+        followUpStatus: { type: string, enum: [en_gestion, esperando_cliente] }
         priceAmount: { $ref: '#/components/schemas/Amount' }
         supplierCostAmount:
           oneOf:
@@ -2561,7 +2707,7 @@ components:
                 - $ref: '#/components/schemas/Amount'
                 - type: 'null'
             contractReference: { type: [string, 'null'], maxLength: 120 }
-            paymentStatus: { type: string, enum: [pending, not_tracked], default: pending }
+            paymentStatus: { type: string, enum: [pendiente, sin_seguimiento], default: pendiente }
         note: { type: [string, 'null'], maxLength: 1000 }
     CorrectExpirationInput:
       type: object
@@ -2591,7 +2737,7 @@ components:
       additionalProperties: false
       minProperties: 1
       properties:
-        status: { type: string, enum: [in_progress] }
+        status: { type: string, enum: [en_progreso] }
         assignedUserId: { type: [string, 'null'], format: uuid }
     RenewalRequestResolve:
       type: object
@@ -2686,7 +2832,7 @@ components:
         assigneeUserId: { type: [string, 'null'], format: uuid }
         priority: { $ref: '#/components/schemas/TaskPriority' }
         dueDate: { type: string, format: date }
-        status: { type: string, enum: [pending, in_progress] }
+        status: { type: string, enum: [pendiente, en_progreso] }
         notes: { type: [string, 'null'], maxLength: 5000 }
         nextAction: { type: [string, 'null'], maxLength: 500 }
     TaskClose:
@@ -2760,6 +2906,21 @@ components:
             - type: 'null'
         appliesWhenNotRenewable: { type: boolean }
         isActive: { type: boolean }
+    AlertEmailTemplate:
+      type: object
+      required: [subject, body]
+      additionalProperties: false
+      properties:
+        subject:
+          type: string
+          minLength: 3
+          maxLength: 200
+          description: 'Admite placeholders: {{recipientName}}, {{clientName}}, {{productName}}, {{periodEnd}}, {{ruleCode}}, {{subscriptionUrl}}, {{frontendUrl}}'
+        body:
+          type: string
+          minLength: 10
+          maxLength: 5000
+          description: 'Admite los mismos placeholders que el asunto.'
     AlertRuleUpdate:
       type: object
       additionalProperties: false
@@ -2795,7 +2956,7 @@ components:
           additionalProperties: { type: string }
           description: Parámetros de query del listado que compone la cifra
           examples:
-            - status: active,in_renewal
+            - status: activa,en_renovacion
               expiresFrom: '2026-11-01'
               expiresTo: '2026-11-08'
     DashboardSummary:
@@ -3035,11 +3196,13 @@ components:
     Settings:
       type: object
       additionalProperties: false
+      required: [contactChannel]
       properties:
         contactChannel:
           type: object
           additionalProperties: false
+          required: [email, phone, hours]
           properties:
-            email: { type: [string, 'null'], format: email }
+            email: { type: [string, 'null'], format: email, maxLength: 254 }
             phone: { type: [string, 'null'], maxLength: 30 }
             hours: { type: [string, 'null'], maxLength: 200 }

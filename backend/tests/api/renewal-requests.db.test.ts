@@ -47,16 +47,16 @@ describe.skipIf(!dbTestsConfigured())('Renewal requests list API (Postgres)', ()
 
     const product = await factories.product();
     const subscription = await factories.subscription(clientRow, product, {
-      status: 'active',
+      status: 'activa',
       startDate: toBogotaLocalDate(new Date()),
     });
     const pending = await factories.renewalRequest(subscription, {
-      status: 'pending_review',
+      status: 'pendiente_revision',
       requestedByUserId: admin.id,
     });
     pendingRequestId = pending.id;
     await factories.renewalRequest(subscription, {
-      status: 'in_progress',
+      status: 'en_progreso',
       requestedByUserId: admin.id,
     });
   });
@@ -68,7 +68,7 @@ describe.skipIf(!dbTestsConfigured())('Renewal requests list API (Postgres)', ()
 
   it('lista y filtra solicitudes para admin/operator', async () => {
     const res = await request(app)
-      .get(`/api/v1/renewal-requests?status=pending_review&clientId=${clientId}`)
+      .get(`/api/v1/renewal-requests?status=pendiente_revision&clientId=${clientId}`)
       .set(auth(adminToken));
     expect(res.status).toBe(200);
     expectMatchesOperation(res, 'listRenewalRequests');
@@ -82,9 +82,82 @@ describe.skipIf(!dbTestsConfigured())('Renewal requests list API (Postgres)', ()
     ).toBe(200);
   });
 
+  it('obtiene el detalle de una solicitud y responde 404 si no existe', async () => {
+    const res = await request(app)
+      .get(`/api/v1/renewal-requests/${pendingRequestId}`)
+      .set(auth(adminToken));
+    expect(res.status).toBe(200);
+    expectMatchesOperation(res, 'getRenewalRequest');
+    expect(res.body.id).toBe(pendingRequestId);
+
+    const operatorRes = await request(app)
+      .get(`/api/v1/renewal-requests/${pendingRequestId}`)
+      .set(auth(operatorToken));
+    expect(operatorRes.status).toBe(200);
+
+    const missing = await request(app)
+      .get('/api/v1/renewal-requests/00000000-0000-4000-8000-000000000000')
+      .set(auth(adminToken));
+    expect(missing.status).toBe(404);
+  });
+
   it('cliente no puede listar solicitudes internas', async () => {
     expect((await request(app).get('/api/v1/renewal-requests').set(auth(clientToken))).status).toBe(
       403,
     );
+  });
+
+  it('asigna responsable y pasa la solicitud a en progreso', async () => {
+    const res = await request(app)
+      .patch(`/api/v1/renewal-requests/${pendingRequestId}`)
+      .set(auth(adminToken))
+      .send({ assignedUserId: operator.id, status: 'en_progreso' });
+
+    expect(res.status).toBe(200);
+    expectMatchesOperation(res, 'updateRenewalRequest');
+    expect(res.body.status).toBe('en_progreso');
+    expect(res.body.assignedUser).toMatchObject({ id: operator.id });
+  });
+
+  it('resuelve una solicitud como no renovada', async () => {
+    const res = await request(app)
+      .post(`/api/v1/renewal-requests/${pendingRequestId}/resolve`)
+      .set(auth(operatorToken))
+      .send({ resolution: 'no_renovada', resolutionNote: 'El cliente no continúa' });
+
+    expect(res.status).toBe(200);
+    expectMatchesOperation(res, 'resolveRenewalRequest');
+    expect(res.body.status).toBe('resuelta');
+    expect(res.body.resolution).toBe('no_renovada');
+    expect(res.body.resolutionNote).toBe('El cliente no continúa');
+  });
+
+  it('no permite resolver renovada sin una renovación confirmada', async () => {
+    const res = await request(app)
+      .post(`/api/v1/renewal-requests/${pendingRequestId}/resolve`)
+      .set(auth(adminToken))
+      .send({ resolution: 'renovada' });
+
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('renewal_not_confirmed');
+  });
+
+  it('cliente no puede modificar ni resolver solicitudes internas', async () => {
+    expect(
+      (
+        await request(app)
+          .patch(`/api/v1/renewal-requests/${pendingRequestId}`)
+          .set(auth(clientToken))
+          .send({ status: 'en_progreso' })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await request(app)
+          .post(`/api/v1/renewal-requests/${pendingRequestId}/resolve`)
+          .set(auth(clientToken))
+          .send({ resolution: 'otra' })
+      ).status,
+    ).toBe(403);
   });
 });

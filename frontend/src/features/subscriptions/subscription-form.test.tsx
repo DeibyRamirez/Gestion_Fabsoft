@@ -20,7 +20,7 @@ const activeClient: ClientDto = {
   id: '00000000-0000-4000-8000-000000000101',
   legalName: 'Cliente Activo',
   taxId: null,
-  status: 'active',
+  status: 'activo',
   email: null,
   phone: null,
   owner: null,
@@ -32,7 +32,7 @@ const archivedClient: ClientDto = {
   ...activeClient,
   id: '00000000-0000-4000-8000-000000000102',
   legalName: 'Cliente Archivado',
-  status: 'archived',
+  status: 'archivado',
 };
 const activeProduct: ProductDto = {
   id: '00000000-0000-4000-8000-000000000201',
@@ -41,7 +41,7 @@ const activeProduct: ProductDto = {
   productType: 'third_party',
   vendor: null,
   referenceCode: null,
-  status: 'active',
+  status: 'activo',
   createdAt: '2026-11-01T00:00:00.000Z',
   updatedAt: '2026-11-01T00:00:00.000Z',
 };
@@ -49,11 +49,14 @@ const inactiveProduct: ProductDto = {
   ...activeProduct,
   id: '00000000-0000-4000-8000-000000000202',
   name: 'Producto Inactivo',
-  status: 'inactive',
+  status: 'inactivo',
 };
 
 function mockCatalog() {
   fetchMock.mockImplementation((path: string) => {
+    if (path === '/clients/assignable-owners') {
+      return Promise.resolve({ data: [] });
+    }
     if (path.startsWith('/clients')) {
       return Promise.resolve({ data: [activeClient, archivedClient] });
     }
@@ -96,6 +99,7 @@ describe('SubscriptionForm', () => {
   it('envía POST con Idempotency-Key al crear', async () => {
     mockCatalog();
     fetchMock.mockImplementation((path: string, init?: { method?: string }) => {
+      if (path === '/clients/assignable-owners') return Promise.resolve({ data: [] });
       if (path.startsWith('/clients')) return Promise.resolve({ data: [activeClient] });
       if (path.startsWith('/products')) return Promise.resolve({ data: [activeProduct] });
       if (path === '/subscriptions' && init?.method === 'POST') {
@@ -112,13 +116,23 @@ describe('SubscriptionForm', () => {
       expect(
         (call?.[1] as { headers?: Record<string, string> }).headers?.['Idempotency-Key'],
       ).toBeTruthy();
-      expect(JSON.parse((call?.[1] as { body: string }).body).priceAmount).toBe('100000.00');
+      const payload = JSON.parse((call?.[1] as { body: string }).body) as {
+        priceAmount: string;
+        isRenewable: boolean;
+        visibleInPortal: boolean;
+        supplierCostAmount?: string;
+      };
+      expect(payload.priceAmount).toBe('100000.00');
+      expect(payload.isRenewable).toBe(true);
+      expect(payload.visibleInPortal).toBe(true);
+      expect(payload.supplierCostAmount).toBeUndefined();
     });
   });
 
   it('muestra el mensaje si la API rechaza', async () => {
     mockCatalog();
     fetchMock.mockImplementation((path: string, init?: { method?: string }) => {
+      if (path === '/clients/assignable-owners') return Promise.resolve({ data: [] });
       if (path.startsWith('/clients')) return Promise.resolve({ data: [activeClient] });
       if (path.startsWith('/products')) return Promise.resolve({ data: [activeProduct] });
       if (path === '/subscriptions' && init?.method === 'POST') {

@@ -49,7 +49,7 @@ test.describe('estados borde y accesibilidad (rediseño)', () => {
   test('login: usuario inactivo muestra error genérico (401)', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('Email').fill(seedUsers.inactive.email);
-    await page.getByLabel('Contraseña').fill(seedUsers.inactive.password);
+    await page.getByLabel('Contraseña', { exact: true }).fill(seedUsers.inactive.password);
     await page.getByRole('button', { name: 'Ingresar' }).click();
     await expect(page).toHaveURL(/\/login/);
     await expect(
@@ -91,24 +91,28 @@ test.describe('estados borde y accesibilidad (rediseño)', () => {
       const gate = new Promise<void>((res) => {
         release = res;
       });
-      await page.route('**/api/v1/health', async (route) => {
+      await page.route('**/api/v1/dashboard/summary', async (route) => {
         await gate;
         await route.continue();
       });
       await page.goto('/dashboard');
       await expectDashboardReady(page);
-      await expect(page.getByText('Comprobando…')).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText('Cargando indicadores…')).toBeVisible({ timeout: 5000 });
       await shot(page, '16-dashboard-api-loading-admin-desktop.png');
       release();
-      await expect(page.getByText('Versión', { exact: false })).toBeVisible({ timeout: 15000 });
+      await expect(page.getByRole('heading', { name: 'Indicadores' })).toBeVisible({
+        timeout: 15000,
+      });
 
-      await page.unroute('**/api/v1/health');
-      await page.route('**/api/v1/health', (route) =>
+      await page.unroute('**/api/v1/dashboard/summary');
+      await page.route('**/api/v1/dashboard/summary', (route) =>
         route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }),
       );
       await page.goto('/dashboard');
       await expectDashboardReady(page);
-      await expect(page.getByText('No disponible')).toBeVisible({ timeout: 15000 });
+      await expect(page.getByText('No se pudieron cargar los indicadores del panel.')).toBeVisible({
+        timeout: 15000,
+      });
       await shot(page, '15-dashboard-api-unreachable-admin-desktop.png');
       await page.close();
     });
@@ -120,8 +124,11 @@ test.describe('estados borde y accesibilidad (rediseño)', () => {
       await expectDashboardReady(page);
       await page.keyboard.press('Tab');
       await expect(page.getByRole('link', { name: 'Saltar al contenido' })).toBeFocused();
-      await page.keyboard.press('Tab');
       const logo = page.locator('aside a').filter({ hasText: 'FabSoft' });
+      for (let i = 0; i < 6; i += 1) {
+        if (await logo.evaluate((element) => element === document.activeElement)) break;
+        await page.keyboard.press('Tab');
+      }
       await expect(logo).toBeFocused();
       await expectVisibleFocusIndicator(logo);
       await page.close();

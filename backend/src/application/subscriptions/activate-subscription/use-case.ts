@@ -26,7 +26,7 @@ export class ActivateSubscription {
       if (current.version !== version) {
         throw new ApplicationError('version_conflict', 'La suscripción fue modificada');
       }
-      assertTransition(current.status, 'active');
+      assertTransition(current.status, 'activa');
       const updated = await subscriptionActivate.activate(id, current.version, actor.userId);
       if (!updated) throw new ApplicationError('version_conflict', 'La suscripción fue modificada');
       await alerts.scheduleForPeriod(updated.id, toBogotaLocalDate(this.clock.now()));

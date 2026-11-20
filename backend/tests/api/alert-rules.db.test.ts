@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { AlertRuleListSchema, ProblemSchema } from '@fabsoft/shared';
+import { AlertEmailTemplateSchema, AlertRuleListSchema, ProblemSchema } from '@fabsoft/shared';
 import { createFactories, type Factories, type FactoryUser } from '../fixtures/factories.js';
 import { buildTestApp, closeTestApp, getTestAccessTokens } from '../helpers/app.js';
 import {
@@ -71,14 +71,7 @@ describe.skipIf(!dbTestsConfigured())('Alert rules API (Postgres)', () => {
     expect(adminRes.status).toBe(200);
     expectMatchesOperation(adminRes, 'listAlertRules');
     const list = AlertRuleListSchema.parse(adminRes.body);
-    expect(list.data.map((rule) => rule.code)).toEqual([
-      'D30',
-      'D15',
-      'D7',
-      'D1',
-      'D0',
-      'POST1',
-    ]);
+    expect(list.data.map((rule) => rule.code)).toEqual(['D30', 'D15', 'D7', 'D1', 'D0', 'POST1']);
 
     expect((await request(app).get('/api/v1/alert-rules').set(auth(operatorToken))).status).toBe(
       200,
@@ -171,6 +164,65 @@ describe.skipIf(!dbTestsConfigured())('Alert rules API (Postgres)', () => {
           .set(auth(clientToken))
           .send({ offsetDays: 45 })
       ).status,
+    ).toBe(403);
+  });
+
+  it('GET/PATCH plantilla de correo con auditoría', async () => {
+    const initial = await request(app)
+      .get('/api/v1/alert-rules/email-template')
+      .set(auth(adminToken));
+    expect(initial.status).toBe(200);
+    expectMatchesOperation(initial, 'getAlertEmailTemplate');
+    expect(AlertEmailTemplateSchema.parse(initial.body).subject).toContain('{{clientName}}');
+
+    const updated = await request(app)
+      .patch('/api/v1/alert-rules/email-template')
+      .set(auth(adminToken))
+      .send({
+        subject: 'Aviso para {{clientName}}',
+        body: 'Hola {{recipientName}}, revisa {{subscriptionUrl}}.',
+      });
+    expect(updated.status).toBe(200);
+    expectMatchesOperation(updated, 'updateAlertEmailTemplate');
+    expect(AlertEmailTemplateSchema.parse(updated.body)).toMatchObject({
+      subject: 'Aviso para {{clientName}}',
+    });
+
+    const after = await request(app)
+      .get('/api/v1/alert-rules/email-template')
+      .set(auth(operatorToken));
+    expect(after.status).toBe(200);
+    expect(after.body.subject).toBe('Aviso para {{clientName}}');
+
+    const audit = await request(app)
+      .get('/api/v1/audit-logs?action=app_setting.updated')
+      .set(auth(adminToken));
+    expect(audit.status).toBe(200);
+    expect(audit.body.data).toHaveLength(1);
+    expect(audit.body.data[0].resourceId).toBe('alert_email_template');
+    expect(audit.body.data[0].changes.before.value.subject).toBe(initial.body.subject);
+    expect(audit.body.data[0].changes.after.value.subject).toBe('Aviso para {{clientName}}');
+  });
+
+  it('rechaza placeholders desconocidos y edición por operator/client', async () => {
+    const invalid = await request(app)
+      .patch('/api/v1/alert-rules/email-template')
+      .set(auth(adminToken))
+      .send({ subject: 'Hola {{unknown}}', body: 'Cuerpo válido' });
+    expect(invalid.status).toBe(400);
+    expect(ProblemSchema.parse(invalid.body).code).toBe('validation_error');
+
+    expect(
+      (
+        await request(app)
+          .patch('/api/v1/alert-rules/email-template')
+          .set(auth(operatorToken))
+          .send({ subject: 'Hola', body: 'Cuerpo válido' })
+      ).status,
+    ).toBe(403);
+
+    expect(
+      (await request(app).get('/api/v1/alert-rules/email-template').set(auth(clientToken))).status,
     ).toBe(403);
   });
 });

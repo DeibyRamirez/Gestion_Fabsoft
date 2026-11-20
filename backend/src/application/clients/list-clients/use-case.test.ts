@@ -16,7 +16,7 @@ describe('ListClients', () => {
     await expect(
       uc.execute(
         { actorType: 'user', userId: 'x', role: 'client', clientId: 'c', requestId: 'r' },
-        { page: 1, pageSize: 20, status: ['active'], sort: 'legalName' },
+        { page: 1, pageSize: 20, status: ['activo'], sort: 'legalName' },
       ),
     ).rejects.toMatchObject({ code: 'forbidden' });
   });
@@ -31,7 +31,7 @@ describe('ListClients', () => {
     const r = await uc.execute(operator, {
       page: 1,
       pageSize: 10,
-      status: ['active', 'inactive'],
+      status: ['activo', 'inactivo'],
       sort: 'legalName',
     });
     expect(r.total).toBe(0);

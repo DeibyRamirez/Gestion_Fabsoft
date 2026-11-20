@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
+  ALERT_EMAIL_TEMPLATE_PLACEHOLDERS,
+  AlertEmailTemplateSchema,
   AlertRuleUpdateSchema,
+  DEFAULT_ALERT_EMAIL_TEMPLATE,
+  type AlertEmailTemplate,
   type AlertRuleDto,
   type AlertRuleList,
   type NotificationChannel,
@@ -12,20 +16,17 @@ import {
 import { ApiError, apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
 import { PageHeader } from '@/shared/components/page-header';
+import { NOTIFICATION_CHANNEL_LABELS } from '@/shared/lib/labels';
 import { TASK_PRIORITY_LABELS, TASK_TYPE_LABELS } from '@/features/tasks/labels';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card';
 import { Input } from '@/shared/ui/input';
 import { Label } from '@/shared/ui/label';
+import { nativeSelectClassName } from '@/shared/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/shared/ui/table';
+import { Textarea } from '@/shared/ui/textarea';
 
-const selectClassName =
-  'flex h-10 w-full rounded-md border border-border-input bg-bg px-3 py-2 text-sm text-fg shadow-sm focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2';
-
-const CHANNEL_LABELS: Record<NotificationChannel, string> = {
-  in_app: 'En la app',
-  email: 'Email',
-};
+const CHANNEL_LABELS = NOTIFICATION_CHANNEL_LABELS;
 
 const offsetLabel = (days: number): string => {
   if (days > 0) return `${days} días antes`;
@@ -34,16 +35,18 @@ const offsetLabel = (days: number): string => {
 };
 
 const toggleChannel = (channels: NotificationChannel[], channel: NotificationChannel) =>
-  channels.includes(channel)
-    ? channels.filter((item) => item !== channel)
-    : [...channels, channel];
+  channels.includes(channel) ? channels.filter((item) => item !== channel) : [...channels, channel];
 
 export function AlertRulesPage() {
   const { token } = useAuth();
   const [rules, setRules] = useState<AlertRuleDto[]>([]);
   const [draft, setDraft] = useState<AlertRuleDto | null>(null);
+  const [template, setTemplate] = useState<AlertEmailTemplate>({
+    ...DEFAULT_ALERT_EMAIL_TEMPLATE,
+  });
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [templatePending, setTemplatePending] = useState(false);
   const [version, setVersion] = useState(0);
   const reload = useCallback(() => setVersion((value) => value + 1), []);
 
@@ -60,6 +63,43 @@ export function AlertRulesPage() {
       alive = false;
     };
   }, [token, version]);
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch<AlertEmailTemplate>('/alert-rules/email-template', { token })
+      .then((result) => {
+        if (alive) setTemplate(result);
+      })
+      .catch(() => {
+        if (alive) setMessage('No se pudo cargar la plantilla de correo.');
+      });
+    return () => {
+      alive = false;
+    };
+  }, [token]);
+
+  async function saveTemplate() {
+    const parsed = AlertEmailTemplateSchema.safeParse(template);
+    if (!parsed.success) {
+      setMessage(parsed.error.issues[0]?.message ?? 'Plantilla inválida');
+      return;
+    }
+    setTemplatePending(true);
+    setMessage(null);
+    try {
+      const updated = await apiFetch<AlertEmailTemplate>('/alert-rules/email-template', {
+        method: 'PATCH',
+        token,
+        body: JSON.stringify(parsed.data),
+      });
+      setTemplate(updated);
+      setMessage('Plantilla actualizada. Se usará en los próximos envíos.');
+    } catch (err) {
+      setMessage(err instanceof ApiError ? err.message : 'No se pudo guardar la plantilla.');
+    } finally {
+      setTemplatePending(false);
+    }
+  }
 
   function startEdit(rule: AlertRuleDto) {
     setDraft({ ...rule, channels: [...rule.channels] });
@@ -95,7 +135,9 @@ export function AlertRulesPage() {
         token,
         body: JSON.stringify(parsed.data),
       });
-      setMessage('Regla actualizada. Se aplicará en la próxima reconciliación diaria (00:10 Bogotá).');
+      setMessage(
+        'Regla actualizada. Se aplicará en la próxima reconciliación diaria (00:10 Bogotá).',
+      );
       setDraft(null);
       reload();
     } catch (err) {
@@ -112,9 +154,8 @@ export function AlertRulesPage() {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8">
       <PageHeader
-        breadcrumbs={['Admin']}
         title="Reglas de alerta"
-        description="Umbrales globales que usa el worker para programar alertas y tareas. La plantilla de correo es fija."
+        description="Umbrales globales que usa el worker para programar alertas y tareas. La plantilla de correo es editable."
       />
 
       {message ? (
@@ -122,6 +163,47 @@ export function AlertRulesPage() {
           {message}
         </div>
       ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Plantilla de correo</CardTitle>
+          <CardDescription>
+            Asunto y cuerpo de los correos de vencimiento. Usa placeholders entre llaves dobles.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="alert-email-subject">Asunto</Label>
+            <Input
+              id="alert-email-subject"
+              value={template.subject}
+              maxLength={200}
+              onChange={(e) => setTemplate({ ...template, subject: e.target.value })}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="alert-email-body">Cuerpo</Label>
+            <Textarea
+              id="alert-email-body"
+              value={template.body}
+              rows={8}
+              maxLength={5000}
+              onChange={(e) => setTemplate({ ...template, body: e.target.value })}
+            />
+          </div>
+          <p className="text-xs text-fg-muted">
+            Placeholders disponibles:{' '}
+            {ALERT_EMAIL_TEMPLATE_PLACEHOLDERS.map((placeholder) => `{{${placeholder}}}`).join(
+              ', ',
+            )}
+          </p>
+          <div>
+            <Button type="button" onClick={() => void saveTemplate()} disabled={templatePending}>
+              {templatePending ? 'Guardando…' : 'Guardar plantilla'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -154,7 +236,12 @@ export function AlertRulesPage() {
                   <TableCell>{rule.createsTask ? 'Sí' : 'No'}</TableCell>
                   <TableCell>{rule.isActive ? 'Activa' : 'Inactiva'}</TableCell>
                   <TableCell className="text-right">
-                    <Button type="button" variant="outline" size="sm" onClick={() => startEdit(rule)}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => startEdit(rule)}
+                    >
                       Editar
                     </Button>
                   </TableCell>
@@ -210,6 +297,7 @@ export function AlertRulesPage() {
                   <label key={channel} className="flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
+                      className="size-4 rounded border-border-input accent-[var(--color-iris)]"
                       checked={draft.channels.includes(channel)}
                       onChange={() =>
                         updateDraft({ channels: toggleChannel(draft.channels, channel) })
@@ -224,6 +312,7 @@ export function AlertRulesPage() {
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
+                className="size-4 rounded border-border-input accent-[var(--color-iris)]"
                 checked={draft.createsTask}
                 onChange={(e) =>
                   updateDraft(
@@ -243,6 +332,7 @@ export function AlertRulesPage() {
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
+                className="size-4 rounded border-border-input accent-[var(--color-iris)]"
                 checked={draft.appliesWhenNotRenewable}
                 onChange={(e) => updateDraft({ appliesWhenNotRenewable: e.target.checked })}
               />
@@ -255,7 +345,7 @@ export function AlertRulesPage() {
                   <Label htmlFor="alert-rule-task-type">Tipo de tarea</Label>
                   <select
                     id="alert-rule-task-type"
-                    className={selectClassName}
+                    className={nativeSelectClassName}
                     value={draft.taskType ?? 'contact_client'}
                     onChange={(e) => updateDraft({ taskType: e.target.value as TaskType })}
                   >
@@ -270,11 +360,9 @@ export function AlertRulesPage() {
                   <Label htmlFor="alert-rule-task-priority">Prioridad de la tarea</Label>
                   <select
                     id="alert-rule-task-priority"
-                    className={selectClassName}
+                    className={nativeSelectClassName}
                     value={draft.taskPriority ?? 'medium'}
-                    onChange={(e) =>
-                      updateDraft({ taskPriority: e.target.value as TaskPriority })
-                    }
+                    onChange={(e) => updateDraft({ taskPriority: e.target.value as TaskPriority })}
                   >
                     {Object.entries(TASK_PRIORITY_LABELS).map(([value, label]) => (
                       <option key={value} value={value}>
@@ -289,6 +377,7 @@ export function AlertRulesPage() {
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
+                className="size-4 rounded border-border-input accent-[var(--color-iris)]"
                 checked={draft.isActive}
                 onChange={(e) => updateDraft({ isActive: e.target.checked })}
               />

@@ -38,7 +38,7 @@ export class RefreshSession {
       }
       if (stored.expiresAt <= now) return { ok: false };
       const user = await refresh.loadUser(stored.userId);
-      if (!user || user.status !== 'active') {
+      if (!user || user.status !== 'activo') {
         await refresh.revokeFamily(stored.familyId, 'user_disabled', now);
         return { ok: false };
       }

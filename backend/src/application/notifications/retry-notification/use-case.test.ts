@@ -22,7 +22,7 @@ const view = (over: Partial<NotificationView> = {}): NotificationView => ({
   channel: 'email',
   recipient: { id: 'a', fullName: 'Admin' },
   scheduledFor: new Date('2026-12-01T13:00:00Z'),
-  status: 'failed',
+  status: 'fallida',
   attempts: 5,
   maxAttempts: 5,
   nextAttemptAt: null,
@@ -35,7 +35,7 @@ const view = (over: Partial<NotificationView> = {}): NotificationView => ({
 });
 
 function makeUc(obsolete: boolean) {
-  const restart = vi.fn(async () => view({ status: 'pending', attempts: 0 }));
+  const restart = vi.fn(async () => view({ status: 'pendiente', attempts: 0 }));
   const audit = vi.fn(async () => undefined);
   const uc = new RetryNotification(
     {
@@ -56,7 +56,7 @@ function makeUc(obsolete: boolean) {
 describe('RetryNotification', () => {
   it('reprograma una fallida y audita', async () => {
     const { uc, restart, audit } = makeUc(false);
-    await expect(uc.execute(admin, 'not-1')).resolves.toMatchObject({ status: 'pending' });
+    await expect(uc.execute(admin, 'not-1')).resolves.toMatchObject({ status: 'pendiente' });
     expect(restart).toHaveBeenCalled();
     expect(audit).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'notification.retried', resourceId: 'not-1' }),

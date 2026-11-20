@@ -6,7 +6,7 @@ export interface CloseTaskRepository {
   close(
     id: string,
     expectedVersion: number,
-    status: Extract<TaskStatus, 'completed' | 'cancelled'>,
+    status: Extract<TaskStatus, 'completada' | 'cancelada'>,
     outcome: string,
     closedAt: Date,
     updatedBy: string,

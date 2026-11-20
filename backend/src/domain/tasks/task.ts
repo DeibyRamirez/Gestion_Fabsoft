@@ -2,7 +2,7 @@ import type { TaskOrigin, TaskStatus } from '@fabsoft/shared';
 import { DomainError } from '../shared/domain-error.js';
 import { compareLocalDate, type LocalDate } from '../subscriptions/local-date.js';
 
-export const OPEN_TASK_STATUSES: readonly TaskStatus[] = ['pending', 'in_progress'];
+export const OPEN_TASK_STATUSES: readonly TaskStatus[] = ['pendiente', 'en_progreso'];
 
 export function isTaskOpen(status: TaskStatus): boolean {
   return OPEN_TASK_STATUSES.includes(status);

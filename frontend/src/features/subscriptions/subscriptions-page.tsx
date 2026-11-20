@@ -2,19 +2,22 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { DownloadIcon, RepeatIcon } from 'lucide-react';
 import type { SubscriptionPage } from '@fabsoft/shared';
-import { apiFetch } from '@/shared/api/client';
+import { ApiError, apiFetch, downloadCsv } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
+import { EmptyState } from '@/shared/components/empty-state';
+import { FilterBar, FilterField, SearchInput } from '@/shared/components/filter-bar';
+import { LoadingState } from '@/shared/components/loading-state';
 import { PageHeader } from '@/shared/components/page-header';
 import { Button } from '@/shared/ui/button';
 import { Card, CardContent } from '@/shared/ui/card';
 import { Input } from '@/shared/ui/input';
+import { nativeSelectClassName } from '@/shared/ui/native-select';
 import { SubscriptionsTable } from './subscriptions-table';
 
-const selectClassName =
-  'flex h-10 w-full rounded-md border border-border-input bg-bg px-3 py-2 text-sm text-fg shadow-sm focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2';
-
 export type SubscriptionFilters = {
+  q: string;
   status: string;
   followUpStatus: string;
   expiresFrom: string;
@@ -23,6 +26,7 @@ export type SubscriptionFilters = {
 };
 
 export const EMPTY_SUBSCRIPTION_FILTERS: SubscriptionFilters = {
+  q: '',
   status: '',
   followUpStatus: '',
   expiresFrom: '',
@@ -40,11 +44,13 @@ export function SubscriptionsPage({
   const [filters, setFilters] = useState<SubscriptionFilters>(initialFilters);
   const [message, setMessage] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
+  const [exporting, setExporting] = useState(false);
   const reload = useCallback(() => setVersion((v) => v + 1), []);
 
   useEffect(() => {
     let alive = true;
     const params = new URLSearchParams({ pageSize: '50' });
+    if (filters.q.trim()) params.set('q', filters.q.trim());
     if (filters.status) params.set('status', filters.status);
     if (filters.followUpStatus) params.set('followUpStatus', filters.followUpStatus);
     if (filters.expiresFrom) params.set('expiresFrom', filters.expiresFrom);
@@ -69,108 +75,157 @@ export function SubscriptionsPage({
   const set = <K extends keyof SubscriptionFilters>(key: K, value: SubscriptionFilters[K]) =>
     setFilters((current) => ({ ...current, [key]: value }));
 
+  function filterParams(): string {
+    const params = new URLSearchParams();
+    if (filters.q.trim()) params.set('q', filters.q.trim());
+    if (filters.status) params.set('status', filters.status);
+    if (filters.followUpStatus) params.set('followUpStatus', filters.followUpStatus);
+    if (filters.expiresFrom) params.set('expiresFrom', filters.expiresFrom);
+    if (filters.expiresTo) params.set('expiresTo', filters.expiresTo);
+    if (filters.ownerUserId) params.set('ownerUserId', filters.ownerUserId);
+    return params.toString();
+  }
+
+  async function exportCsv() {
+    const query = filterParams();
+    setExporting(true);
+    try {
+      await downloadCsv(`/subscriptions/export${query ? `?${query}` : ''}`, token);
+      setMessage(null);
+    } catch (err) {
+      setMessage(err instanceof ApiError ? err.message : 'No se pudo exportar el CSV.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-5">
       <PageHeader
-        breadcrumbs={['Gestión']}
         title="Suscripciones"
         description="Vigencia de las suscripciones de los clientes."
         actions={
-          <Button asChild>
-            <Link href="/subscriptions/new">Nueva suscripción</Link>
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void exportCsv()}
+              disabled={exporting}
+            >
+              <DownloadIcon aria-hidden />
+              {exporting ? 'Exportando…' : 'Exportar CSV'}
+            </Button>
+            <Button asChild>
+              <Link href="/subscriptions/new">Nueva suscripción</Link>
+            </Button>
+          </>
         }
       />
 
       {message ? (
-        <div role="status" className="rounded-md border border-border bg-surface px-4 py-3 text-sm">
+        <div
+          role="status"
+          className="rounded-xl bg-status-expired-bg px-4 py-3 text-sm text-status-expired-fg"
+        >
           {message}
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="grid min-w-44 gap-1">
-          <label className="text-xs text-fg-muted" htmlFor="subscription-status">
-            Estado
-          </label>
+      <FilterBar
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setFilters(EMPTY_SUBSCRIPTION_FILTERS)}
+            >
+              Limpiar
+            </Button>
+            <Button type="button" variant="outline" onClick={reload}>
+              Actualizar
+            </Button>
+          </>
+        }
+      >
+        <FilterField label="Buscar" htmlFor="subscription-search" className="sm:col-span-2">
+          <SearchInput
+            id="subscription-search"
+            placeholder="Cliente, producto o NIT"
+            value={filters.q}
+            onChange={(e) => set('q', e.target.value)}
+            aria-label="Buscar suscripciones"
+          />
+        </FilterField>
+        <FilterField label="Estado" htmlFor="subscription-status">
           <select
             id="subscription-status"
             value={filters.status}
             onChange={(e) => set('status', e.target.value)}
-            className={selectClassName}
+            className={nativeSelectClassName}
           >
             <option value="">Todas</option>
-            <option value="active,in_renewal">Activas</option>
-            <option value="active">Solo activas</option>
-            <option value="in_renewal">En renovación</option>
-            <option value="expired">Vencidas</option>
-            <option value="cancelled">Canceladas</option>
-            <option value="not_renewed">No renovadas</option>
-            <option value="pending_activation">Pendientes de activación</option>
+            <option value="activa,en_renovacion">Activas</option>
+            <option value="activa">Solo activas</option>
+            <option value="en_renovacion">En renovación</option>
+            <option value="vencida">Vencidas</option>
+            <option value="cancelada">Canceladas</option>
+            <option value="no_renovada">No renovadas</option>
+            <option value="pendiente_activacion">Pendientes de activación</option>
           </select>
-        </div>
-
-        <div className="grid min-w-44 gap-1">
-          <label className="text-xs text-fg-muted" htmlFor="subscription-follow-up">
-            Seguimiento
-          </label>
+        </FilterField>
+        <FilterField label="Seguimiento" htmlFor="subscription-follow-up">
           <select
             id="subscription-follow-up"
             value={filters.followUpStatus}
             onChange={(e) => set('followUpStatus', e.target.value)}
-            className={selectClassName}
+            className={nativeSelectClassName}
           >
             <option value="">Todos</option>
-            <option value="none">Sin gestión</option>
-            <option value="in_progress">En gestión</option>
-            <option value="awaiting_client">Esperando al cliente</option>
-            <option value="closed">Cerrado</option>
+            <option value="sin_gestion">Sin gestión</option>
+            <option value="en_gestion">En gestión</option>
+            <option value="esperando_cliente">Esperando al cliente</option>
+            <option value="cerrado">Cerrado</option>
           </select>
-        </div>
-
-        <div className="grid gap-1">
-          <label className="text-xs text-fg-muted" htmlFor="subscription-expires-from">
-            Vence desde
-          </label>
+        </FilterField>
+        <FilterField label="Vence desde" htmlFor="subscription-expires-from">
           <Input
             id="subscription-expires-from"
             type="date"
             value={filters.expiresFrom}
             onChange={(e) => set('expiresFrom', e.target.value)}
           />
-        </div>
-        <div className="grid gap-1">
-          <label className="text-xs text-fg-muted" htmlFor="subscription-expires-to">
-            Vence hasta
-          </label>
+        </FilterField>
+        <FilterField label="Vence hasta" htmlFor="subscription-expires-to">
           <Input
             id="subscription-expires-to"
             type="date"
             value={filters.expiresTo}
             onChange={(e) => set('expiresTo', e.target.value)}
           />
-        </div>
-
-        <Button type="button" variant="outline" onClick={reload}>
-          Actualizar
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => setFilters(EMPTY_SUBSCRIPTION_FILTERS)}
-        >
-          Limpiar
-        </Button>
-      </div>
+        </FilterField>
+      </FilterBar>
 
       {page ? (
-        <Card>
-          <CardContent className="pt-6">
-            <SubscriptionsTable page={page} />
-          </CardContent>
-        </Card>
+        page.data.length === 0 ? (
+          <EmptyState
+            icon={RepeatIcon}
+            title="No hay suscripciones con estos filtros."
+            description="Ajusta la búsqueda o crea una nueva suscripción."
+            action={
+              <Button asChild size="sm">
+                <Link href="/subscriptions/new">Nueva suscripción</Link>
+              </Button>
+            }
+          />
+        ) : (
+          <Card>
+            <CardContent className="pt-5">
+              <SubscriptionsTable page={page} />
+            </CardContent>
+          </Card>
+        )
       ) : (
-        <p aria-busy="true">Cargando suscripciones…</p>
+        <LoadingState label="Cargando suscripciones…" />
       )}
     </div>
   );

@@ -28,14 +28,14 @@ Insignias (`<StatusBadge>`): texto oscuro sobre fondo tintado + punto indicador 
 
 | Estado (`subscription_status`) | Etiqueta | Texto | Fondo | Punto | Texto/fondo | Punto/fondo |
 |---|---|---|---|---|---|---|
-| `pending_activation` | Pendiente de activación | `#334155` | `#F1F5F9` | `#64748B` | 9.45:1 | 4.34:1 |
-| `active` | Activa | `#166534` | `#DCFCE7` | `#15803D` | 6.49:1 | 4.57:1 |
-| `in_renewal` | En renovación | `#1E40AF` | `#DBEAFE` | `#2563EB` | 7.15:1 | 4.24:1 |
-| `expired` | Vencida | `#991B1B` | `#FEE2E2` | `#DC2626` | 6.80:1 | 3.95:1 |
-| `cancelled` | Cancelada | `#3F3F46` | `#E4E4E7` | `#71717A` | 8.23:1 | 3.81:1 |
-| `not_renewed` | No renovada | `#9A3412` | `#FFEDD5` | `#EA580C` | 6.38:1 | 3.11:1 |
+| `pendiente_activacion` | Pendiente de activación | `#334155` | `#F1F5F9` | `#64748B` | 9.45:1 | 4.34:1 |
+| `activa` | Activa | `#166534` | `#DCFCE7` | `#15803D` | 6.49:1 | 4.57:1 |
+| `en_renovacion` | En renovación | `#1E40AF` | `#DBEAFE` | `#2563EB` | 7.15:1 | 4.24:1 |
+| `vencida` | Vencida | `#991B1B` | `#FEE2E2` | `#DC2626` | 6.80:1 | 3.95:1 |
+| `cancelada` | Cancelada | `#3F3F46` | `#E4E4E7` | `#71717A` | 8.23:1 | 3.81:1 |
+| `no_renovada` | No renovada | `#9A3412` | `#FFEDD5` | `#EA580C` | 6.38:1 | 3.11:1 |
 
-Indicador derivado de **urgencia de vencimiento** (no es un estado; se calcula con `daysUntilExpiration` para `active`/`in_renewal`):
+Indicador derivado de **urgencia de vencimiento** (no es un estado; se calcula con `daysUntilExpiration` para `activa`/`en_renovacion`):
 
 | Urgencia | Regla | Texto | Fondo | Punto | Texto/fondo |
 |---|---|---|---|---|---|
@@ -100,7 +100,7 @@ Otras dimensiones (insignias secundarias, nunca mezcladas con la de vigencia, RN
 |---|---|---|
 | `AppShell` (interno) | `Sidebar`, `Sheet` (móvil) | Navegación: Dashboard, Clientes, Suscripciones, Solicitudes, Tareas, Alertas; sección Admin (Usuarios, Productos, Integraciones, Reglas de alerta, Auditoría, Configuración) visible sólo para admin. Contador de alertas no leídas. |
 | `PortalShell` | `NavigationMenu` | Navegación mínima: Mis suscripciones, Mis solicitudes, Contacto. |
-| `DataTable` | `Table` + TanStack Query | Paginación servidor (`page`/`pageSize`), ordenación por lista blanca, filtros en la URL (`?status=active,in_renewal`) para que los indicadores del dashboard enlacen a la lista filtrada; estados vacío, cargando (skeleton) y error. `<caption>` accesible. |
+| `DataTable` | `Table` + TanStack Query | Paginación servidor (`page`/`pageSize`), ordenación por lista blanca, filtros en la URL (`?status=activa,en_renovacion`) para que los indicadores del dashboard enlacen a la lista filtrada; estados vacío, cargando (skeleton) y error. `<caption>` accesible. |
 | `FilterBar` | `Select`, `Popover`, `Calendar`, `Input` | Filtros de §6.6 (responsable, fecha, prioridad, estado, cliente, suscripción). Botón "Limpiar". |
 | `StatusBadge`, `UrgencyBadge`, `PaymentBadge`, `PriorityBadge` | `Badge` | Paleta §1.2; texto siempre presente. |
 | `KpiCard` | `Card` | Cifra, etiqueta, enlace "Ver lista" (`<a>` real a la ruta filtrada). |

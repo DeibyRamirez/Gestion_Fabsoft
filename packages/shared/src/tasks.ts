@@ -53,7 +53,7 @@ export const TaskUpdateSchema = z
     assigneeUserId: z.string().uuid().nullable().optional(),
     priority: TaskPrioritySchema.optional(),
     dueDate: isoDate.optional(),
-    status: z.enum(['pending', 'in_progress']).optional(),
+    status: z.enum(['pendiente', 'en_progreso']).optional(),
     notes: z.string().trim().max(5000).nullable().optional(),
     nextAction: z.string().trim().max(500).nullable().optional(),
   })

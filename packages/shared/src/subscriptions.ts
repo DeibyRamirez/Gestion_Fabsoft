@@ -113,7 +113,7 @@ export const SubscriptionUpdateSchema = z
     visibleInPortal: z.boolean().optional(),
     ownerUserId: z.string().uuid().nullable().optional(),
     notes: z.string().trim().max(5000).nullable().optional(),
-    followUpStatus: z.enum(['in_progress', 'awaiting_client']).optional(),
+    followUpStatus: z.enum(['en_gestion', 'esperando_cliente']).optional(),
     priceAmount: amount.optional(),
     supplierCostAmount: amount.nullable().optional(),
     changeReason: z.string().trim().min(3).max(1000).optional(),
@@ -164,12 +164,10 @@ export const SubscriptionListQuerySchema = PageQuerySchema.extend({
       '-clientName',
     ])
     .default('currentPeriodEnd'),
-})
-  .refine(
-    (query) =>
-      !query.expiresFrom || !query.expiresTo || query.expiresFrom <= query.expiresTo,
-    { message: 'expiresFrom no puede ser posterior a expiresTo', path: ['expiresTo'] },
-  );
+}).refine(
+  (query) => !query.expiresFrom || !query.expiresTo || query.expiresFrom <= query.expiresTo,
+  { message: 'expiresFrom no puede ser posterior a expiresTo', path: ['expiresTo'] },
+);
 export type SubscriptionListQuery = z.infer<typeof SubscriptionListQuerySchema>;
 
 export const SubscriptionPageSchema = z.object({
@@ -190,7 +188,7 @@ export const RenewInputSchema = z
         priceAmount: amount,
         supplierCostAmount: amount.nullable().optional(),
         contractReference: z.string().trim().max(120).nullable().optional(),
-        paymentStatus: z.enum(['pending', 'not_tracked']).optional(),
+        paymentStatus: z.enum(['pendiente', 'sin_seguimiento']).optional(),
       })
       .strict(),
     note: z.string().trim().max(1000).nullable().optional(),

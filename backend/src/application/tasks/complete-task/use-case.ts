@@ -29,7 +29,7 @@ export class CompleteTask {
       const updated = await taskClose.close(
         id,
         current.version,
-        'completed',
+        'completada',
         input.outcome,
         this.clock.now(),
         actor.userId,

@@ -11,19 +11,20 @@ vi.mock('@/features/auth/auth-provider', () => ({
 }));
 
 describe('AppShell navigation', () => {
-  it('marca rutas no implementadas como aria-disabled con Próximamente', () => {
+  it('expone los accesos del rol admin como enlaces implementados', () => {
     render(
       <AppShell>
         <div />
       </AppShell>,
     );
-    const pending = screen.getAllByText('Integraciones · Próximamente');
-    expect(pending[0]).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.queryByText(/Próximamente/)).toBeNull();
     expect(screen.getAllByRole('link', { name: 'Panel' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: 'Integraciones' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Usuarios' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: /^Clientes$/ }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: /^Suscripciones$/ }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Solicitudes' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Reglas de alerta' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: 'Configuración' }).length).toBeGreaterThan(0);
   });
 });

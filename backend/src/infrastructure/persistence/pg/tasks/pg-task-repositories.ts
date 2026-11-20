@@ -131,7 +131,9 @@ export class PgListTasksQuery implements ListTasksQuery {
     }
     if (q.overdue) {
       values.push(q.today);
-      where.push(`t.status in ('pending','in_progress') and t.due_date < $${values.length}::date`);
+      where.push(
+        `t.status in ('pendiente','en_progreso') and t.due_date < $${values.length}::date`,
+      );
     }
     const filter = where.length ? `where ${where.join(' and ')}` : '';
     const count = await this.tx.query<{ n: string }>(
@@ -160,7 +162,7 @@ export class PgCreateTaskRepository implements CreateTaskRepository {
       `insert into app.tasks
          (task_type, title, client_id, subscription_id, assignee_user_id, priority, due_date,
           status, notes, next_action, created_by, updated_by)
-       values ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $10)
+       values ($1, $2, $3, $4, $5, $6, $7, 'pendiente', $8, $9, $10, $10)
        returning id`,
       [
         r.taskType,
@@ -217,7 +219,7 @@ export class PgUpdateTaskRepository implements UpdateTaskRepository {
       `update app.tasks
           set ${sets.join(', ')}, version = version + 1, updated_by = $${updatedByParam}
         where id = $${idParam} and version = $${versionParam}
-          and status in ('pending','in_progress')`,
+          and status in ('pendiente','en_progreso')`,
       values,
     );
     return rowCount === 1 ? loadTask(this.tx, id) : null;
@@ -232,7 +234,7 @@ export class PgCloseTaskRepository implements CloseTaskRepository {
   async close(
     id: string,
     expectedVersion: number,
-    status: 'completed' | 'cancelled',
+    status: 'completada' | 'cancelada',
     outcome: string,
     closedAt: Date,
     updatedBy: string,
@@ -241,7 +243,7 @@ export class PgCloseTaskRepository implements CloseTaskRepository {
       `update app.tasks
           set status = $3::app.task_status, outcome = $4, completed_at = $5,
               version = version + 1, updated_by = $6
-        where id = $1 and version = $2 and status in ('pending','in_progress')`,
+        where id = $1 and version = $2 and status in ('pendiente','en_progreso')`,
       [id, expectedVersion, status, outcome, closedAt, updatedBy],
     );
     return rowCount === 1 ? loadTask(this.tx, id) : null;
@@ -257,10 +259,10 @@ export class PgTaskAutomationRepository implements TaskAutomation {
   ): Promise<number> {
     const { rowCount } = await this.tx.query(
       `update app.tasks
-          set status = 'completed', outcome = $2, completed_at = now(),
+          set status = 'completada', outcome = $2, completed_at = now(),
               version = version + 1, updated_by = $3
         where subscription_id = $1 and alert_rule_id is not null
-          and status in ('pending','in_progress')`,
+          and status in ('pendiente','en_progreso')`,
       [subscriptionId, outcome, updatedBy],
     );
     return rowCount ?? 0;
@@ -274,9 +276,9 @@ export class PgTaskAutomationRepository implements TaskAutomation {
   ): Promise<number> {
     const { rowCount } = await this.tx.query(
       `update app.tasks
-          set status = 'cancelled', outcome = $3, completed_at = now(),
+          set status = 'cancelada', outcome = $3, completed_at = now(),
               version = version + 1, updated_by = $4
-        where subscription_id = $1 and status = 'pending'
+        where subscription_id = $1 and status = 'pendiente'
           and alert_rule_id is not null
           and split_part(dedupe_key, ':', 4) = $2`,
       [subscriptionId, periodEnd, outcome, updatedBy],
@@ -294,7 +296,7 @@ export class PgTaskAutomationRepository implements TaskAutomation {
       `update app.tasks
           set notes = concat_ws(E'\\n', notes, $3::text),
               version = version + 1, updated_by = $4
-        where subscription_id = $1 and status = 'in_progress'
+        where subscription_id = $1 and status = 'en_progreso'
           and alert_rule_id is not null
           and split_part(dedupe_key, ':', 4) = $2`,
       [subscriptionId, periodEnd, note, updatedBy],
@@ -309,10 +311,10 @@ export class PgTaskAutomationRepository implements TaskAutomation {
   ): Promise<number> {
     const { rowCount } = await this.tx.query(
       `update app.tasks
-          set status = 'cancelled', outcome = $2, completed_at = now(),
+          set status = 'cancelada', outcome = $2, completed_at = now(),
               version = version + 1, updated_by = $3
         where subscription_id = $1 and alert_rule_id is not null
-          and status in ('pending','in_progress')`,
+          and status in ('pendiente','en_progreso')`,
       [subscriptionId, outcome, updatedBy],
     );
     return rowCount ?? 0;
@@ -325,9 +327,9 @@ export class PgTaskAutomationRepository implements TaskAutomation {
   ): Promise<number> {
     const { rowCount } = await this.tx.query(
       `update app.tasks
-          set status = 'cancelled', outcome = $2, completed_at = now(),
+          set status = 'cancelada', outcome = $2, completed_at = now(),
               version = version + 1, updated_by = $3
-        where subscription_id = $1 and status in ('pending','in_progress')`,
+        where subscription_id = $1 and status in ('pendiente','en_progreso')`,
       [subscriptionId, outcome, updatedBy],
     );
     return rowCount ?? 0;

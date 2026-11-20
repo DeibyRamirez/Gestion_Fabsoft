@@ -25,9 +25,9 @@ export interface AlertRecipientCandidates {
 }
 
 const INELIGIBLE_STATUSES = new Set<SubscriptionStatus>([
-  'cancelled',
-  'not_renewed',
-  'pending_activation',
+  'cancelada',
+  'no_renovada',
+  'pendiente_activacion',
 ]);
 
 /** RN-10: estados terminales/pendientes nunca reciben alertas de renovación. */
@@ -37,7 +37,7 @@ export function hasAlertEligibleStatus(status: SubscriptionStatus): boolean {
 
 /** Una suscripción cancelada o no renovable sólo recibe reglas con excepción. */
 export function isRenewableForAlerts(state: AlertSubscriptionState): boolean {
-  return state.isRenewable && state.renewalOutcome !== 'not_renewed';
+  return state.isRenewable && state.renewalOutcome !== 'no_renovada';
 }
 
 export function ruleAppliesToSubscription(

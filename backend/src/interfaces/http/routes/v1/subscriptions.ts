@@ -10,6 +10,7 @@ import {
   SubscriptionVersionSchema,
   type SubscriptionDetailDto,
   type SubscriptionDto,
+  type SubscriptionPage,
   type SubscriptionPeriodDto,
 } from '@fabsoft/shared';
 import { API_VERSION_PREFIX } from '@fabsoft/shared';
@@ -19,6 +20,7 @@ import type { ActivateSubscription } from '../../../../application/subscriptions
 import type { CancelSubscription } from '../../../../application/subscriptions/cancel-subscription/use-case.js';
 import type { CorrectExpiration } from '../../../../application/subscriptions/correct-expiration/use-case.js';
 import type { CreateSubscription } from '../../../../application/subscriptions/create-subscription/use-case.js';
+import type { ExportSubscriptionsCsv } from '../../../../application/subscriptions/export-subscriptions-csv/use-case.js';
 import type { GetSubscription } from '../../../../application/subscriptions/get-subscription/use-case.js';
 import type { ListSubscriptionPeriods } from '../../../../application/subscriptions/list-subscription-periods/use-case.js';
 import type { ListSubscriptions } from '../../../../application/subscriptions/list-subscriptions/use-case.js';
@@ -29,10 +31,12 @@ import type { SubscriptionView } from '../../../../application/subscriptions/sha
 import type { UpdatePeriodPayment } from '../../../../application/subscriptions/update-period-payment/use-case.js';
 import type { UpdateSubscription } from '../../../../application/subscriptions/update-subscription/use-case.js';
 import { toBogotaLocalDate } from '../../../../domain/subscriptions/bogota-date.js';
+import { addDays } from '../../../../domain/subscriptions/local-date.js';
 import { actorOf, requireRole } from '../../middlewares/authenticate.js';
 
 export interface SubscriptionsRouteDeps {
   listSubscriptions: ListSubscriptions;
+  exportSubscriptionsCsv: ExportSubscriptionsCsv;
   getSubscription: GetSubscription;
   createSubscription: CreateSubscription;
   activateSubscription: ActivateSubscription;
@@ -44,9 +48,11 @@ export interface SubscriptionsRouteDeps {
   correctSubscriptionExpiration: CorrectExpiration;
   updateSubscriptionPeriodPayment: UpdatePeriodPayment;
   listSubscriptionPeriods: ListSubscriptionPeriods;
+  clock: { now(): Date };
 }
 
 const IdSchema = z.string().uuid();
+const withinDaysSchema = z.coerce.number().int().min(0).max(365).default(30);
 const DAY_MS = 86_400_000;
 
 const daysUntil = (end: string, today: string): number =>
@@ -150,6 +156,45 @@ export function subscriptionsRouter(
     });
     res.setHeader('Location', `${API_VERSION_PREFIX}/subscriptions/${created.id}`);
     res.status(201).json(toSubscriptionDetailDto(created, toBogotaLocalDate(new Date())));
+  });
+
+  router.get('/subscriptions/expiring', ...readGuards, async (req, res) => {
+    const withinDays = withinDaysSchema.parse(req.query.withinDays);
+    const today = toBogotaLocalDate(deps.clock.now());
+    const query = SubscriptionListQuerySchema.parse({
+      page: req.query.page,
+      pageSize: req.query.pageSize,
+      clientId: req.query.clientId,
+      ownerUserId: req.query.ownerUserId,
+      status: 'activa,en_renovacion',
+      expiresFrom: today,
+      expiresTo: addDays(today, withinDays),
+      sort: 'currentPeriodEnd',
+    });
+    const result = await deps.listSubscriptions.execute(actorOf(res), query);
+    type ExpiringPage = SubscriptionPage & {
+      meta: SubscriptionPage['meta'] & { today: string; withinDays: number };
+    };
+    const body: ExpiringPage = {
+      data: result.items.map((item) => toSubscriptionDto(item, today)),
+      meta: {
+        page: query.page,
+        pageSize: query.pageSize,
+        total: result.total,
+        totalPages: Math.ceil(result.total / query.pageSize),
+        today,
+        withinDays,
+      },
+    };
+    res.json(body);
+  });
+
+  router.get('/subscriptions/export', ...readGuards, async (req, res) => {
+    const query = SubscriptionListQuerySchema.parse(req.query);
+    const result = await deps.exportSubscriptionsCsv.execute(actorOf(res), query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(result.csv);
   });
 
   router.get('/subscriptions/:id', ...readGuards, async (req, res) => {

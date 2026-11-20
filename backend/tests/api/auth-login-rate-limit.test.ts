@@ -6,6 +6,7 @@ import { createApp } from '../../src/interfaces/http/app.js';
 import { MemoryStore, memoryInfra } from '../fixtures/memory-infra.js';
 
 const PASS = 'Correcta-Contraseña-1';
+const WRONG_PASS = `${PASS}-incorrecta`;
 
 async function setup(overrides: Record<string, string>) {
   const store = new MemoryStore();
@@ -43,12 +44,12 @@ describe('T-AUTH-08 — límites de peticiones del login', () => {
     for (let i = 0; i < 2; i++) {
       const res = await request(app)
         .post('/api/v1/auth/login')
-        .send({ email: 'admin@fabsoft.test', password: 'mala' });
+        .send({ email: 'admin@fabsoft.test', password: WRONG_PASS });
       expect(res.status).toBe(401);
     }
     const blocked = await request(app)
       .post('/api/v1/auth/login')
-      .send({ email: 'admin@fabsoft.test', password: 'mala' });
+      .send({ email: 'admin@fabsoft.test', password: WRONG_PASS });
     expect(blocked.status).toBe(429);
     expect(blocked.body.code).toBe('rate_limited');
   });

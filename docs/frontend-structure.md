@@ -67,8 +67,10 @@ frontend/
 │   │   ├── renewal-requests/
 │   │   ├── tasks/
 │   │   ├── notifications/   # bell.tsx (polling 60 s), notification-list.tsx
-│   │   ├── portal/          # api.ts (/portal/*), subscription-card.tsx, request-form.tsx
-│   │   ├── integrations/    # manifest-editor.tsx (valida con el Zod del manifest), secret-reveal.tsx
+│   │   ├── portal/          # api.ts (/portal/*), portal-page.tsx, portal-subscription-detail.tsx,
+│   │   │                    # portal-requests-page.tsx, portal-contact-page.tsx
+│   │   ├── integrations/    # api.ts, integrations-page.tsx (manifest), integration-detail.tsx
+│   │   │                    # (datos, manifest y credenciales con secreto de una sola vez)
 │   │   ├── users/  alert-rules/  audit/  settings/
 │   └── shared/
 │       ├── api/

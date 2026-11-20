@@ -125,7 +125,7 @@ describe.skipIf(!dbTestsConfigured())('Notifications API (Postgres)', () => {
     expect(rows).toHaveLength(11);
     const inApp = rows.find((r) => r.channel === 'in_app' && r.rule_code === 'D30')!;
     await updateNotification(
-      `update app.notifications set status = 'sent', sent_at = now() where id = $1 returning id`,
+      `update app.notifications set status = 'enviada', sent_at = now() where id = $1 returning id`,
       [inApp.id],
     );
     const adminToken = await factories.tokenFor(admin);
@@ -168,7 +168,7 @@ describe.skipIf(!dbTestsConfigured())('Notifications API (Postgres)', () => {
     const rows = await notificationRows(id);
     const inApp = rows.find((r) => r.channel === 'in_app')!;
     await updateNotification(
-      `update app.notifications set status = 'sent', sent_at = now() where id = $1 returning id`,
+      `update app.notifications set status = 'enviada', sent_at = now() where id = $1 returning id`,
       [inApp.id],
     );
     const operator = await factories.operatorUser();
@@ -179,13 +179,13 @@ describe.skipIf(!dbTestsConfigured())('Notifications API (Postgres)', () => {
     expect(res.status).toBe(404);
   });
 
-  it('T-NOT-03 — reintenta failed y rechaza obsoleta; cliente 403', async () => {
+  it('T-NOT-03 — reintenta fallida y rechaza obsoleta; cliente 403', async () => {
     const { app, id, client } = await createActivated();
     const rows = await notificationRows(id);
     const failed = rows.find((r) => r.channel === 'email')!;
     await updateNotification(
       `update app.notifications
-          set status = 'failed', attempts = max_attempts, last_error = 'fallo'
+          set status = 'fallida', attempts = max_attempts, last_error = 'fallo'
         where id = $1 returning id`,
       [failed.id],
     );
@@ -195,14 +195,14 @@ describe.skipIf(!dbTestsConfigured())('Notifications API (Postgres)', () => {
       .set('Authorization', `Bearer ${adminToken}`);
     expect(retried.status).toBe(200);
     expectMatchesOperation(retried, 'retryNotification');
-    expect(retried.body.status).toBe('pending');
+    expect(retried.body.status).toBe('pendiente');
     expect(retried.body.attempts).toBe(0);
 
     const obsoleteId = await updateNotification(
       `insert into app.notifications
          (notification_type, subscription_id, alert_rule_id, period_end, channel,
           recipient_user_id, scheduled_for, status, attempts, max_attempts, last_error, dedupe_key)
-       values ('expiration_alert',$1,$2,$3,'email',$4,now(),'failed',5,5,'fallo',$5)
+       values ('expiration_alert',$1,$2,$3,'email',$4,now(),'fallida',5,5,'fallo',$5)
        returning id`,
       [id, failed.alert_rule_id, addDays(today, -30), admin.id, randomKey()],
     ).then((r) => r[0]!.id);

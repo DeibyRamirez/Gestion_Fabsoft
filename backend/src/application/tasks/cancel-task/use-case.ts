@@ -29,7 +29,7 @@ export class CancelTask {
       const updated = await taskClose.close(
         id,
         current.version,
-        'cancelled',
+        'cancelada',
         input.outcome,
         this.clock.now(),
         actor.userId,

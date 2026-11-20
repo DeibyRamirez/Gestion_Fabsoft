@@ -53,10 +53,10 @@ const SUBSCRIPTION_ALERT_CONTEXT = `
          s.current_period_end::text as current_period_end,
          per.renewal_outcome, c.legal_name as client_legal_name,
          (select u.id from app.users u
-           where u.id = s.owner_user_id and u.status = 'active'
+           where u.id = s.owner_user_id and u.status = 'activo'
              and u.role in ('admin','operator')) as subscription_owner_id,
          (select u.id from app.users u
-           where u.id = c.owner_user_id and u.status = 'active'
+           where u.id = c.owner_user_id and u.status = 'activo'
              and u.role in ('admin','operator')) as client_owner_id
     from app.subscriptions s
     join app.clients c on c.id = s.client_id
@@ -79,7 +79,7 @@ const ACTIVE_RULES = `
 
 const ACTIVE_ADMINS = `
   select id from app.users
-   where role = 'admin' and status = 'active'
+   where role = 'admin' and status = 'activo'
    order by created_at, id`;
 
 export class PgAlertSchedulingRepository implements AlertScheduling {
@@ -115,7 +115,7 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
     const state = {
       status: subscription.status,
       isRenewable: subscription.is_renewable,
-      renewalOutcome: subscription.renewal_outcome ?? 'pending',
+      renewalOutcome: subscription.renewal_outcome ?? 'pendiente',
     };
     const recipients = await this.loadRecipients(subscription);
     if (recipients.length === 0) return 0;
@@ -196,7 +196,7 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
          (notification_type, subscription_id, alert_rule_id, period_end, channel,
           recipient_user_id, scheduled_for, status, dedupe_key)
        select 'expiration_alert', $1, x.rule_id, $2::date, x.channel, x.recipient_user_id,
-              x.scheduled_for, 'pending', x.dedupe_key
+              x.scheduled_for, 'pendiente', x.dedupe_key
          from unnest($3::uuid[], $4::app.notification_channel[], $5::uuid[],
                      $6::timestamptz[], $7::text[])
               as x(rule_id, channel, recipient_user_id, scheduled_for, dedupe_key)
@@ -218,7 +218,7 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
            (task_type, client_id, subscription_id, alert_rule_id, assignee_user_id, priority,
             due_date, status, title, notes, dedupe_key)
          select x.task_type, $1, $2, x.rule_id, $3, x.priority,
-                x.due_date, 'pending', x.title, x.notes, x.dedupe_key
+                x.due_date, 'pendiente', x.title, x.notes, x.dedupe_key
            from unnest($4::app.task_type[], $5::uuid[], $6::app.task_priority[],
                        $7::date[], $8::text[], $9::text[], $10::text[])
                 as x(task_type, rule_id, priority, due_date, title, notes, dedupe_key)
@@ -247,8 +247,8 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
   ): Promise<number> {
     const { rowCount } = await this.tx.query(
       `update app.notifications
-          set status = 'cancelled', cancelled_at = now(), cancel_reason = $3
-        where subscription_id = $1 and status = 'pending'
+          set status = 'cancelada', cancelled_at = now(), cancel_reason = $3
+        where subscription_id = $1 and status = 'pendiente'
           and notification_type = 'expiration_alert'
           and period_end = $2::date`,
       [subscriptionId, periodEnd, reason],
@@ -262,9 +262,9 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
   ): Promise<number> {
     const { rowCount } = await this.tx.query(
       `update app.notifications n
-          set status = 'cancelled', cancelled_at = now(), cancel_reason = $2
+          set status = 'cancelada', cancelled_at = now(), cancel_reason = $2
          from app.alert_rules r
-        where n.subscription_id = $1 and n.status = 'pending'
+        where n.subscription_id = $1 and n.status = 'pendiente'
           and n.notification_type = 'expiration_alert'
           and n.alert_rule_id = r.id
           and not r.applies_when_not_renewable`,
@@ -279,8 +279,8 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
   ): Promise<number> {
     const { rowCount } = await this.tx.query(
       `update app.notifications
-          set status = 'cancelled', cancelled_at = now(), cancel_reason = $2
-        where subscription_id = $1 and status = 'pending'`,
+          set status = 'cancelada', cancelled_at = now(), cancel_reason = $2
+        where subscription_id = $1 and status = 'pendiente'`,
       [subscriptionId, reason],
     );
     return rowCount ?? 0;
@@ -308,7 +308,7 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
               )
          from app.alert_rules r
         where n.subscription_id = $1
-          and n.status = 'pending'
+          and n.status = 'pendiente'
           and n.notification_type = 'expiration_alert'
           and n.alert_rule_id = r.id
           and n.period_end = $2::date
@@ -332,7 +332,7 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
   ): Promise<number> {
     const { rowCount } = await this.tx.query(
       `update app.notifications n
-          set status = 'cancelled',
+          set status = 'cancelada',
               cancelled_at = now(),
               cancel_reason = case
                 when n.period_end is distinct from $2::date then 'period_end_changed'
@@ -347,7 +347,7 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
                 else 'not_eligible'
               end
          from app.alert_rules r
-        where n.subscription_id = $1 and n.status = 'pending'
+        where n.subscription_id = $1 and n.status = 'pendiente'
           and n.notification_type = 'expiration_alert'
           and n.alert_rule_id = r.id
           and (
@@ -370,10 +370,10 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
     const { rows } = await this.tx.query<{ id: string }>(
       `select s.id
          from app.subscriptions s
-        where s.status in ('active','in_renewal','expired')
+        where s.status in ('activa','en_renovacion','vencida')
            or exists (
              select 1 from app.notifications n
-              where n.subscription_id = s.id and n.status = 'pending'
+              where n.subscription_id = s.id and n.status = 'pendiente'
            )
         order by s.id`,
     );
@@ -387,7 +387,7 @@ export class PgAlertSchedulingRepository implements AlertScheduling {
       const notRenewable = !isRenewableForAlerts({
         status: subscription.status,
         isRenewable: subscription.is_renewable,
-        renewalOutcome: subscription.renewal_outcome ?? 'pending',
+        renewalOutcome: subscription.renewal_outcome ?? 'pendiente',
       });
       await this.rescheduleRuleChanges(
         id,

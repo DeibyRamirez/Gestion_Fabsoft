@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ClientStatusSchema } from './enums.js';
+import { ClientStatusSchema, UserRoleSchema } from './enums.js';
 import { PageQuerySchema, PaginationMetaSchema } from './pagination.js';
 
 const legalName = z.string().trim().min(2).max(200);
@@ -10,6 +10,18 @@ export const ClientOwnerRefSchema = z.object({
   fullName: z.string(),
 });
 export type ClientOwnerRef = z.infer<typeof ClientOwnerRefSchema>;
+
+export const ClientOwnerCandidateSchema = z.object({
+  id: z.string().uuid(),
+  fullName: z.string(),
+  role: UserRoleSchema,
+});
+export type ClientOwnerCandidate = z.infer<typeof ClientOwnerCandidateSchema>;
+
+export const ClientOwnerCandidateListSchema = z.object({
+  data: z.array(ClientOwnerCandidateSchema),
+});
+export type ClientOwnerCandidateList = z.infer<typeof ClientOwnerCandidateListSchema>;
 
 export const ClientSchema = z.object({
   id: z.string().uuid(),
@@ -32,7 +44,7 @@ export const ClientCreateSchema = z
     email: z.union([z.string().trim().email(), z.null()]).optional(),
     phone: z.union([z.string().trim().max(30), z.null()]).optional(),
     ownerUserId: z.union([z.string().uuid(), z.null()]).optional(),
-    status: z.enum(['active', 'inactive']).default('active'),
+    status: z.enum(['activo', 'inactivo']).default('activo'),
   })
   .strict();
 export type ClientCreateInput = z.infer<typeof ClientCreateSchema>;
@@ -44,7 +56,7 @@ export const ClientUpdateSchema = z
     email: z.union([z.string().trim().email(), z.null()]).optional(),
     phone: z.union([z.string().trim().max(30), z.null()]).optional(),
     ownerUserId: z.union([z.string().uuid(), z.null()]).optional(),
-    status: z.enum(['active', 'inactive']).optional(),
+    status: z.enum(['activo', 'inactivo']).optional(),
   })
   .strict()
   .refine((v) => Object.keys(v).length > 0, { message: 'Se requiere al menos un campo' });
@@ -65,7 +77,7 @@ export type ClientPage = z.infer<typeof ClientPageSchema>;
 
 const csvClientStatus = z
   .string()
-  .default('active,inactive')
+  .default('activo,inactivo')
   .transform((s) =>
     s
       .split(',')

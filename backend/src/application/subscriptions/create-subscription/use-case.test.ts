@@ -31,7 +31,7 @@ const activeClient: ClientView = {
   id: 'cl-1',
   legalName: 'Acme',
   taxId: null,
-  status: 'active',
+  status: 'activo',
   email: null,
   phone: null,
   owner: null,
@@ -41,7 +41,7 @@ const activeClient: ClientView = {
 };
 const archivedClient: ClientView = {
   ...activeClient,
-  status: 'archived',
+  status: 'archivado',
   archivedAt: new Date('2026-11-02T12:00:00Z'),
 };
 const activeProduct: ProductView = {
@@ -51,11 +51,11 @@ const activeProduct: ProductView = {
   productType: 'third_party',
   vendor: 'Microsoft',
   referenceCode: null,
-  status: 'active',
+  status: 'activo',
   createdAt: new Date('2026-11-01T12:00:00Z'),
   updatedAt: new Date('2026-11-01T12:00:00Z'),
 };
-const inactiveProduct: ProductView = { ...activeProduct, status: 'inactive' };
+const inactiveProduct: ProductView = { ...activeProduct, status: 'inactivo' };
 
 const savedSubscription = (over: Partial<SubscriptionView> = {}): SubscriptionView => ({
   id: 'sub-1',
@@ -73,8 +73,8 @@ const savedSubscription = (over: Partial<SubscriptionView> = {}): SubscriptionVi
   supplierCostAmount: null,
   renewalTerms: null,
   isRenewable: true,
-  status: 'pending_activation',
-  followUpStatus: 'none',
+  status: 'pendiente_activacion',
+  followUpStatus: 'sin_gestion',
   visibleInPortal: true,
   ownerUserId: null,
   owner: null,
@@ -90,9 +90,9 @@ const savedSubscription = (over: Partial<SubscriptionView> = {}): SubscriptionVi
     billingCycle: 'monthly',
     priceAmount: 100_000,
     currency: 'COP',
-    renewalOutcome: 'pending',
+    renewalOutcome: 'pendiente',
     outcomeReason: null,
-    paymentStatus: 'pending',
+    paymentStatus: 'pendiente',
     confirmedAt: null,
     confirmedBy: null,
     contractReference: null,
@@ -183,19 +183,19 @@ describe('CreateSubscription', () => {
     const { uc, insert, auditWrite } = makeUc({});
     const created = await uc.execute(operator, baseInput);
 
-    expect(created.status).toBe('pending_activation');
+    expect(created.status).toBe('pendiente_activacion');
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({
         startDate: '2026-11-01',
         currentPeriodEnd: '2026-11-30',
-        status: 'pending_activation',
+        status: 'pendiente_activacion',
         priceAmount: 100_000,
         createdBy: 'op-id',
         initialPeriod: expect.objectContaining({
           periodNumber: 1,
           startDate: '2026-11-01',
           endDate: '2026-11-30',
-          paymentStatus: 'pending',
+          paymentStatus: 'pendiente',
         }),
       }),
     );
@@ -211,14 +211,14 @@ describe('CreateSubscription', () => {
       ...baseInput,
       currentPeriodEnd: '2026-12-15',
       supplierCostAmount: 50_000,
-      initialPaymentStatus: 'received',
+      initialPaymentStatus: 'recibido',
       currency: 'COP',
     });
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({
         currentPeriodEnd: '2026-12-15',
         supplierCostAmount: 50_000,
-        initialPeriod: expect.objectContaining({ paymentStatus: 'received' }),
+        initialPeriod: expect.objectContaining({ paymentStatus: 'recibido' }),
       }),
     );
   });
@@ -241,7 +241,7 @@ describe('CreateSubscription', () => {
       notes: 'nota interna',
       supplierCostAmount: 10,
       currency: 'COP',
-      initialPaymentStatus: 'not_tracked',
+      initialPaymentStatus: 'sin_seguimiento',
     });
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -252,7 +252,7 @@ describe('CreateSubscription', () => {
         ownerUserId: 'owner-1',
         notes: 'nota interna',
         supplierCostAmount: 10,
-        initialPeriod: expect.objectContaining({ paymentStatus: 'not_tracked' }),
+        initialPeriod: expect.objectContaining({ paymentStatus: 'sin_seguimiento' }),
       }),
     );
   });

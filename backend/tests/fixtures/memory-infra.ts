@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import type { AuditLogListQuery } from '@fabsoft/shared';
+import {
+  DEFAULT_ALERT_EMAIL_TEMPLATE,
+  type AlertEmailTemplate,
+  type AuditLogListQuery,
+  type ContactChannel,
+  type PortalRenewalRequestListQuery,
+  type PortalSubscriptionListQuery,
+  type Settings,
+} from '@fabsoft/shared';
 import type { AuditLogView } from '../../src/application/audit/shared/audit-log-view.js';
 import type {
   AuthUserWithSecret,
@@ -12,6 +20,16 @@ import type { AlertRulePatch } from '../../src/application/alerts/update-alert-r
 import type { UserView } from '../../src/application/users/shared/user-view.js';
 import type { ClientView } from '../../src/application/clients/shared/client-view.js';
 import type { ClientContactView } from '../../src/application/clients/shared/client-contact-view.js';
+import type { NewRenewalRequestRecord } from '../../src/application/renewal-requests/create-renewal-request/ports.js';
+import type {
+  CreatedRenewalRequestView,
+  PortalRenewalRequestView,
+  PortalSubscriptionView,
+} from '../../src/application/portal/shared/portal-views.js';
+import type {
+  ApiCredentialView,
+  IntegrationView,
+} from '../../src/application/integrations/shared/integration-views.js';
 import type { NewSubscriptionRecord } from '../../src/application/subscriptions/create-subscription/ports.js';
 import type { SubscriptionView } from '../../src/application/subscriptions/shared/subscription-view.js';
 import type { SubscriptionPeriodView } from '../../src/application/subscriptions/shared/subscription-view.js';
@@ -62,6 +80,9 @@ export class MemoryStore {
   subscriptions = new Map<string, SubscriptionView>();
   products = new Map<string, ProductView>();
   alertRules = new Map<string, AlertRuleView>();
+  renewalRequests = new Map<string, CreatedRenewalRequestView & { clientId: string }>();
+  integrations = new Map<string, IntegrationView>();
+  credentials = new Map<string, ApiCredentialView & { keyHash: string }>();
 
   addUser(p: Partial<MemUser> & Pick<MemUser, 'email' | 'role'> & { password: string }): MemUser {
     const now = new Date();
@@ -69,7 +90,7 @@ export class MemoryStore {
       id: randomUUID(),
       fullName: p.fullName ?? p.email,
       clientId: p.clientId ?? null,
-      status: p.status ?? 'active',
+      status: p.status ?? 'activo',
       mustChangePassword: p.mustChangePassword ?? false,
       lastLoginAt: null,
       createdAt: now,
@@ -156,10 +177,36 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
       revokeFamily: async (f, r, at) => revoke((t) => t.familyId === f, r, at),
     },
     authenticate: { loadUser: async (id) => auth(id) },
+    apiKeyAuth: {
+      findByPrefix: async (keyPrefix) => {
+        const credential = [...store.credentials.values()].find((c) => c.keyPrefix === keyPrefix);
+        const integration = credential
+          ? store.integrations.get(credential.integrationId)
+          : undefined;
+        if (!credential || !integration) return null;
+        return {
+          credentialId: credential.id,
+          integrationId: credential.integrationId,
+          keyHash: credential.keyHash,
+          expiresAt: credential.expiresAt,
+          revokedAt: credential.revokedAt,
+          integrationStatus: integration.status,
+          scopes: integration.scopes,
+          clientScope: integration.clientScope,
+          rateLimitPerMinute: integration.rateLimitPerMinute,
+        };
+      },
+      updateLastUsed: async (credentialId, integrationId, at) => {
+        const credential = store.credentials.get(credentialId);
+        if (credential) store.credentials.set(credentialId, { ...credential, lastUsedAt: at });
+        const integration = store.integrations.get(integrationId);
+        if (integration) store.integrations.set(integrationId, { ...integration, lastUsedAt: at });
+      },
+    },
     idempotencyRelease: {
-      release: async (actorId, key) => {
-        if (store.idem.get(`${actorId}|${key}`)?.responseStatus === null)
-          store.idem.delete(`${actorId}|${key}`);
+      release: async (actorType, actorId, key) => {
+        const mapKey = `${actorType}|${actorId}|${key}`;
+        if (store.idem.get(mapKey)?.responseStatus === null) store.idem.delete(mapKey);
       },
     },
   };
@@ -172,6 +219,8 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
     responseBody: null,
     expiresAt: new Date(Date.now() + 86_400_000),
   });
+  let alertEmailTemplate: AlertEmailTemplate = { ...DEFAULT_ALERT_EMAIL_TEMPLATE };
+  let contactChannel: ContactChannel = { email: null, phone: null, hours: null };
   const userRepos: UserScopeRepos = {
     audit,
     alerts,
@@ -218,6 +267,20 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
         return { ok: true as const, rule: next };
       },
     },
+    alertEmailTemplate: {
+      get: async () => alertEmailTemplate,
+      update: async (template: AlertEmailTemplate) => {
+        alertEmailTemplate = template;
+        return alertEmailTemplate;
+      },
+    },
+    settings: {
+      get: async (): Promise<Settings> => ({ contactChannel: { ...contactChannel } }),
+      update: async (settings: Settings) => {
+        contactChannel = { ...settings.contactChannel };
+        return { contactChannel: { ...contactChannel } };
+      },
+    },
     auditLogs: {
       list: async (query: AuditLogListQuery) => {
         const filtered = auditLogs().filter(
@@ -240,18 +303,18 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
     },
     idempotency: {
       tryInsert: async (r) => {
-        const k = `${r.actorId}|${r.key}`;
+        const k = `${r.actorType}|${r.actorId}|${r.key}`;
         if (store.idem.has(k)) return false;
         store.idem.set(k, idemRow(r));
         return true;
       },
-      find: async (actorId, key) => {
-        const row = store.idem.get(`${actorId}|${key}`);
+      find: async (actorType, actorId, key) => {
+        const row = store.idem.get(`${actorType}|${actorId}|${key}`);
         return row ? { ...row, expired: row.expiresAt <= new Date() } : null;
       },
-      restart: async (r) => void store.idem.set(`${r.actorId}|${r.key}`, idemRow(r)),
-      saveResponse: async (actorId, key, status, body) =>
-        void Object.assign(store.idem.get(`${actorId}|${key}`)!, {
+      restart: async (r) => void store.idem.set(`${r.actorType}|${r.actorId}|${r.key}`, idemRow(r)),
+      saveResponse: async (actorType, actorId, key, status, body) =>
+        void Object.assign(store.idem.get(`${actorType}|${actorId}|${key}`)!, {
           responseStatus: status,
           responseBody: JSON.parse(JSON.stringify(body ?? null)),
         }),
@@ -305,7 +368,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
     userUpdate: {
       loadForUpdate: async (id) => (store.users.get(id) ? view(store.users.get(id)!) : null),
       countActiveAdmins: async () =>
-        [...store.users.values()].filter((u) => u.role === 'admin' && u.status === 'active').length,
+        [...store.users.values()].filter((u) => u.role === 'admin' && u.status === 'activo').length,
       save: async (id, p) => {
         const u = store.users.get(id)!;
         Object.assign(
@@ -357,7 +420,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
           productType: n.productType,
           vendor: n.vendor,
           referenceCode: n.referenceCode,
-          status: 'active',
+          status: 'activo',
           createdAt: now,
           updatedAt: now,
         };
@@ -400,7 +463,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
             return {
               ok: false,
               reason: 'client_tax_id_taken',
-              conflict: { existingClientId: dup.id, archived: dup.status === 'archived' },
+              conflict: { existingClientId: dup.id, archived: dup.status === 'archivado' },
             };
           }
         }
@@ -459,7 +522,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
             return {
               ok: false,
               reason: 'client_tax_id_taken',
-              conflict: { existingClientId: dup.id, archived: dup.status === 'archived' },
+              conflict: { existingClientId: dup.id, archived: dup.status === 'archivado' },
             };
           }
         }
@@ -471,7 +534,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
       loadForUpdate: async (id) => store.clientRows.get(id) ?? null,
       archive: async (id, archivedAt) => {
         const c = store.clientRows.get(id)!;
-        const next = { ...c, status: 'archived' as const, archivedAt, updatedAt: new Date() };
+        const next = { ...c, status: 'archivado' as const, archivedAt, updatedAt: new Date() };
         store.clientRows.set(id, next);
         return next;
       },
@@ -482,7 +545,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
         const c = store.clientRows.get(id)!;
         const next = {
           ...c,
-          status: 'active' as const,
+          status: 'activo' as const,
           archivedAt: null,
           updatedAt: new Date(),
         };
@@ -501,6 +564,13 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
                 ? -1
                 : 1,
           ),
+    },
+    clientOwnerCandidates: {
+      list: async () =>
+        [...store.users.values()]
+          .filter((u) => u.status === 'activo' && (u.role === 'admin' || u.role === 'operator'))
+          .map((u) => ({ id: u.id, fullName: u.fullName, role: u.role }))
+          .sort((a, b) => a.fullName.localeCompare(b.fullName)),
     },
     clientContactCreate: {
       countActive: async (clientId) =>
@@ -602,7 +672,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
           renewalTerms: r.renewalTerms,
           isRenewable: r.isRenewable,
           status: r.status,
-          followUpStatus: 'none',
+          followUpStatus: 'sin_gestion',
           visibleInPortal: r.visibleInPortal,
           ownerUserId: r.ownerUserId,
           owner: null,
@@ -618,7 +688,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
             billingCycle: r.initialPeriod.billingCycle,
             priceAmount: r.initialPeriod.priceAmount,
             currency: 'COP',
-            renewalOutcome: 'pending',
+            renewalOutcome: 'pendiente',
             outcomeReason: null,
             paymentStatus: r.initialPeriod.paymentStatus,
             confirmedAt: null,
@@ -654,7 +724,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
         if (!s || s.version !== expectedVersion) return null;
         const next: SubscriptionView = {
           ...s,
-          status: 'active',
+          status: 'activa',
           version: s.version + 1,
           updatedAt: new Date(),
         };
@@ -694,7 +764,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
         if (!s || s.version !== expectedVersion) return null;
         const next: SubscriptionView = {
           ...s,
-          status: 'cancelled',
+          status: 'cancelada',
           cancelledAt,
           cancellationReason: reason,
           version: s.version + 1,
@@ -712,8 +782,8 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
         const next: SubscriptionView = {
           ...s,
           currentPeriodEnd: p.endDate,
-          status: 'active',
-          followUpStatus: 'none',
+          status: 'activa',
+          followUpStatus: 'sin_gestion',
           currentPeriod: {
             id: randomUUID(),
             periodNumber: (s.currentPeriod?.periodNumber ?? 0) + 1,
@@ -722,7 +792,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
             billingCycle: p.billingCycle,
             priceAmount: p.priceAmount,
             currency: 'COP',
-            renewalOutcome: 'pending',
+            renewalOutcome: 'pendiente',
             outcomeReason: null,
             paymentStatus: p.paymentStatus,
             confirmedAt: null,
@@ -743,8 +813,8 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
         if (!s || s.version !== expectedVersion) return null;
         const next: SubscriptionView = {
           ...s,
-          status: 'in_renewal',
-          followUpStatus: 'in_progress',
+          status: 'en_renovacion',
+          followUpStatus: 'en_gestion',
           version: s.version + 1,
           updatedAt: new Date(),
         };
@@ -760,10 +830,10 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
         const next: SubscriptionView = {
           ...s,
           status: p.immediateStatus ?? s.status,
-          followUpStatus: 'closed',
+          followUpStatus: 'cerrado',
           currentPeriod: {
             ...s.currentPeriod,
-            renewalOutcome: 'not_renewed',
+            renewalOutcome: 'no_renovada',
             outcomeReason: p.reason,
             confirmedAt: p.confirmedAt,
           },
@@ -841,6 +911,321 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
     renewalRequestsList: {
       list: async () => ({ items: [], total: 0 }),
     },
+    renewalRequestDetail: {
+      findById: async () => null,
+    },
+    renewalRequestUpdate: {
+      loadForUpdate: async () => null,
+      findAssignableUser: async () => null,
+      update: async () => null,
+    },
+    renewalRequestResolve: {
+      loadForUpdate: async () => null,
+      hasConfirmedRenewalAfter: async () => false,
+      resolve: async () => null,
+    },
+    renewalRequestCreate: {
+      findForClient: async (clientId, subscriptionId) => {
+        const s = store.subscriptions.get(subscriptionId);
+        if (!s || s.clientId !== clientId || !s.visibleInPortal) return null;
+        return {
+          id: s.id,
+          clientId: s.clientId,
+          productName: s.product.name,
+          status: s.status,
+        };
+      },
+      findForStaff: async (subscriptionId) => {
+        const s = store.subscriptions.get(subscriptionId);
+        return s
+          ? { id: s.id, clientId: s.clientId, productName: s.product.name, status: s.status }
+          : null;
+      },
+      insert: async (record: NewRenewalRequestRecord): Promise<CreatedRenewalRequestView> => {
+        const now = new Date();
+        const request: CreatedRenewalRequestView = {
+          id: randomUUID(),
+          subscriptionId: record.subscriptionId,
+          clientId: record.clientId,
+          productName: record.productName,
+          comment: record.comment,
+          status: 'pendiente_revision',
+          createdAt: now,
+          updatedAt: now,
+          requestedBy: { actorType: 'user', id: record.requestedByUserId },
+        };
+        store.renewalRequests.set(request.id, request);
+        return request;
+      },
+    },
+    portalMe: {
+      findOrganization: async (clientId) => {
+        const c = store.clientRows.get(clientId);
+        return c ? { id: c.id, legalName: c.legalName, taxId: c.taxId } : null;
+      },
+      findContactChannel: async () => ({ ...contactChannel }),
+    },
+    portalSubscriptions: {
+      list: async (clientId: string, query: PortalSubscriptionListQuery) => {
+        const items = [...store.subscriptions.values()]
+          .filter((s) => s.clientId === clientId && s.visibleInPortal)
+          .filter((s) => !query.status?.length || query.status.includes(s.status))
+          .map((s): PortalSubscriptionView => ({
+            id: s.id,
+            productName: s.product.name,
+            contractReference: s.contractReference,
+            startDate: s.startDate,
+            currentPeriodEnd: s.currentPeriodEnd,
+            billingCycle: s.billingCycle,
+            priceAmount: s.priceAmount,
+            currency: 'COP',
+            status: s.status,
+            renewalTerms: s.renewalTerms,
+            hasOpenRenewalRequest: [...store.renewalRequests.values()].some(
+              (r) =>
+                r.subscriptionId === s.id &&
+                (r.status === 'pendiente_revision' || r.status === 'en_progreso'),
+            ),
+          }));
+        return { items, total: items.length };
+      },
+    },
+    portalSubscription: {
+      findById: async (clientId: string, id: string) => {
+        const s = store.subscriptions.get(id);
+        if (!s || s.clientId !== clientId || !s.visibleInPortal) return null;
+        return {
+          id: s.id,
+          productName: s.product.name,
+          contractReference: s.contractReference,
+          startDate: s.startDate,
+          currentPeriodEnd: s.currentPeriodEnd,
+          billingCycle: s.billingCycle,
+          priceAmount: s.priceAmount,
+          currency: 'COP' as const,
+          status: s.status,
+          renewalTerms: s.renewalTerms,
+          hasOpenRenewalRequest: [...store.renewalRequests.values()].some(
+            (r) =>
+              r.subscriptionId === s.id &&
+              (r.status === 'pendiente_revision' || r.status === 'en_progreso'),
+          ),
+        };
+      },
+    },
+    portalPeriods: {
+      list: async (subscriptionId: string) => {
+        const s = store.subscriptions.get(subscriptionId);
+        if (!s?.currentPeriod) return [];
+        return [
+          {
+            periodNumber: s.currentPeriod.periodNumber,
+            startDate: s.currentPeriod.startDate,
+            endDate: s.currentPeriod.endDate,
+            billingCycle: s.currentPeriod.billingCycle,
+            priceAmount: s.currentPeriod.priceAmount,
+            currency: 'COP' as const,
+            renewalOutcome: s.currentPeriod.renewalOutcome,
+          },
+        ];
+      },
+    },
+    portalRenewalRequests: {
+      list: async (clientId: string, query: PortalRenewalRequestListQuery) => {
+        const items = [...store.renewalRequests.values()]
+          .filter((r) => r.clientId === clientId)
+          .filter((r) => !query.subscriptionId || r.subscriptionId === query.subscriptionId)
+          .map((r): PortalRenewalRequestView => ({
+            id: r.id,
+            subscriptionId: r.subscriptionId,
+            productName: r.productName,
+            comment: r.comment,
+            status: r.status,
+            resolution: null,
+            resolutionNote: null,
+            createdAt: r.createdAt,
+            resolvedAt: null,
+          }));
+        return { items, total: items.length };
+      },
+    },
+    portalRenewalRequest: {
+      findById: async (clientId: string, id: string) => {
+        const r = store.renewalRequests.get(id);
+        if (!r || r.clientId !== clientId) return null;
+        return {
+          id: r.id,
+          subscriptionId: r.subscriptionId,
+          productName: r.productName,
+          comment: r.comment,
+          status: r.status,
+          resolution: null,
+          resolutionNote: null,
+          createdAt: r.createdAt,
+          resolvedAt: null,
+        };
+      },
+    },
+    integrationsList: {
+      list: async (query) => {
+        const items = [...store.integrations.values()].filter(
+          (i) => !query.status || i.status === query.status,
+        );
+        return { items, total: items.length };
+      },
+    },
+    integrationDetail: {
+      findById: async (id) => store.integrations.get(id) ?? null,
+    },
+    integrationClients: {
+      findClientStatuses: async (ids) => {
+        const map = new Map<string, 'activo' | 'inactivo' | 'archivado'>();
+        for (const id of ids) {
+          const c = store.clientRows.get(id);
+          if (c) map.set(id, c.status);
+        }
+        return map;
+      },
+    },
+    integrationCreate: {
+      insert: async (record) => {
+        const now = new Date();
+        const view: IntegrationView = {
+          id: randomUUID(),
+          slug: record.manifest.integration,
+          name: record.manifest.display_name,
+          description: record.manifest.description ?? null,
+          status: 'activa',
+          scopes: record.manifest.scopes,
+          clientScope: record.manifest.client_scope,
+          clientIds: record.manifest.client_ids ?? [],
+          manifestVersion: record.manifest.version,
+          manifest: record.manifest,
+          rateLimitPerMinute: record.manifest.rate_limit_per_minute,
+          activeCredentials: 0,
+          lastUsedAt: null,
+          createdAt: now,
+          updatedAt: now,
+        };
+        store.integrations.set(view.id, view);
+        return view;
+      },
+    },
+    integrationUpdate: {
+      update: async (record) => {
+        const current = store.integrations.get(record.id);
+        if (!current) return null;
+        const next: IntegrationView = {
+          ...current,
+          ...(record.patch.name !== undefined ? { name: record.patch.name } : {}),
+          ...(record.patch.description !== undefined
+            ? { description: record.patch.description }
+            : {}),
+          ...(record.patch.status !== undefined ? { status: record.patch.status } : {}),
+          updatedAt: new Date(),
+        };
+        store.integrations.set(next.id, next);
+        return next;
+      },
+    },
+    integrationManifest: {
+      replaceManifest: async (record) => {
+        const current = store.integrations.get(record.id);
+        if (!current) return null;
+        const next: IntegrationView = {
+          ...current,
+          name: record.manifest.display_name,
+          description: record.manifest.description ?? null,
+          scopes: record.manifest.scopes,
+          clientScope: record.manifest.client_scope,
+          clientIds: record.manifest.client_ids ?? [],
+          manifestVersion: record.manifest.version,
+          manifest: record.manifest,
+          rateLimitPerMinute: record.manifest.rate_limit_per_minute,
+          updatedAt: new Date(),
+        };
+        store.integrations.set(next.id, next);
+        return next;
+      },
+    },
+    credentials: {
+      listCredentials: async (integrationId) =>
+        [...store.credentials.values()]
+          .filter((c) => c.integrationId === integrationId)
+          .map(({ keyHash: _ignored, ...credential }) => credential),
+      countActive: async (integrationId, at) =>
+        [...store.credentials.values()].filter(
+          (c) =>
+            c.integrationId === integrationId &&
+            c.revokedAt === null &&
+            (c.expiresAt === null || c.expiresAt.getTime() > at.getTime()),
+        ).length,
+      insertCredential: async (record) => {
+        const credential: ApiCredentialView & { keyHash: string } = {
+          id: randomUUID(),
+          integrationId: record.integrationId,
+          keyPrefix: record.keyPrefix,
+          label: record.label,
+          expiresAt: record.expiresAt,
+          revokedAt: null,
+          lastUsedAt: null,
+          createdAt: new Date(),
+          keyHash: record.keyHash,
+        };
+        store.credentials.set(credential.id, credential);
+        const integration = store.integrations.get(record.integrationId);
+        if (integration) {
+          store.integrations.set(integration.id, {
+            ...integration,
+            activeCredentials: integration.activeCredentials + 1,
+          });
+        }
+        const { keyHash: _ignored, ...view } = credential;
+        return view;
+      },
+      revoke: async (integrationId, credentialId, _revokedBy, at) => {
+        const current = store.credentials.get(credentialId);
+        if (!current || current.integrationId !== integrationId || current.revokedAt) return null;
+        const next = { ...current, revokedAt: at };
+        store.credentials.set(credentialId, next);
+        const { keyHash: _ignored, ...view } = next;
+        return view;
+      },
+    },
+    integrationSubscriptions: {
+      list: async () => ({
+        items: [...store.subscriptions.values()],
+        total: store.subscriptions.size,
+      }),
+    },
+    integrationSubscriptionDetail: {
+      findById: async (id) => store.subscriptions.get(id) ?? null,
+    },
+    integrationPeriods: {
+      listPeriods: async (subscriptionId) => {
+        const period = store.subscriptions.get(subscriptionId)?.currentPeriod;
+        return period ? [period] : [];
+      },
+    },
+    integrationRequestCreate: {
+      findForIntegration: async (_integrationId, subscriptionId) => {
+        const s = store.subscriptions.get(subscriptionId);
+        return s ? { id: s.id, clientId: s.clientId, status: s.status } : null;
+      },
+      insert: async (record) => {
+        const now = new Date();
+        return {
+          id: randomUUID(),
+          subscriptionId: record.subscriptionId,
+          clientId: record.clientId,
+          comment: record.comment,
+          status: 'pendiente_revision',
+          createdAt: now,
+          updatedAt: now,
+          requestedBy: { actorType: 'integration', id: record.requestedByIntegrationId },
+        };
+      },
+    },
     dashboardSummary: {
       counts: async () => ({
         activeSubscriptions: 0,
@@ -914,15 +1299,42 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
             markSent: async () => false,
             markFailure: async () => false,
           },
+          alertEmailTemplate: {
+            get: async () => alertEmailTemplate,
+          },
           subscriptionsExpire: {
             expire: async () => ({ expired: 0, notRenewed: 0 }),
           },
           maintenance: {
             cleanup: async () => ({ idempotencyKeys: 0, refreshTokens: 0 }),
           },
+          renewalRequestProcess: {
+            findContext: async () => null,
+            createFollowUp: async () => ({ taskId: null, notifications: 0 }),
+          },
         }),
     },
     hasher: fakeHasher,
+    integrationRateLimiter: {
+      check: (integrationId, limit, now) => ({
+        allowed: true,
+        limit,
+        remaining: limit,
+        resetAt: new Date(now.getTime() + 60_000),
+      }),
+    },
+    apiKeys: {
+      generate: () => {
+        const keyPrefix = `fsk_test_${randomUUID().replace(/-/g, '').slice(0, 8)}`;
+        const secret = randomUUID();
+        return {
+          apiKey: `${keyPrefix}_${secret}`,
+          keyPrefix,
+          keyHash: `h:${secret}`,
+        };
+      },
+      verify: (secret, keyHash) => keyHash === `h:${secret}`,
+    },
     tokens,
     refreshTokens: new Sha256RefreshTokenFactory(),
     passwords: { generate: () => 'temporary-password-0001' },

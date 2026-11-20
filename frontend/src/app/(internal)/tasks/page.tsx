@@ -17,6 +17,8 @@ export default async function TasksRoute({ searchParams }: { searchParams: Searc
         status: value('status') || DEFAULT_TASK_FILTERS.status,
         priority: value('priority'),
         assignee: value('assigneeUserId'),
+        clientId: value('clientId'),
+        subscriptionId: value('subscriptionId'),
         overdue: value('overdue') === 'true',
         dueFrom: value('dueFrom'),
         dueTo: value('dueTo'),

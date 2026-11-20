@@ -54,7 +54,7 @@ describe.skipIf(!dbTestsConfigured())('Tasks API (Postgres)', () => {
     const client = await factories.client();
     const product = await factories.product();
     const subscription = await factories.subscription(client, product, {
-      status: 'active',
+      status: 'activa',
       startDate: today,
     });
 
@@ -73,12 +73,12 @@ describe.skipIf(!dbTestsConfigured())('Tasks API (Postgres)', () => {
     expect(created.status).toBe(201);
     expectMatchesOperation(created, 'createRenewalTask');
     expect(created.body.origin).toBe('manual');
-    expect(created.body.status).toBe('pending');
+    expect(created.body.status).toBe('pendiente');
     expect(created.body.isOverdue).toBe(false);
     expect(created.body.assignee.id).toBe(admin.id);
 
     const byAssignee = await request(app)
-      .get(`/api/v1/renewal-tasks?assigneeUserId=${admin.id}&status=pending`)
+      .get(`/api/v1/renewal-tasks?assigneeUserId=${admin.id}&status=pendiente`)
       .set('Authorization', `Bearer ${token}`);
     expect(byAssignee.status).toBe(200);
     expectMatchesOperation(byAssignee, 'listRenewalTasks');
@@ -162,7 +162,7 @@ describe.skipIf(!dbTestsConfigured())('Tasks API (Postgres)', () => {
     const updated = await request(app)
       .patch(`/api/v1/renewal-tasks/${id}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ version: 1, title: 'Llamar mañana', status: 'in_progress' });
+      .send({ version: 1, title: 'Llamar mañana', status: 'en_progreso' });
     expect(updated.status).toBe(200);
     expectMatchesOperation(updated, 'updateRenewalTask');
     expect(updated.body.title).toBe('Llamar mañana');
@@ -181,7 +181,7 @@ describe.skipIf(!dbTestsConfigured())('Tasks API (Postgres)', () => {
       .send({ version: 2, outcome: 'Cliente confirmó renovación' });
     expect(completed.status).toBe(200);
     expectMatchesOperation(completed, 'completeRenewalTask');
-    expect(completed.body.status).toBe('completed');
+    expect(completed.body.status).toBe('completada');
     expect(completed.body.completedAt).not.toBeNull();
 
     const editClosed = await request(app)
@@ -202,7 +202,7 @@ describe.skipIf(!dbTestsConfigured())('Tasks API (Postgres)', () => {
       .send({ version: 1, outcome: 'Ya no aplica' });
     expect(cancelled.status).toBe(200);
     expectMatchesOperation(cancelled, 'cancelRenewalTask');
-    expect(cancelled.body.status).toBe('cancelled');
+    expect(cancelled.body.status).toBe('cancelada');
   });
 
   it('T-HU10 — RBAC y validación de cliente/suscripción/responsable', async () => {
@@ -211,7 +211,7 @@ describe.skipIf(!dbTestsConfigured())('Tasks API (Postgres)', () => {
     const otherClient = await factories.client();
     const product = await factories.product();
     const otherSubscription = await factories.subscription(otherClient, product, {
-      status: 'active',
+      status: 'activa',
       startDate: today,
     });
     const operator = await factories.operatorUser();

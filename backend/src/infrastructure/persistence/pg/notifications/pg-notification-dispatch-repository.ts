@@ -28,8 +28,8 @@ export class PgNotificationDispatchRepository implements NotificationDispatchRep
   async claimDue(now: Date, lockUntil: Date, batchSize: number): Promise<ClaimedNotifications> {
     const cancelled = await this.tx.query(
       `update app.notifications n
-          set status = 'cancelled', cancelled_at = $1, cancel_reason = 'not_eligible'
-        where n.status = 'pending' and n.scheduled_for <= $1
+          set status = 'cancelada', cancelled_at = $1, cancel_reason = 'not_eligible'
+        where n.status = 'pendiente' and n.scheduled_for <= $1
           and (
             (
               n.notification_type = 'expiration_alert'
@@ -37,7 +37,7 @@ export class PgNotificationDispatchRepository implements NotificationDispatchRep
                 exists (
                   select 1 from app.subscriptions s
                    where s.id = n.subscription_id
-                     and s.status in ('cancelled','not_renewed','pending_activation')
+                     and s.status in ('cancelada','no_renovada','pendiente_activacion')
                 )
                 or exists (
                   select 1 from app.subscriptions s
@@ -60,7 +60,7 @@ export class PgNotificationDispatchRepository implements NotificationDispatchRep
                     ) per on true
                     join app.alert_rules r on r.id = n.alert_rule_id
                    where s.id = n.subscription_id
-                     and (not s.is_renewable or per.renewal_outcome = 'not_renewed')
+                     and (not s.is_renewable or per.renewal_outcome = 'no_renovada')
                      and not coalesce(r.applies_when_not_renewable, false)
                 )
               )
@@ -69,7 +69,7 @@ export class PgNotificationDispatchRepository implements NotificationDispatchRep
               n.notification_type = 'renewal_request_created'
               and exists (
                 select 1 from app.renewal_requests rr
-                 where rr.id = n.renewal_request_id and rr.status = 'resolved'
+                 where rr.id = n.renewal_request_id and rr.status = 'resuelta'
               )
             )
           )`,
@@ -87,7 +87,7 @@ export class PgNotificationDispatchRepository implements NotificationDispatchRep
          left join app.clients c on c.id = s.client_id
          left join app.products p on p.id = s.product_id
          left join app.alert_rules r on r.id = n.alert_rule_id
-        where n.status = 'pending' and n.scheduled_for <= $1
+        where n.status = 'pendiente' and n.scheduled_for <= $1
           and (n.next_attempt_at is null or n.next_attempt_at <= $1)
           and (n.locked_until is null or n.locked_until < $1)
         order by n.scheduled_for, n.id
@@ -129,9 +129,9 @@ export class PgNotificationDispatchRepository implements NotificationDispatchRep
   ): Promise<boolean> {
     const { rowCount } = await this.tx.query(
       `update app.notifications
-          set status = 'sent', attempts = $2, sent_at = $4, next_attempt_at = null,
+          set status = 'enviada', attempts = $2, sent_at = $4, next_attempt_at = null,
               locked_until = null, last_error = null, provider_message_id = $3
-        where id = $1 and status = 'pending'`,
+        where id = $1 and status = 'pendiente'`,
       [id, attempts, providerMessageId, sentAt],
     );
     return (rowCount ?? 0) > 0;
@@ -140,7 +140,7 @@ export class PgNotificationDispatchRepository implements NotificationDispatchRep
   async markFailure(
     id: string,
     attempts: number,
-    status: Extract<NotificationStatus, 'pending' | 'failed'>,
+    status: Extract<NotificationStatus, 'pendiente' | 'fallida'>,
     lastError: string,
     nextAttemptAt: Date | null,
   ): Promise<boolean> {
@@ -148,7 +148,7 @@ export class PgNotificationDispatchRepository implements NotificationDispatchRep
       `update app.notifications
           set status = $3::app.notification_status, attempts = $2, last_error = $4,
               next_attempt_at = $5, locked_until = null
-        where id = $1 and status = 'pending'`,
+        where id = $1 and status = 'pendiente'`,
       [id, attempts, status, lastError, nextAttemptAt],
     );
     return (rowCount ?? 0) > 0;

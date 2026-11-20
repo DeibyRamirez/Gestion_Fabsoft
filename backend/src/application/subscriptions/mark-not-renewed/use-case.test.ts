@@ -41,8 +41,8 @@ const sample = (over: Partial<SubscriptionView> = {}): SubscriptionView => ({
   supplierCostAmount: null,
   renewalTerms: null,
   isRenewable: true,
-  status: 'active',
-  followUpStatus: 'none',
+  status: 'activa',
+  followUpStatus: 'sin_gestion',
   visibleInPortal: true,
   ownerUserId: null,
   owner: null,
@@ -58,9 +58,9 @@ const sample = (over: Partial<SubscriptionView> = {}): SubscriptionView => ({
     billingCycle: 'monthly',
     priceAmount: 100,
     currency: 'COP',
-    renewalOutcome: 'pending',
+    renewalOutcome: 'pendiente',
     outcomeReason: null,
-    paymentStatus: 'pending',
+    paymentStatus: 'pendiente',
     confirmedAt: null,
     confirmedBy: null,
     contractReference: null,
@@ -78,6 +78,7 @@ function makeUc(current: SubscriptionView | null, updated: SubscriptionView | nu
   const auditWrite = vi.fn(async () => undefined);
   const cancelPendingWithoutException = vi.fn(async () => 1);
   const cancelOpenAutoTasksForSubscription = vi.fn(async () => 1);
+  const resolveOpenForSubscription = vi.fn(async () => 1);
   const uc = new MarkNotRenewed(
     {
       run: async (_a, work) =>
@@ -97,6 +98,7 @@ function makeUc(current: SubscriptionView | null, updated: SubscriptionView | nu
             cancelOpenAutoTasksForSubscription,
             cancelOpenTasksForSubscription: async () => 0,
           },
+          renewalRequests: { resolveOpenForSubscription },
           audit: { write: auditWrite },
         }),
     },
@@ -108,6 +110,7 @@ function makeUc(current: SubscriptionView | null, updated: SubscriptionView | nu
     auditWrite,
     cancelPendingWithoutException,
     cancelOpenAutoTasksForSubscription,
+    resolveOpenForSubscription,
   };
 }
 
@@ -131,7 +134,7 @@ describe('MarkNotRenewed', () => {
     });
   });
 
-  it.each(['pending_activation', 'cancelled', 'not_renewed'] as const)(
+  it.each(['pendiente_activacion', 'cancelada', 'no_renovada'] as const)(
     'no registra no renovación desde %s',
     async (status) => {
       const { uc } = makeUc(sample({ status }), sample());
@@ -148,13 +151,13 @@ describe('MarkNotRenewed', () => {
     });
   });
 
-  it('active difiere el estado y registra el outcome en el periodo', async () => {
+  it('activa difiere el estado y registra el outcome en el periodo', async () => {
     const updated = sample({
-      followUpStatus: 'closed',
+      followUpStatus: 'cerrado',
       version: 2,
       currentPeriod: {
         ...sample().currentPeriod!,
-        renewalOutcome: 'not_renewed',
+        renewalOutcome: 'no_renovada',
         outcomeReason: input.reason,
         confirmedAt: new Date('2026-11-14T12:00:00Z'),
         confirmedBy: { id: 'o', fullName: 'Operador' },
@@ -166,6 +169,7 @@ describe('MarkNotRenewed', () => {
       auditWrite,
       cancelPendingWithoutException,
       cancelOpenAutoTasksForSubscription,
+      resolveOpenForSubscription,
     } = makeUc(sample(), updated);
     const result = await uc.execute(operator, 'sub-1', input);
 
@@ -186,6 +190,12 @@ describe('MarkNotRenewed', () => {
       `No renovación: ${input.reason}`,
       'o',
     );
+    expect(resolveOpenForSubscription).toHaveBeenCalledWith(
+      'sub-1',
+      'no_renovada',
+      `No renovación: ${input.reason}`,
+      'o',
+    );
     expect(result).toBe(updated);
     expect(auditWrite).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -195,20 +205,20 @@ describe('MarkNotRenewed', () => {
     );
   });
 
-  it('expired pasa a not_renewed de inmediato', async () => {
-    const { uc, markNotRenewed } = makeUc(sample({ status: 'expired' }), sample());
+  it('vencida pasa a no_renovada de inmediato', async () => {
+    const { uc, markNotRenewed } = makeUc(sample({ status: 'vencida' }), sample());
     await uc.execute(admin, 'sub-1', input);
     expect(markNotRenewed).toHaveBeenCalledWith(
       'sub-1',
       1,
-      expect.objectContaining({ immediateStatus: 'not_renewed' }),
+      expect.objectContaining({ immediateStatus: 'no_renovada' }),
       'a',
     );
   });
 
   it('no repite la decisión ya registrada mientras sigue vigente', async () => {
     const current = sample({
-      currentPeriod: { ...sample().currentPeriod!, renewalOutcome: 'not_renewed' },
+      currentPeriod: { ...sample().currentPeriod!, renewalOutcome: 'no_renovada' },
     });
     const { uc } = makeUc(current, sample());
     await expect(uc.execute(admin, 'sub-1', input)).rejects.toMatchObject({

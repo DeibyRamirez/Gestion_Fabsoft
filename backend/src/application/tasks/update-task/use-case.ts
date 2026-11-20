@@ -25,7 +25,7 @@ export class UpdateTask {
       assertTaskOpen(current.status);
       if (input.assigneeUserId) {
         const assignee = await userDetail.findById(input.assigneeUserId);
-        if (!assignee || assignee.status !== 'active' || assignee.role === 'client') {
+        if (!assignee || assignee.status !== 'activo' || assignee.role === 'client') {
           throw new ApplicationError('validation_error', 'El responsable no es válido');
         }
       }

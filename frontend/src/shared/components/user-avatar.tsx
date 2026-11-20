@@ -10,7 +10,7 @@ export function initialsFromName(fullName: string): string {
 
 type UserAvatarProps = {
   fullName: string;
-  size?: 'sm' | 'md';
+  size?: 'sm' | 'md' | 'lg';
   className?: string;
 };
 
@@ -19,8 +19,8 @@ export function UserAvatar({ fullName, size = 'md', className }: UserAvatarProps
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-full bg-primary/10 font-medium text-primary',
-        size === 'sm' ? 'size-8 text-xs' : 'size-9 text-sm',
+        'inline-flex shrink-0 items-center justify-center rounded-full bg-iris-soft font-bold text-iris',
+        size === 'sm' ? 'size-9 text-xs' : size === 'lg' ? 'size-12 text-sm' : 'size-10 text-sm',
         className,
       )}
       aria-hidden

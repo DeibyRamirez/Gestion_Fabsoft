@@ -35,7 +35,7 @@ export class CorrectExpiration {
         if (current.version !== input.version) {
           throw new ApplicationError('version_conflict', 'La suscripción fue modificada');
         }
-        if (!['active', 'in_renewal', 'expired'].includes(current.status)) {
+        if (!['activa', 'en_renovacion', 'vencida'].includes(current.status)) {
           throw new ApplicationError(
             'invalid_state_transition',
             'La suscripción no admite corrección de vencimiento',

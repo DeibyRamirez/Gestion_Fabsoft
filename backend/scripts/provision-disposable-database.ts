@@ -391,7 +391,7 @@ async function applyDevelopMinimalData(databaseUrl: string): Promise<void> {
     );
     await c.query(
       `insert into app.products (id, name, product_type, status)
-       values ('00000000-0000-0000-0000-0000000000f1', 'Harness QA', 'third_party', 'active')
+       values ('00000000-0000-0000-0000-0000000000f1', 'Harness QA', 'third_party', 'activo')
        on conflict (id) do nothing`,
     );
     await c.query('commit');

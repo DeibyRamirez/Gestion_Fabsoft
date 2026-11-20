@@ -57,7 +57,7 @@ export function ChangePasswordForm() {
       {user.mustChangePassword ? (
         <div
           role="status"
-          className="rounded-md border border-border bg-surface px-4 py-3 text-sm text-fg"
+          className="rounded-xl border border-status-in-renewal-fg/15 bg-status-in-renewal-bg px-4 py-3 text-sm text-status-in-renewal-fg"
         >
           Debes cambiar tu contraseña temporal para continuar.
         </div>

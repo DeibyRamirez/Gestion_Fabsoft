@@ -41,8 +41,8 @@ const sample = (over: Partial<SubscriptionView> = {}): SubscriptionView => ({
   supplierCostAmount: null,
   renewalTerms: null,
   isRenewable: true,
-  status: 'active',
-  followUpStatus: 'none',
+  status: 'activa',
+  followUpStatus: 'sin_gestion',
   visibleInPortal: true,
   ownerUserId: null,
   owner: null,
@@ -58,9 +58,9 @@ const sample = (over: Partial<SubscriptionView> = {}): SubscriptionView => ({
     billingCycle: 'monthly',
     priceAmount: 100,
     currency: 'COP',
-    renewalOutcome: 'pending',
+    renewalOutcome: 'pendiente',
     outcomeReason: null,
-    paymentStatus: 'pending',
+    paymentStatus: 'pendiente',
     confirmedAt: null,
     confirmedBy: null,
     contractReference: null,
@@ -135,7 +135,7 @@ describe('CorrectExpiration', () => {
     });
   });
 
-  it.each(['pending_activation', 'cancelled', 'not_renewed'] as const)(
+  it.each(['pendiente_activacion', 'cancelada', 'no_renovada'] as const)(
     'no corrige desde %s',
     async (status) => {
       const { uc } = makeUc(sample({ status }), sample());

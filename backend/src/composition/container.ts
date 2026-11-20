@@ -14,9 +14,12 @@ import { authModule } from './modules/auth.js';
 import { clientContactsModule } from './modules/client-contacts.js';
 import { clientsModule } from './modules/clients.js';
 import { dashboardModule } from './modules/dashboard.js';
+import { integrationsModule } from './modules/integrations.js';
 import { renewalRequestsModule } from './modules/renewal-requests.js';
 import { notificationsModule } from './modules/notifications.js';
+import { portalModule } from './modules/portal.js';
 import { productsModule } from './modules/products.js';
+import { settingsModule } from './modules/settings.js';
 import { subscriptionsModule } from './modules/subscriptions.js';
 import { tasksModule } from './modules/tasks.js';
 import { usersModule } from './modules/users.js';
@@ -61,8 +64,11 @@ export function buildContainer(env: Env, infra: Infra): AppDeps {
     ...tasksModule(infra),
     ...notificationsModule(infra),
     ...alertsModule(infra),
+    ...settingsModule(infra),
     ...dashboardModule(infra),
     ...renewalRequestsModule(infra),
+    ...portalModule(infra),
+    ...integrationsModule(infra),
     ...auditModule(infra),
     cookie: { secure: env.APP_ENV !== 'test', domain: env.COOKIE_DOMAIN || undefined },
     loginIpBlocklist,

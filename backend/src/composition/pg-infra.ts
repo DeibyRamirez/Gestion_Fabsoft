@@ -4,6 +4,8 @@ import {
   PgListAlertRulesQuery,
   PgUpdateAlertRuleRepository,
 } from '../infrastructure/persistence/pg/alerts/pg-alert-rules-repositories.js';
+import { PgAlertEmailTemplateRepository } from '../infrastructure/persistence/pg/alerts/pg-alert-email-template-repository.js';
+import { PgSettingsRepository } from '../infrastructure/persistence/pg/settings/pg-settings-repository.js';
 import {
   PgCloseTaskRepository,
   PgCreateTaskRepository,
@@ -14,6 +16,18 @@ import {
 } from '../infrastructure/persistence/pg/tasks/pg-task-repositories.js';
 import { PgRenewalRequestAutomationRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-automation-repository.js';
 import { PgListRenewalRequestsQuery } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-list-repository.js';
+import { PgRenewalRequestMutationRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-mutation-repository.js';
+import { PgRenewalRequestCreateRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-create-repository.js';
+import { PgRenewalRequestProcessRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-process-repository.js';
+import { PgIntegrationsRepository } from '../infrastructure/persistence/pg/integrations/pg-integrations-repository.js';
+import { PgIntegrationSubscriptionsRepository } from '../infrastructure/persistence/pg/integrations/pg-integration-subscriptions-repository.js';
+import { PgIntegrationRenewalRequestRepository } from '../infrastructure/persistence/pg/integrations/pg-integration-renewal-request-repository.js';
+import {
+  PgPortalMeQuery,
+  PgPortalPeriodsQuery,
+  PgPortalRenewalRequestsQuery,
+  PgPortalSubscriptionsQuery,
+} from '../infrastructure/persistence/pg/portal/pg-portal-repositories.js';
 import { PgGetDashboardSummaryQuery } from '../infrastructure/persistence/pg/dashboard/pg-dashboard-repositories.js';
 import { PgNotificationsRepository } from '../infrastructure/persistence/pg/notifications/pg-notifications-repositories.js';
 import { PgNotificationDispatchRepository } from '../infrastructure/persistence/pg/notifications/pg-notification-dispatch-repository.js';
@@ -48,6 +62,7 @@ import {
   PgListClientContactsQuery,
   PgUpdateClientContactRepository,
 } from '../infrastructure/persistence/pg/clients/pg-client-contact-repositories.js';
+import { PgClientOwnerCandidatesQuery } from '../infrastructure/persistence/pg/clients/pg-client-owner-candidates.js';
 import {
   PgActivateSubscriptionRepository,
   PgCancelSubscriptionRepository,
@@ -87,6 +102,8 @@ import { Argon2PasswordHasher } from '../infrastructure/security/argon2-password
 import { JoseTokenService } from '../infrastructure/security/jose-token-service.js';
 import { RandomTemporaryPasswordGenerator } from '../infrastructure/security/random-temporary-password.js';
 import { Sha256RefreshTokenFactory } from '../infrastructure/security/sha256-refresh-token-factory.js';
+import { HmacApiKeyService } from '../infrastructure/security/hmac-api-key-service.js';
+import { InMemoryIntegrationRateLimiter } from '../infrastructure/security/in-memory-integration-rate-limiter.js';
 import type { AuthScopeRepos, Infra, UserScopeRepos } from './infra.js';
 
 export async function buildTokenService(env: Env): Promise<JoseTokenService> {
@@ -136,6 +153,7 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     clientArchive: new PgArchiveClientRepository(tx),
     clientReactivate: new PgReactivateClientRepository(tx),
     clientContactsList: new PgListClientContactsQuery(tx),
+    clientOwnerCandidates: new PgClientOwnerCandidatesQuery(tx),
     clientContactCreate: new PgCreateClientContactRepository(tx),
     clientContactUpdate: new PgUpdateClientContactRepository(tx),
     subscriptionCreate: new PgCreateSubscriptionRepository(tx),
@@ -160,6 +178,27 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     tasksAutomation: new PgTaskAutomationRepository(tx),
     renewalRequests: new PgRenewalRequestAutomationRepository(tx),
     renewalRequestsList: new PgListRenewalRequestsQuery(tx),
+    renewalRequestDetail: new PgListRenewalRequestsQuery(tx),
+    renewalRequestUpdate: new PgRenewalRequestMutationRepository(tx),
+    renewalRequestResolve: new PgRenewalRequestMutationRepository(tx),
+    renewalRequestCreate: new PgRenewalRequestCreateRepository(tx),
+    portalMe: new PgPortalMeQuery(tx),
+    portalSubscriptions: new PgPortalSubscriptionsQuery(tx),
+    portalSubscription: new PgPortalSubscriptionsQuery(tx),
+    portalPeriods: new PgPortalPeriodsQuery(tx),
+    portalRenewalRequests: new PgPortalRenewalRequestsQuery(tx),
+    portalRenewalRequest: new PgPortalRenewalRequestsQuery(tx),
+    integrationsList: new PgIntegrationsRepository(tx),
+    integrationDetail: new PgIntegrationsRepository(tx),
+    integrationClients: new PgIntegrationsRepository(tx),
+    integrationCreate: new PgIntegrationsRepository(tx),
+    integrationUpdate: new PgIntegrationsRepository(tx),
+    integrationManifest: new PgIntegrationsRepository(tx),
+    credentials: new PgIntegrationsRepository(tx),
+    integrationSubscriptions: new PgIntegrationSubscriptionsRepository(tx),
+    integrationSubscriptionDetail: new PgIntegrationSubscriptionsRepository(tx),
+    integrationPeriods: new PgIntegrationSubscriptionsRepository(tx),
+    integrationRequestCreate: new PgIntegrationRenewalRequestRepository(tx),
     dashboardSummary: new PgGetDashboardSummaryQuery(tx),
     notificationsList: new PgNotificationsRepository(tx),
     notificationsRead: new PgNotificationsRepository(tx),
@@ -170,6 +209,8 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     alerts: new PgAlertSchedulingRepository(tx),
     alertRulesList: new PgListAlertRulesQuery(tx),
     alertRuleUpdate: new PgUpdateAlertRuleRepository(tx),
+    alertEmailTemplate: new PgAlertEmailTemplateRepository(tx),
+    settings: new PgSettingsRepository(tx),
     audit: new PgAuditWriter(tx),
   }));
   const authUow = new PgSystemUnitOfWork<AuthScopeRepos>(withRls, (tx) => ({
@@ -177,17 +218,28 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     refresh: new PgRefreshSessionRepository(tx),
     logout: new PgLogoutRepository(tx),
     authenticate: new PgAuthenticateRepository(tx),
+    apiKeyAuth: new PgIntegrationsRepository(tx),
     idempotencyRelease: new PgIdempotencyReleaseRepository(tx),
     audit: new PgAuditWriter(tx),
   }));
+  const apiKeyPepper =
+    env.API_KEY_PEPPER ??
+    (env.APP_ENV === 'prod' ? '' : 'dev-api-key-pepper-32-characters-minimum');
+  const apiKeys = new HmacApiKeyService({
+    pepper: apiKeyPepper,
+    previousPepper: env.API_KEY_PEPPER_PREVIOUS,
+    keyEnv: env.API_KEY_ENV,
+  });
   const workerUow = new PgSystemUnitOfWork(
     withRls,
     (tx) => ({
       idempotency: new PgIdempotencyPurgeRepository(tx),
       alerts: new PgAlertSchedulingRepository(tx),
       notificationsDispatch: new PgNotificationDispatchRepository(tx),
+      alertEmailTemplate: new PgAlertEmailTemplateRepository(tx),
       subscriptionsExpire: new PgExpireSubscriptionsRepository(tx),
       maintenance: new PgMaintenanceRepository(tx),
+      renewalRequestProcess: new PgRenewalRequestProcessRepository(tx),
     }),
     'worker',
   );
@@ -197,6 +249,8 @@ export async function buildPgInfra(env: Env): Promise<Infra> {
     authUow,
     workerUow,
     hasher,
+    apiKeys,
+    integrationRateLimiter: new InMemoryIntegrationRateLimiter(),
     tokens: await buildTokenService(env),
     refreshTokens: new Sha256RefreshTokenFactory(),
     passwords: new RandomTemporaryPasswordGenerator(),

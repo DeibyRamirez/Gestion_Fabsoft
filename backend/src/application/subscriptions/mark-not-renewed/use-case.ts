@@ -1,5 +1,6 @@
 import type { SubscriptionNotRenewedInput } from '@fabsoft/shared';
 import type { AlertSchedulingRepos } from '../../alerts/shared/alert-scheduling.js';
+import type { RenewalRequestAutomationRepos } from '../../renewal-requests/shared/renewal-request-automation.js';
 import type { TaskAutomationRepos } from '../../tasks/shared/task-automation.js';
 import type { UserActor } from '../../shared/actor.js';
 import { ApplicationError } from '../../shared/application-error.js';
@@ -11,7 +12,8 @@ import type { MarkNotRenewedRepos } from './ports.js';
 
 type MarkNotRenewedUow = MarkNotRenewedRepos &
   AlertSchedulingRepos &
-  TaskAutomationRepos & { audit: AuditWriter };
+  TaskAutomationRepos &
+  RenewalRequestAutomationRepos & { audit: AuditWriter };
 
 /**
  * Registra la decisión de no renovar. Si sigue vigente, el estado se mantiene
@@ -31,13 +33,13 @@ export class MarkNotRenewed {
     requireRole(actor, 'admin', 'operator');
     return this.uow.run(
       actor,
-      async ({ subscriptionMarkNotRenewed, alerts, tasksAutomation, audit }) => {
+      async ({ subscriptionMarkNotRenewed, alerts, tasksAutomation, renewalRequests, audit }) => {
         const current = await subscriptionMarkNotRenewed.loadForUpdate(id);
         if (!current) throw new ApplicationError('not_found', 'Suscripción no encontrada');
         if (current.version !== input.version) {
           throw new ApplicationError('version_conflict', 'La suscripción fue modificada');
         }
-        if (!['active', 'in_renewal', 'expired'].includes(current.status)) {
+        if (!['activa', 'en_renovacion', 'vencida'].includes(current.status)) {
           throw new ApplicationError(
             'invalid_state_transition',
             'La suscripción no admite registrar no renovación',
@@ -50,8 +52,8 @@ export class MarkNotRenewed {
           );
         }
         if (
-          current.currentPeriod.renewalOutcome === 'not_renewed' &&
-          current.status !== 'expired'
+          current.currentPeriod.renewalOutcome === 'no_renovada' &&
+          current.status !== 'vencida'
         ) {
           throw new ApplicationError(
             'invalid_state_transition',
@@ -65,7 +67,7 @@ export class MarkNotRenewed {
           {
             periodId: current.currentPeriod.id,
             reason: input.reason,
-            immediateStatus: current.status === 'expired' ? 'not_renewed' : null,
+            immediateStatus: current.status === 'vencida' ? 'no_renovada' : null,
             confirmedAt: this.clock.now(),
           },
           actor.userId,
@@ -76,6 +78,12 @@ export class MarkNotRenewed {
         await alerts.cancelPendingWithoutException(id, 'not_renewed');
         await tasksAutomation.cancelOpenAutoTasksForSubscription(
           id,
+          `No renovación: ${input.reason}`,
+          actor.userId,
+        );
+        await renewalRequests.resolveOpenForSubscription(
+          id,
+          'no_renovada',
           `No renovación: ${input.reason}`,
           actor.userId,
         );

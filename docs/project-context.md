@@ -59,12 +59,12 @@ Pagos en línea/Wompi (ADR-003) · GraphQL (ADR-002) · microservicios, Kubernet
 
 1. Destinatarios de alertas: responsable de la suscripción → responsable del cliente → todos los admins.
 2. Email habilitado por regla (`alert_rules.channels`) y globalmente por `CORREO_CANAL=resend`; D0 sólo in-app.
-3. Pagos: sólo estado manual por periodo (`not_tracked` / `pending` / `received`), sin conciliación.
+3. Pagos: sólo estado manual por periodo (`sin_seguimiento` / `pendiente` / `recibido`), sin conciliación.
 4. Contratos: sólo referencia textual; sin almacenamiento de archivos.
 5. Moneda única COP (CHECK en BD).
 6. Un cliente puede tener varios usuarios de portal.
 7. El operador puede crear clientes y suscripciones y corregir vencimientos (con motivo); archivar clientes, cancelar suscripciones, cambiar precio/costo, gestionar usuarios, productos, integraciones, reglas, configuración y reintentar alertas fallidas es sólo de admin (`docs/security/permissions-matrix.md`).
-8. "No renovada" se decide en el periodo (`renewal_outcome`); el job de vencimiento aplica `not_renewed` al llegar la fecha.
+8. "No renovada" se decide en el periodo (`renewal_outcome`); el job de vencimiento aplica `no_renovada` al llegar la fecha.
 
 ## 7. Glosario
 
@@ -75,10 +75,10 @@ Pagos en línea/Wompi (ADR-003) · GraphQL (ADR-002) · microservicios, Kubernet
 | Suscripción (`subscriptions`) | Instancia concreta de un producto para un cliente, con precio, ciclo y vencimiento. |
 | Periodo (`subscription_periods`) | Tramo de vigencia con fechas, precio y resultado de renovación; inmutable salvo campos de cierre. |
 | Vencimiento | `current_period_end`: último día **incluido** de vigencia (hora Bogotá). |
-| Vigencia (`status`) | `pending_activation`, `active`, `in_renewal`, `expired`, `cancelled`, `not_renewed`. |
-| Estado de pago (`payment_status`) | Por periodo: `not_tracked`, `pending`, `received`. Independiente de la vigencia. |
-| Seguimiento (`follow_up_status`) | Gestión comercial: `none`, `in_progress`, `awaiting_client`, `closed`. |
-| Solicitud de renovación (`renewal_requests`) | Petición de un cliente/integración/interno; **no** renueva por sí misma. Estados `pending_review`, `in_progress`, `resolved`. |
+| Vigencia (`status`) | `pendiente_activacion`, `activa`, `en_renovacion`, `vencida`, `cancelada`, `no_renovada`. |
+| Estado de pago (`payment_status`) | Por periodo: `sin_seguimiento`, `pendiente`, `recibido`. Independiente de la vigencia. |
+| Seguimiento (`follow_up_status`) | Gestión comercial: `sin_gestion`, `en_gestion`, `esperando_cliente`, `cerrado`. |
+| Solicitud de renovación (`renewal_requests`) | Petición de un cliente/integración/interno; **no** renueva por sí misma. Estados `pendiente_revision`, `en_progreso`, `resuelta`. |
 | Tarea de renovación (`tasks`, API `/renewal-tasks`) | Acción interna asignable (contactar, enviar propuesta, verificar pago, revisar vencida…). |
 | Regla de alerta (`alert_rules`) | D30, D15, D7, D1, D0, POST1: días respecto al vencimiento, canales y tarea a crear. |
 | Notificación (`notifications`) | Alerta concreta programada (in-app o email) con `dedupe_key` única. |

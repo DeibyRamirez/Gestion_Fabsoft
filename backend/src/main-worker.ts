@@ -1,4 +1,4 @@
-import PgBoss from 'pg-boss';
+import { PgBoss } from 'pg-boss';
 import { CleanupMaintenance } from './application/maintenance/cleanup/use-case.js';
 import { ReconcileAlerts } from './application/alerts/reconcile-alerts/use-case.js';
 import { DispatchNotifications } from './application/notifications/dispatch-notifications/use-case.js';
@@ -61,10 +61,28 @@ boss.on('error', (error) =>
 
 await boss.start();
 
-await boss.work(QUEUES.expire, async (job) => expire.execute(job.id));
-await boss.work(QUEUES.reconcile, async (job) => reconcile.execute(job.id));
-await boss.work(QUEUES.dispatch, async (job) => dispatch.execute(job.id));
-await boss.work(QUEUES.cleanup, async (job) => cleanup.execute(job.id));
+for (const queue of Object.values(QUEUES)) {
+  const existing = await boss.getQueue(queue);
+  if (existing) continue;
+  try {
+    await boss.createQueue(queue);
+  } catch (error) {
+    if ((error as { code?: string }).code !== '23505') throw error;
+  }
+}
+
+await boss.work(QUEUES.expire, async (jobs) => {
+  for (const job of jobs) await expire.execute(job.id);
+});
+await boss.work(QUEUES.reconcile, async (jobs) => {
+  for (const job of jobs) await reconcile.execute(job.id);
+});
+await boss.work(QUEUES.dispatch, async (jobs) => {
+  for (const job of jobs) await dispatch.execute(job.id);
+});
+await boss.work(QUEUES.cleanup, async (jobs) => {
+  for (const job of jobs) await cleanup.execute(job.id);
+});
 
 await boss.schedule(QUEUES.expire, '5 0 * * *', {}, { tz: env.BUSINESS_TIMEZONE });
 await boss.schedule(QUEUES.reconcile, '10 0 * * *', {}, { tz: env.BUSINESS_TIMEZONE });

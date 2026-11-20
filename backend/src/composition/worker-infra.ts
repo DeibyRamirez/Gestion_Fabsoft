@@ -1,8 +1,10 @@
 import type { WorkerScopeRepos } from './infra.js';
 import { PgAlertSchedulingRepository } from '../infrastructure/persistence/pg/alerts/pg-alert-scheduling-repository.js';
+import { PgAlertEmailTemplateRepository } from '../infrastructure/persistence/pg/alerts/pg-alert-email-template-repository.js';
 import { PgIdempotencyPurgeRepository } from '../infrastructure/persistence/pg/maintenance/pg-idempotency-purge.js';
 import { PgMaintenanceRepository } from '../infrastructure/persistence/pg/maintenance/pg-maintenance-repository.js';
 import { PgNotificationDispatchRepository } from '../infrastructure/persistence/pg/notifications/pg-notification-dispatch-repository.js';
+import { PgRenewalRequestProcessRepository } from '../infrastructure/persistence/pg/renewal-requests/pg-renewal-request-process-repository.js';
 import { PgExpireSubscriptionsRepository } from '../infrastructure/persistence/pg/subscriptions/pg-expire-subscriptions-repository.js';
 import { SystemClock } from '../infrastructure/clock/system-clock.js';
 import type { WorkerEnv } from '../infrastructure/config/worker-env.js';
@@ -34,8 +36,10 @@ export async function buildWorkerInfra(env: WorkerEnv): Promise<WorkerInfra> {
       idempotency: new PgIdempotencyPurgeRepository(tx),
       alerts: new PgAlertSchedulingRepository(tx),
       notificationsDispatch: new PgNotificationDispatchRepository(tx),
+      alertEmailTemplate: new PgAlertEmailTemplateRepository(tx),
       subscriptionsExpire: new PgExpireSubscriptionsRepository(tx),
       maintenance: new PgMaintenanceRepository(tx),
+      renewalRequestProcess: new PgRenewalRequestProcessRepository(tx),
     }),
     'worker',
   );

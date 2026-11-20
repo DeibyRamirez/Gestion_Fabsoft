@@ -1,8 +1,4 @@
-import type {
-  NotificationChannel,
-  TaskPriority,
-  TaskType,
-} from '@fabsoft/shared';
+import type { NotificationChannel, TaskPriority, TaskType } from '@fabsoft/shared';
 import type { AlertRuleView } from '../../../../application/alerts/shared/alert-rule-view.js';
 import type { ListAlertRulesQuery } from '../../../../application/alerts/list-alert-rules/ports.js';
 import type {

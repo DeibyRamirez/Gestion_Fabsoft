@@ -41,8 +41,8 @@ const sample = (over: Partial<SubscriptionView> = {}): SubscriptionView => ({
   supplierCostAmount: null,
   renewalTerms: null,
   isRenewable: true,
-  status: 'active',
-  followUpStatus: 'none',
+  status: 'activa',
+  followUpStatus: 'sin_gestion',
   visibleInPortal: true,
   ownerUserId: null,
   owner: null,
@@ -87,18 +87,21 @@ describe('StartRenewal', () => {
     });
   });
 
-  it.each(['pending_activation', 'in_renewal', 'expired', 'cancelled', 'not_renewed'] as const)(
-    'no inicia renovación desde %s',
-    async (status) => {
-      const { uc } = makeUc(sample({ status }), sample());
-      await expect(uc.execute(admin, 'sub-1', 1)).rejects.toMatchObject({
-        code: 'invalid_state_transition',
-      });
-    },
-  );
+  it.each([
+    'pendiente_activacion',
+    'en_renovacion',
+    'vencida',
+    'cancelada',
+    'no_renovada',
+  ] as const)('no inicia renovación desde %s', async (status) => {
+    const { uc } = makeUc(sample({ status }), sample());
+    await expect(uc.execute(admin, 'sub-1', 1)).rejects.toMatchObject({
+      code: 'invalid_state_transition',
+    });
+  });
 
-  it('active pasa a in_renewal/in_progress y audita', async () => {
-    const updated = sample({ status: 'in_renewal', followUpStatus: 'in_progress', version: 2 });
+  it('activa pasa a en_renovacion/en_gestion y audita', async () => {
+    const updated = sample({ status: 'en_renovacion', followUpStatus: 'en_gestion', version: 2 });
     const { uc, startRenewal, auditWrite } = makeUc(sample(), updated);
     const result = await uc.execute(operator, 'sub-1', 1);
 

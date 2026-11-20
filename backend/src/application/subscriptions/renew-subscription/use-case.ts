@@ -32,7 +32,7 @@ export interface RenewSubscriptionInput {
   note?: string | null | undefined;
 }
 
-const RENEWABLE_STATUSES = new Set(['active', 'in_renewal', 'expired']);
+const RENEWABLE_STATUSES = new Set(['activa', 'en_renovacion', 'vencida']);
 
 /** Renovación mínima de HU-07: nuevo periodo en `fin anterior + 1`, sin solapes (RN-04). */
 export class RenewSubscription {
@@ -93,7 +93,7 @@ export class RenewSubscription {
             priceAmount: input.newPeriod.priceAmount,
             supplierCostAmount: input.newPeriod.supplierCostAmount ?? null,
             contractReference: input.newPeriod.contractReference ?? current.contractReference,
-            paymentStatus: input.newPeriod.paymentStatus ?? 'pending',
+            paymentStatus: input.newPeriod.paymentStatus ?? 'pendiente',
             confirmedAt: this.clock.now(),
           },
           actor.userId,
@@ -107,7 +107,12 @@ export class RenewSubscription {
           'Renovación confirmada',
           actor.userId,
         );
-        await renewalRequests.resolveOpenForSubscription(id, 'Renovación confirmada', actor.userId);
+        await renewalRequests.resolveOpenForSubscription(
+          id,
+          'renovada',
+          'Renovación confirmada',
+          actor.userId,
+        );
         await alerts.scheduleForPeriod(id, toBogotaLocalDate(this.clock.now()));
 
         await audit.write({

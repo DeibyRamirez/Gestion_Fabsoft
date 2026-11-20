@@ -1,6 +1,6 @@
 # Despliegue y entornos — FabSoft
 
-> Fase 1: API + worker + frontend en un VPS con Docker; BD en **Supabase**. Fase 2: BD **PostgreSQL 16 en VPS** (plan de migración: `docs/architecture.md` §7). Separación estricta dev / test / prod (§12 funcional).
+> Fase 1: API + worker + frontend en un VPS con Docker; BD en **Supabase**. Fase 2: BD **PostgreSQL 16 en VPS** (plan de migración: `docs/architecture.md` §7). Separación estricta dev / test / prod (§12 funcional). Guía operativa del VPS, compose, pipeline y rollback: [`docs/migracion-vps.md`](migracion-vps.md).
 
 ## 1. Entornos
 
@@ -49,6 +49,7 @@ Cada entorno tiene sus **propios** secretos, claves JWT, pepper y proyecto/BD. N
 | `FRONTEND_URL` | worker | Enlaces en correos |
 | `LOG_LEVEL` | api, worker | `info` |
 | `MAINTENANCE_MODE` | api | `false` (true ⇒ 503 en escrituras) |
+| `OPENAPI_SPEC_PATH` | api | Opcional: ruta absoluta a `docs/api/openapi.json` si la imagen no incluye `docs/` |
 | `NEXT_PUBLIC_API_BASE_URL` | frontend | `https://api.fabsoft.example/api/v1` |
 | `NEXT_PUBLIC_APP_ENV` | frontend | `prod` |
 
@@ -112,7 +113,8 @@ Más la checklist de aislamiento (`docs/security/threat-model.md` §5) contra st
 3. `dbmate up` contra la BD del entorno (migraciones compatibles hacia atrás: *expand → migrate → contract*; nunca renombrar/borrar columnas en el mismo release que el código que deja de usarlas).
 4. `docker compose pull && docker compose up -d` (api, worker, web).
 5. *Smoke test*: `/api/v1/health/ready`, login, listado.
-6. Rollback: volver a la imagen anterior (las migraciones *expand* lo permiten).
+6. DAST smoke contra staging: `DAST_BASE_URL=https://api.fabsoft.example pnpm security:dast` (cabeceras, CORS, límites y errores).
+7. Rollback: volver a la imagen anterior (las migraciones *expand* lo permiten).
 
 ## 5. Fase 2 — PostgreSQL 16 en VPS
 

@@ -17,6 +17,7 @@ export default async function SubscriptionsRoute({ searchParams }: { searchParam
     <SubscriptionsPage
       initialFilters={{
         ...EMPTY_SUBSCRIPTION_FILTERS,
+        q: value('q'),
         status: value('status'),
         followUpStatus: value('followUpStatus'),
         expiresFrom: value('expiresFrom'),

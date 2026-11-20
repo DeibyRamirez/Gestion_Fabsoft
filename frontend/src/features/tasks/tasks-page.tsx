@@ -1,46 +1,61 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { ClientDto, ClientPage, TaskPage } from '@fabsoft/shared';
+import { ListChecksIcon } from 'lucide-react';
+import type { ClientDto, ClientPage, SubscriptionPage, TaskPage } from '@fabsoft/shared';
 import { apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
+import { BentoCard } from '@/shared/components/bento';
+import { EmptyState } from '@/shared/components/empty-state';
+import { FilterBar, FilterField } from '@/shared/components/filter-bar';
+import { LoadingState } from '@/shared/components/loading-state';
 import { PageHeader } from '@/shared/components/page-header';
+import { SectionHeader } from '@/shared/components/section-header';
 import { Button } from '@/shared/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
+import { Card, CardContent } from '@/shared/ui/card';
 import { Input } from '@/shared/ui/input';
+import { nativeSelectClassName } from '@/shared/ui/native-select';
 import { TaskForm } from './task-form';
 import { TasksTable } from './tasks-table';
-
-const selectClassName =
-  'flex h-10 rounded-md border border-border-input bg-bg px-3 py-2 text-sm text-fg shadow-sm focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2';
 
 export type TaskFilters = {
   status: string;
   priority: string;
   assignee: string;
+  clientId: string;
+  subscriptionId: string;
   overdue: boolean;
   dueFrom: string;
   dueTo: string;
 };
 
 export const DEFAULT_TASK_FILTERS: TaskFilters = {
-  status: 'pending,in_progress',
+  status: 'pendiente,en_progreso',
   priority: '',
   assignee: '',
+  clientId: '',
+  subscriptionId: '',
   overdue: false,
   dueFrom: '',
   dueTo: '',
 };
 
-export function TasksPage({ initialFilters = DEFAULT_TASK_FILTERS }: { initialFilters?: TaskFilters }) {
+export function TasksPage({
+  initialFilters = DEFAULT_TASK_FILTERS,
+}: {
+  initialFilters?: TaskFilters;
+}) {
   const { token, user } = useAuth();
   const [page, setPage] = useState<TaskPage | null>(null);
   const [clients, setClients] = useState<ClientDto[]>([]);
+  const [subscriptions, setSubscriptions] = useState<SubscriptionPage['data']>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [status, setStatus] = useState(initialFilters.status);
   const [priority, setPriority] = useState(initialFilters.priority);
   const [assignee, setAssignee] = useState(initialFilters.assignee);
+  const [clientId, setClientId] = useState(initialFilters.clientId);
+  const [subscriptionId, setSubscriptionId] = useState(initialFilters.subscriptionId);
   const [overdue, setOverdue] = useState(initialFilters.overdue);
   const [dueFrom, setDueFrom] = useState(initialFilters.dueFrom);
   const [dueTo, setDueTo] = useState(initialFilters.dueTo);
@@ -59,10 +74,27 @@ export function TasksPage({ initialFilters = DEFAULT_TASK_FILTERS }: { initialFi
 
   useEffect(() => {
     let alive = true;
+    if (!clientId) {
+      return () => {
+        alive = false;
+      };
+    }
+    apiFetch<SubscriptionPage>(`/subscriptions?clientId=${clientId}&pageSize=100`, { token })
+      .then((p) => alive && setSubscriptions(p.data))
+      .catch(() => alive && setSubscriptions([]));
+    return () => {
+      alive = false;
+    };
+  }, [token, clientId]);
+
+  useEffect(() => {
+    let alive = true;
     const params = new URLSearchParams({ pageSize: '50', sort: 'dueDate' });
     if (status) params.set('status', status);
     if (priority) params.set('priority', priority);
     if (assignee) params.set('assigneeUserId', assignee);
+    if (clientId) params.set('clientId', clientId);
+    if (subscriptionId) params.set('subscriptionId', subscriptionId);
     if (overdue) params.set('overdue', 'true');
     if (dueFrom) params.set('dueFrom', dueFrom);
     if (dueTo) params.set('dueTo', dueTo);
@@ -72,21 +104,34 @@ export function TasksPage({ initialFilters = DEFAULT_TASK_FILTERS }: { initialFi
     return () => {
       alive = false;
     };
-  }, [token, status, priority, assignee, overdue, dueFrom, dueTo, version]);
+  }, [
+    token,
+    status,
+    priority,
+    assignee,
+    clientId,
+    subscriptionId,
+    overdue,
+    dueFrom,
+    dueTo,
+    version,
+  ]);
 
   function clearFilters() {
     setStatus(DEFAULT_TASK_FILTERS.status);
     setPriority(DEFAULT_TASK_FILTERS.priority);
     setAssignee(DEFAULT_TASK_FILTERS.assignee);
+    setClientId(DEFAULT_TASK_FILTERS.clientId);
+    setSubscriptionId(DEFAULT_TASK_FILTERS.subscriptionId);
+    setSubscriptions([]);
     setOverdue(DEFAULT_TASK_FILTERS.overdue);
     setDueFrom(DEFAULT_TASK_FILTERS.dueFrom);
     setDueTo(DEFAULT_TASK_FILTERS.dueTo);
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-5">
       <PageHeader
-        breadcrumbs={['Gestión']}
         title="Tareas"
         description="Seguimiento operativo de renovaciones y tareas manuales."
         actions={
@@ -96,16 +141,14 @@ export function TasksPage({ initialFilters = DEFAULT_TASK_FILTERS }: { initialFi
         }
       />
       {message ? (
-        <p role="status" className="text-sm">
+        <p role="status" className="text-sm text-fg-muted">
           {message}
         </p>
       ) : null}
       {showForm && user ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Nueva tarea manual</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <BentoCard>
+          <SectionHeader title="Nueva tarea manual" />
+          <div className="mt-4">
             <TaskForm
               token={token}
               role={user.role}
@@ -116,37 +159,78 @@ export function TasksPage({ initialFilters = DEFAULT_TASK_FILTERS }: { initialFi
                 reload();
               }}
             />
-          </CardContent>
-        </Card>
+          </div>
+        </BentoCard>
       ) : null}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="grid gap-1">
-          <label className="text-xs text-fg-muted" htmlFor="filter-status">
-            Estado
-          </label>
+
+      <FilterBar
+        actions={
+          <>
+            <Button type="button" variant="ghost" onClick={clearFilters}>
+              Limpiar
+            </Button>
+            <Button type="button" variant="outline" onClick={reload}>
+              Actualizar
+            </Button>
+          </>
+        }
+      >
+        <FilterField label="Cliente" htmlFor="filter-client">
+          <select
+            id="filter-client"
+            value={clientId}
+            onChange={(e) => {
+              setClientId(e.target.value);
+              setSubscriptionId('');
+              setSubscriptions([]);
+            }}
+            className={nativeSelectClassName}
+          >
+            <option value="">Todos</option>
+            {clients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.legalName}
+              </option>
+            ))}
+          </select>
+        </FilterField>
+        <FilterField label="Suscripción" htmlFor="filter-subscription">
+          <select
+            id="filter-subscription"
+            value={subscriptionId}
+            onChange={(e) => setSubscriptionId(e.target.value)}
+            className={nativeSelectClassName}
+            disabled={!clientId}
+          >
+            <option value="">Todas</option>
+            {subscriptions.map((subscription) => (
+              <option key={subscription.id} value={subscription.id}>
+                {subscription.product.name} · vence {subscription.currentPeriodEnd}
+              </option>
+            ))}
+          </select>
+        </FilterField>
+        <FilterField label="Estado" htmlFor="filter-status">
           <select
             id="filter-status"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className={selectClassName}
+            className={nativeSelectClassName}
           >
-            <option value="pending,in_progress">Abiertas</option>
-            <option value="pending">Pendientes</option>
-            <option value="in_progress">En progreso</option>
-            <option value="completed">Completadas</option>
-            <option value="cancelled">Canceladas</option>
+            <option value="pendiente,en_progreso">Abiertas</option>
+            <option value="pendiente">Pendientes</option>
+            <option value="en_progreso">En progreso</option>
+            <option value="completada">Completadas</option>
+            <option value="cancelada">Canceladas</option>
             <option value="">Todas</option>
           </select>
-        </div>
-        <div className="grid gap-1">
-          <label className="text-xs text-fg-muted" htmlFor="filter-priority">
-            Prioridad
-          </label>
+        </FilterField>
+        <FilterField label="Prioridad" htmlFor="filter-priority">
           <select
             id="filter-priority"
             value={priority}
             onChange={(e) => setPriority(e.target.value)}
-            className={selectClassName}
+            className={nativeSelectClassName}
           >
             <option value="">Todas</option>
             <option value="urgent">Urgente</option>
@@ -154,66 +238,67 @@ export function TasksPage({ initialFilters = DEFAULT_TASK_FILTERS }: { initialFi
             <option value="medium">Media</option>
             <option value="low">Baja</option>
           </select>
-        </div>
-        <div className="grid gap-1">
-          <label className="text-xs text-fg-muted" htmlFor="filter-assignee">
-            Responsable
-          </label>
+        </FilterField>
+        <FilterField label="Responsable" htmlFor="filter-assignee">
           <select
             id="filter-assignee"
             value={assignee}
             onChange={(e) => setAssignee(e.target.value)}
-            className={selectClassName}
+            className={nativeSelectClassName}
           >
             <option value="">Todos</option>
             <option value="me">Mis tareas</option>
           </select>
-        </div>
-        <div className="grid gap-1">
-          <label className="text-xs text-fg-muted" htmlFor="filter-due-from">
-            Vence desde
-          </label>
+        </FilterField>
+        <FilterField label="Vence desde" htmlFor="filter-due-from">
           <Input
             id="filter-due-from"
             type="date"
             value={dueFrom}
             onChange={(e) => setDueFrom(e.target.value)}
           />
-        </div>
-        <div className="grid gap-1">
-          <label className="text-xs text-fg-muted" htmlFor="filter-due-to">
-            Vence hasta
-          </label>
+        </FilterField>
+        <FilterField label="Vence hasta" htmlFor="filter-due-to">
           <Input
             id="filter-due-to"
             type="date"
             value={dueTo}
             onChange={(e) => setDueTo(e.target.value)}
           />
+        </FilterField>
+        <div className="flex items-end">
+          <label className="flex h-11 items-center gap-2 text-sm text-fg">
+            <input
+              type="checkbox"
+              checked={overdue}
+              onChange={(e) => setOverdue(e.target.checked)}
+              className="size-4 rounded border-border-input accent-[var(--color-iris)]"
+            />
+            Sólo vencidas
+          </label>
         </div>
-        <label className="flex h-10 items-center gap-2 text-sm">
-          <input type="checkbox" checked={overdue} onChange={(e) => setOverdue(e.target.checked)} />
-          Sólo vencidas
-        </label>
-        <Button type="button" variant="outline" onClick={reload}>
-          Actualizar
-        </Button>
-        <Button type="button" variant="ghost" onClick={clearFilters}>
-          Limpiar
-        </Button>
-      </div>
+      </FilterBar>
+
       {page ? (
         page.data.length === 0 ? (
-          <p className="text-sm text-fg-muted">No hay tareas con estos filtros.</p>
+          <EmptyState
+            icon={ListChecksIcon}
+            title="No hay tareas con estos filtros."
+            action={
+              <Button type="button" size="sm" variant="outline" onClick={clearFilters}>
+                Limpiar filtros
+              </Button>
+            }
+          />
         ) : (
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-5">
               <TasksTable page={page} clients={clients} />
             </CardContent>
           </Card>
         )
       ) : (
-        <p>Cargando tareas…</p>
+        <LoadingState label="Cargando tareas…" />
       )}
     </div>
   );

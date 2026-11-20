@@ -1,4 +1,5 @@
 import type { NotificationChannel, NotificationStatus, NotificationType } from '@fabsoft/shared';
+import type { AlertEmailTemplateQuery } from '../../alerts/shared/email-template.js';
 import type { LocalDate } from '../../../domain/subscriptions/local-date.js';
 
 export interface DispatchableNotification {
@@ -34,7 +35,7 @@ export interface NotificationDispatchRepository {
   markFailure(
     id: string,
     attempts: number,
-    status: Extract<NotificationStatus, 'pending' | 'failed'>,
+    status: Extract<NotificationStatus, 'pendiente' | 'fallida'>,
     lastError: string,
     nextAttemptAt: Date | null,
   ): Promise<boolean>;
@@ -42,4 +43,5 @@ export interface NotificationDispatchRepository {
 
 export interface NotificationDispatchRepos {
   notificationsDispatch: NotificationDispatchRepository;
+  alertEmailTemplate: AlertEmailTemplateQuery;
 }

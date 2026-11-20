@@ -20,7 +20,7 @@ export class StartRenewal {
       if (current.version !== version) {
         throw new ApplicationError('version_conflict', 'La suscripción fue modificada');
       }
-      if (current.status !== 'active') {
+      if (current.status !== 'activa') {
         throw new ApplicationError(
           'invalid_state_transition',
           'Sólo se inicia la renovación de una suscripción activa',

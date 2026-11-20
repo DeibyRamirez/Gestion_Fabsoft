@@ -34,8 +34,8 @@ const sample = (over: Partial<SubscriptionView> = {}): SubscriptionView => ({
   supplierCostAmount: null,
   renewalTerms: null,
   isRenewable: true,
-  status: 'pending_activation',
-  followUpStatus: 'none',
+  status: 'pendiente_activacion',
+  followUpStatus: 'sin_gestion',
   visibleInPortal: true,
   ownerUserId: null,
   owner: null,
@@ -92,7 +92,7 @@ describe('ActivateSubscription', () => {
   });
 
   it('transición inválida devuelve invalid_state_transition', async () => {
-    const { uc } = makeUc(sample({ status: 'active' }), sample());
+    const { uc } = makeUc(sample({ status: 'activa' }), sample());
     await expect(uc.execute(admin, 'sub-1', 1)).rejects.toMatchObject({
       code: 'invalid_state_transition',
     });
@@ -101,12 +101,12 @@ describe('ActivateSubscription', () => {
   it('activa y audita', async () => {
     const { uc, activate, auditWrite, scheduleForPeriod } = makeUc(
       sample(),
-      sample({ status: 'active', version: 2 }),
+      sample({ status: 'activa', version: 2 }),
     );
     const result = await uc.execute(admin, 'sub-1', 1);
     expect(activate).toHaveBeenCalledWith('sub-1', 1, 'a');
     expect(scheduleForPeriod).toHaveBeenCalledWith('sub-1', '2026-11-14');
-    expect(result.status).toBe('active');
+    expect(result.status).toBe('activa');
     expect(auditWrite).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'subscription.activated' }),
     );

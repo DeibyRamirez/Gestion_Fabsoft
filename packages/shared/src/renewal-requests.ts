@@ -13,7 +13,7 @@ export type RenewalRequestCreateInput = z.infer<typeof RenewalRequestCreateSchem
 
 export const RenewalRequestUpdateSchema = z
   .object({
-    status: z.literal('in_progress').optional(),
+    status: z.literal('en_progreso').optional(),
     assignedUserId: z.string().uuid().nullable().optional(),
   })
   .strict()

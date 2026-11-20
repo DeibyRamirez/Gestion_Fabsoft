@@ -53,12 +53,37 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
     expect(res.status).toBe(201);
     expect(res.headers.location).toMatch(/\/api\/v1\/subscriptions\//);
     expectMatchesOperation(res, 'createSubscription');
-    expect(res.body.status).toBe('pending_activation');
+    expect(res.body.status).toBe('pendiente_activacion');
     expect(res.body.currentPeriodEnd).toBe('2026-11-30');
     expect(res.body.priceAmount).toBe('100000.00');
     expect(res.body.currentPeriod.periodNumber).toBe(1);
     expect(res.body.currentPeriod.endDate).toBe('2026-11-30');
     expect(res.body.currentPeriod.priceAmount).toBe('100000.00');
+  });
+
+  it('T-HU16 — exporta el listado filtrado de suscripciones a CSV UTF-8', async () => {
+    const app = await buildTestApp();
+    const client = await factories.client();
+    const product = await factories.product();
+    const operator = await factories.operatorUser();
+    const token = await factories.tokenFor(operator);
+
+    await request(app)
+      .post('/api/v1/subscriptions')
+      .set('Authorization', `Bearer ${token}`)
+      .send(bodyFor(client.id, product.id))
+      .expect(201);
+
+    const res = await request(app)
+      .get(`/api/v1/subscriptions/export?clientId=${client.id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+    expect(res.headers['content-disposition']).toContain('attachment');
+    expect(res.text.startsWith('\uFEFF')).toBe(true);
+    expect(res.text).toContain('"Cliente"');
+    expect(res.text).toContain(client.legalName);
+    expect(res.text).toContain(product.name);
   });
 
   it('T-HU06 — cliente archivado y producto inactivo ⇒ 422', async () => {
@@ -67,8 +92,8 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
     const token = await factories.tokenFor(admin);
     const activeClient = await factories.client();
     const activeProduct = await factories.product();
-    const archivedClient = await factories.client({ status: 'archived' });
-    const inactiveProduct = await factories.product({ status: 'inactive' });
+    const archivedClient = await factories.client({ status: 'archivado' });
+    const inactiveProduct = await factories.product({ status: 'inactivo' });
 
     const archived = await request(app)
       .post('/api/v1/subscriptions')
@@ -172,7 +197,7 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ version: 1 });
     expect(activated.status).toBe(200);
-    expect(activated.body.status).toBe('active');
+    expect(activated.body.status).toBe('activa');
 
     const again = await request(app)
       .post(`/api/v1/subscriptions/${id}/activate`)
@@ -243,7 +268,7 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ version: 1, reason: 'Fin de contrato' });
     expect(cancelled.status).toBe(200);
-    expect(cancelled.body.status).toBe('cancelled');
+    expect(cancelled.body.status).toBe('cancelada');
     expect(cancelled.body.cancelledAt).not.toBeNull();
     expect(cancelled.body.cancellationReason).toBe('Fin de contrato');
   });
@@ -304,7 +329,7 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
     expect(periods.body.data[0].periodNumber).toBe(2);
     expect(periods.body.data[0].startDate).toBe('2026-12-01');
     expect(periods.body.data[1].periodNumber).toBe(1);
-    expect(periods.body.data[1].renewalOutcome).toBe('renewed');
+    expect(periods.body.data[1].renewalOutcome).toBe('renovada');
   });
 
   it('T-HU07 — renew exige una suscripción activada', async () => {
@@ -327,7 +352,7 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
     expect(res.body.code).toBe('invalid_state_transition');
   });
 
-  it('T-HU07 — RN-06: renew no admite paymentStatus received; operador no fija costo', async () => {
+  it('T-HU07 — RN-06: renew no admite paymentStatus recibido; operador no fija costo', async () => {
     const app = await buildTestApp();
     const client = await factories.client();
     const product = await factories.product();
@@ -348,7 +373,7 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
     const received = await request(app)
       .post(`/api/v1/subscriptions/${id}/renew`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ version: 2, newPeriod: { priceAmount: '120000.00', paymentStatus: 'received' } });
+      .send({ version: 2, newPeriod: { priceAmount: '120000.00', paymentStatus: 'recibido' } });
     expect(received.status).toBe(400);
     expect(received.body.code).toBe('validation_error');
 
@@ -359,7 +384,7 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
     expect(cost.status).toBe(403);
   });
 
-  it('T-HU09-02 — start-renewal: active→in_renewal, operador permitido y versión', async () => {
+  it('T-HU09-02 — start-renewal: activa→en_renovacion, operador permitido y versión', async () => {
     const app = await buildTestApp();
     const client = await factories.client();
     const product = await factories.product();
@@ -383,8 +408,8 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
       .send({ version: 2 });
     expect(started.status).toBe(200);
     expectMatchesOperation(started, 'startSubscriptionRenewal');
-    expect(started.body.status).toBe('in_renewal');
-    expect(started.body.followUpStatus).toBe('in_progress');
+    expect(started.body.status).toBe('en_renovacion');
+    expect(started.body.followUpStatus).toBe('en_gestion');
     expect(started.body.version).toBe(3);
 
     const repeated = await request(app)
@@ -402,7 +427,7 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
     expect(stale.body.code).toBe('version_conflict');
   });
 
-  it('T-HU09-02 — not-renewed vigente difiere el estado; expired lo aplica ya', async () => {
+  it('T-HU09-02 — not-renewed vigente difiere el estado; vencida lo aplica ya', async () => {
     const app = await buildTestApp();
     const client = await factories.client();
     const product = await factories.product();
@@ -427,13 +452,13 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
       .send({ version: 2, reason: decision });
     expect(deferred.status).toBe(200);
     expectMatchesOperation(deferred, 'markSubscriptionNotRenewed');
-    expect(deferred.body.status).toBe('active');
-    expect(deferred.body.followUpStatus).toBe('closed');
-    expect(deferred.body.currentPeriod.renewalOutcome).toBe('not_renewed');
+    expect(deferred.body.status).toBe('activa');
+    expect(deferred.body.followUpStatus).toBe('cerrado');
+    expect(deferred.body.currentPeriod.renewalOutcome).toBe('no_renovada');
     expect(deferred.body.currentPeriod.outcomeReason).toBe(decision);
 
     const expiredSub = await factories.subscription(client, product, {
-      status: 'expired',
+      status: 'vencida',
       startDate: '2026-10-01',
     });
     const immediate = await request(app)
@@ -441,9 +466,9 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ version: 1, reason: 'Fin de contrato' });
     expect(immediate.status).toBe(200);
-    expect(immediate.body.status).toBe('not_renewed');
-    expect(immediate.body.followUpStatus).toBe('closed');
-    expect(immediate.body.currentPeriod.renewalOutcome).toBe('not_renewed');
+    expect(immediate.body.status).toBe('no_renovada');
+    expect(immediate.body.followUpStatus).toBe('cerrado');
+    expect(immediate.body.currentPeriod.renewalOutcome).toBe('no_renovada');
   });
 
   it('T-HU09-02 — correct-expiration actualiza suscripción y periodo con motivo', async () => {
@@ -472,7 +497,7 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
     expectMatchesOperation(corrected, 'correctSubscriptionExpiration');
     expect(corrected.body.currentPeriodEnd).toBe('2026-12-15');
     expect(corrected.body.currentPeriod.endDate).toBe('2026-12-15');
-    expect(corrected.body.currentPeriod.paymentStatus).toBe('pending');
+    expect(corrected.body.currentPeriod.paymentStatus).toBe('pendiente');
     expect(corrected.body.version).toBe(3);
 
     const stale = await request(app)
@@ -512,25 +537,25 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
     const paid = await request(app)
       .patch(`/api/v1/subscriptions/${id}/periods/${periodId}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ paymentStatus: 'received', contractReference: 'C-2026-11' });
+      .send({ paymentStatus: 'recibido', contractReference: 'C-2026-11' });
     expect(paid.status).toBe(200);
     expectMatchesOperation(paid, 'updateSubscriptionPeriodPayment');
-    expect(paid.body.paymentStatus).toBe('received');
+    expect(paid.body.paymentStatus).toBe('recibido');
     expect(paid.body.contractReference).toBe('C-2026-11');
 
     const detail = await request(app)
       .get(`/api/v1/subscriptions/${id}`)
       .set('Authorization', `Bearer ${token}`);
-    expect(detail.body.status).toBe('active');
-    expect(detail.body.currentPaymentStatus).toBe('received');
+    expect(detail.body.status).toBe('activa');
+    expect(detail.body.currentPaymentStatus).toBe('recibido');
 
     const history = await request(app)
       .get(`/api/v1/subscriptions/${id}/periods`)
       .set('Authorization', `Bearer ${token}`);
-    expect(history.body.data[0].paymentStatus).toBe('received');
+    expect(history.body.data[0].paymentStatus).toBe('recibido');
 
     const expiredSub = await factories.subscription(client, product, {
-      status: 'expired',
+      status: 'vencida',
       startDate: '2026-10-01',
     });
     const expiredPeriods = await request(app)
@@ -539,13 +564,13 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
     const expiredPaid = await request(app)
       .patch(`/api/v1/subscriptions/${expiredSub.id}/periods/${expiredPeriods.body.data[0].id}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ paymentStatus: 'received' });
+      .send({ paymentStatus: 'recibido' });
     expect(expiredPaid.status).toBe(200);
     const expiredDetail = await request(app)
       .get(`/api/v1/subscriptions/${expiredSub.id}`)
       .set('Authorization', `Bearer ${token}`);
-    expect(expiredDetail.body.status).toBe('expired');
-    expect(expiredDetail.body.currentPaymentStatus).toBe('received');
+    expect(expiredDetail.body.status).toBe('vencida');
+    expect(expiredDetail.body.currentPaymentStatus).toBe('recibido');
 
     const other = await request(app)
       .post('/api/v1/subscriptions')
@@ -554,7 +579,7 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
     const wrongPeriod = await request(app)
       .patch(`/api/v1/subscriptions/${id}/periods/${other.body.currentPeriod.id}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ paymentStatus: 'pending' });
+      .send({ paymentStatus: 'pendiente' });
     expect(wrongPeriod.status).toBe(404);
   });
 
@@ -586,7 +611,7 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ version: 3, newPeriod: { priceAmount: '120000.00' } });
     expect(renewed.status).toBe(200);
-    expect(renewed.body.followUpStatus).toBe('none');
+    expect(renewed.body.followUpStatus).toBe('sin_gestion');
     expect(renewed.body.currentPeriod.priceAmount).toBe('120000.00');
 
     const periods = await request(app)
@@ -594,8 +619,8 @@ describe.skipIf(!dbTestsConfigured())('Subscriptions API (Postgres)', () => {
       .set('Authorization', `Bearer ${token}`);
     expect(periods.body.data).toHaveLength(2);
     expect(periods.body.data[1].priceAmount).toBe('100000.00');
-    expect(periods.body.data[1].renewalOutcome).toBe('renewed');
+    expect(periods.body.data[1].renewalOutcome).toBe('renovada');
     expect(periods.body.data[0].priceAmount).toBe('120000.00');
-    expect(periods.body.data[0].paymentStatus).toBe('pending');
+    expect(periods.body.data[0].paymentStatus).toBe('pendiente');
   });
 });

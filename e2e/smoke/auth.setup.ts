@@ -25,7 +25,7 @@ for (const role of roles) {
   setup(`authenticate ${role.file}`, async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('Email').fill(role.email);
-    await page.getByLabel('Contraseña').fill(role.password);
+    await page.getByLabel('Contraseña', { exact: true }).fill(role.password);
     await page.getByRole('button', { name: 'Ingresar' }).click();
     if (role.file === 'client-must-change.json') {
       await expect(page).toHaveURL(/\/change-password/, { timeout: 20000 });

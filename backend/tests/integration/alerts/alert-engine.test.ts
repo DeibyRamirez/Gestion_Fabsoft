@@ -175,7 +175,7 @@ describe.skipIf(!dbTestsConfigured())('Motor de alertas (RN-08/RN-09/RN-10)', ()
 
     const initial = await listNotifications(id, admin.id);
     expect(initial).toHaveLength(11);
-    expect(initial.every((n) => n.status === 'pending')).toBe(true);
+    expect(initial.every((n) => n.status === 'pendiente')).toBe(true);
     expect(await listTasks(id, admin.id)).toHaveLength(3);
 
     for (let i = 0; i < 3; i++) {
@@ -184,7 +184,7 @@ describe.skipIf(!dbTestsConfigured())('Motor de alertas (RN-08/RN-09/RN-10)', ()
     const after = await listNotifications(id, admin.id);
     expect(after).toHaveLength(11);
     expect(new Set(after.map((n) => n.dedupe_key)).size).toBe(11);
-    expect(after.every((n) => n.status === 'pending')).toBe(true);
+    expect(after.every((n) => n.status === 'pendiente')).toBe(true);
     expect(await listTasks(id, admin.id)).toHaveLength(3);
   });
 
@@ -198,7 +198,7 @@ describe.skipIf(!dbTestsConfigured())('Motor de alertas (RN-08/RN-09/RN-10)', ()
     const moved = await request(app)
       .patch(`/api/v1/renewal-tasks/${d30.id}`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ version: 1, status: 'in_progress' });
+      .send({ version: 1, status: 'en_progreso' });
     expect(moved.status).toBe(200);
 
     const corrected = await request(app)
@@ -213,26 +213,26 @@ describe.skipIf(!dbTestsConfigured())('Motor de alertas (RN-08/RN-09/RN-10)', ()
     void operator;
 
     const rows = await listNotifications(id, admin.id);
-    const oldPending = rows.filter((n) => n.period_end === periodEnd && n.status === 'pending');
-    const oldCancelled = rows.filter((n) => n.period_end === periodEnd && n.status === 'cancelled');
+    const oldPending = rows.filter((n) => n.period_end === periodEnd && n.status === 'pendiente');
+    const oldCancelled = rows.filter((n) => n.period_end === periodEnd && n.status === 'cancelada');
     const newPending = rows.filter((n) => n.period_end === addDays(today, 45));
     expect(oldPending).toHaveLength(0);
     expect(oldCancelled).toHaveLength(11);
     expect(oldCancelled.every((n) => n.cancel_reason === 'period_end_changed')).toBe(true);
     expect(newPending).toHaveLength(11);
-    expect(newPending.every((n) => n.status === 'pending')).toBe(true);
+    expect(newPending.every((n) => n.status === 'pendiente')).toBe(true);
 
     const tasks = await listTasks(id, admin.id);
     const oldTasks = tasks.filter((t) => t.dedupe_key?.endsWith(`:${periodEnd}`));
     const newTasks = tasks.filter((t) => t.dedupe_key?.endsWith(`:${addDays(today, 45)}`));
-    expect(oldTasks.find((t) => t.code === 'D30')).toMatchObject({ status: 'in_progress' });
+    expect(oldTasks.find((t) => t.code === 'D30')).toMatchObject({ status: 'en_progreso' });
     expect(oldTasks.find((t) => t.code === 'D30')?.notes).toContain('Vencimiento corregido');
     expect(oldTasks.filter((t) => t.code !== 'D30')).toHaveLength(2);
-    expect(oldTasks.filter((t) => t.code !== 'D30').every((t) => t.status === 'cancelled')).toBe(
+    expect(oldTasks.filter((t) => t.code !== 'D30').every((t) => t.status === 'cancelada')).toBe(
       true,
     );
     expect(newTasks).toHaveLength(3);
-    expect(newTasks.every((t) => t.status === 'pending')).toBe(true);
+    expect(newTasks.every((t) => t.status === 'pendiente')).toBe(true);
   });
 
   it('T-RN09-02: renovar cancela las alertas del periodo anterior y programa las nuevas', async () => {
@@ -245,7 +245,7 @@ describe.skipIf(!dbTestsConfigured())('Motor de alertas (RN-08/RN-09/RN-10)', ()
         const { rows } = await c.query<{ id: string }>(
           `insert into app.renewal_requests
              (subscription_id, client_id, requested_by_user_id, status)
-           values ($1, $2, $3, 'pending_review')
+           values ($1, $2, $3, 'pendiente_revision')
            returning id`,
           [id, client.id, admin.id],
         );
@@ -267,21 +267,21 @@ describe.skipIf(!dbTestsConfigured())('Motor de alertas (RN-08/RN-09/RN-10)', ()
     const newPeriodEnd = renewed.body.currentPeriodEnd as string;
 
     const rows = await listNotifications(id, admin.id);
-    const oldCancelled = rows.filter((n) => n.period_end === periodEnd && n.status === 'cancelled');
+    const oldCancelled = rows.filter((n) => n.period_end === periodEnd && n.status === 'cancelada');
     const newPending = rows.filter((n) => n.period_end === newPeriodEnd);
     expect(oldCancelled).toHaveLength(11);
     expect(oldCancelled.every((n) => n.cancel_reason === 'renewed')).toBe(true);
     expect(newPending).toHaveLength(11);
-    expect(newPending.every((n) => n.status === 'pending')).toBe(true);
+    expect(newPending.every((n) => n.status === 'pendiente')).toBe(true);
 
     const tasks = await listTasks(id, admin.id);
     const oldTasks = tasks.filter((t) => t.dedupe_key?.endsWith(`:${periodEnd}`));
     const newTasks = tasks.filter((t) => t.dedupe_key?.endsWith(`:${newPeriodEnd}`));
     expect(oldTasks).toHaveLength(3);
-    expect(oldTasks.every((t) => t.status === 'completed')).toBe(true);
+    expect(oldTasks.every((t) => t.status === 'completada')).toBe(true);
     expect(oldTasks.every((t) => t.outcome === 'Renovación confirmada')).toBe(true);
     expect(newTasks).toHaveLength(3);
-    expect(newTasks.every((t) => t.status === 'pending')).toBe(true);
+    expect(newTasks.every((t) => t.status === 'pendiente')).toBe(true);
 
     const resolved = await withAppContext(
       { role: 'admin', userId: admin.id, clientId: null, requestId: 'read-renewal-request' },
@@ -293,7 +293,7 @@ describe.skipIf(!dbTestsConfigured())('Motor de alertas (RN-08/RN-09/RN-10)', ()
         return rows[0];
       },
     );
-    expect(resolved).toMatchObject({ status: 'resolved', resolution: 'renewed' });
+    expect(resolved).toMatchObject({ status: 'resuelta', resolution: 'renovada' });
   });
 
   it('T-RN09-03: cancelar deja todas las pendientes canceladas y reconcile no crea nuevas', async () => {
@@ -312,15 +312,15 @@ describe.skipIf(!dbTestsConfigured())('Motor de alertas (RN-08/RN-09/RN-10)', ()
 
     let rows = await listNotifications(id, admin.id);
     expect(rows).toHaveLength(11);
-    expect(rows.every((n) => n.status === 'cancelled')).toBe(true);
+    expect(rows.every((n) => n.status === 'cancelada')).toBe(true);
     expect(rows.every((n) => n.cancel_reason === 'subscription_cancelled')).toBe(true);
 
     await reconciler.execute('reconcile-after-cancel');
     rows = await listNotifications(id, admin.id);
-    expect(rows.filter((n) => n.status === 'pending')).toHaveLength(0);
+    expect(rows.filter((n) => n.status === 'pendiente')).toHaveLength(0);
     const tasks = await listTasks(id, admin.id);
     expect(tasks).toHaveLength(3);
-    expect(tasks.every((t) => t.status === 'cancelled')).toBe(true);
+    expect(tasks.every((t) => t.status === 'cancelada')).toBe(true);
   });
 
   it('not-renewed cancela pendientes sin excepción y reconcile no las recrea', async () => {
@@ -334,15 +334,15 @@ describe.skipIf(!dbTestsConfigured())('Motor de alertas (RN-08/RN-09/RN-10)', ()
 
     let rows = await listNotifications(id, admin.id);
     expect(rows).toHaveLength(11);
-    expect(rows.every((n) => n.status === 'cancelled')).toBe(true);
+    expect(rows.every((n) => n.status === 'cancelada')).toBe(true);
     expect(rows.every((n) => n.cancel_reason === 'not_renewed')).toBe(true);
 
     await reconciler.execute('reconcile-after-not-renewed');
     rows = await listNotifications(id, admin.id);
-    expect(rows.filter((n) => n.status === 'pending')).toHaveLength(0);
+    expect(rows.filter((n) => n.status === 'pendiente')).toHaveLength(0);
     const tasks = await listTasks(id, admin.id);
     expect(tasks).toHaveLength(3);
-    expect(tasks.every((t) => t.status === 'cancelled')).toBe(true);
+    expect(tasks.every((t) => t.status === 'cancelada')).toBe(true);
   });
 
   it('reconcile cancela pendientes de una regla desactivada', async () => {
@@ -360,9 +360,9 @@ describe.skipIf(!dbTestsConfigured())('Motor de alertas (RN-08/RN-09/RN-10)', ()
     const rows = await listNotifications(id, admin.id);
     const d7 = rows.filter((n) => n.code === 'D7');
     expect(d7).toHaveLength(2);
-    expect(d7.every((n) => n.status === 'cancelled')).toBe(true);
+    expect(d7.every((n) => n.status === 'cancelada')).toBe(true);
     expect(d7.every((n) => n.cancel_reason === 'rule_changed')).toBe(true);
-    expect(rows.filter((n) => n.status === 'pending')).toHaveLength(9);
+    expect(rows.filter((n) => n.status === 'pendiente')).toHaveLength(9);
   });
 
   it('T-RN10-02: no renovable sólo conserva la regla con excepción (D0)', async () => {
@@ -383,15 +383,15 @@ describe.skipIf(!dbTestsConfigured())('Motor de alertas (RN-08/RN-09/RN-10)', ()
     expect(patched.status).toBe(200);
 
     let rows = await listNotifications(id, admin.id);
-    expect(rows.filter((n) => n.status === 'pending')).toEqual([
+    expect(rows.filter((n) => n.status === 'pendiente')).toEqual([
       expect.objectContaining({ code: 'D0' }),
     ]);
     expect(rows.filter((n) => n.cancel_reason === 'not_renewable')).toHaveLength(10);
 
     await reconciler.execute('reconcile-not-renewable');
     rows = await listNotifications(id, admin.id);
-    expect(rows.filter((n) => n.status === 'pending')).toHaveLength(1);
-    expect(rows.find((n) => n.status === 'pending')?.code).toBe('D0');
+    expect(rows.filter((n) => n.status === 'pendiente')).toHaveLength(1);
+    expect(rows.find((n) => n.status === 'pendiente')?.code).toBe('D0');
   });
 
   it('destinatario: sin responsables cae en los admins activos', async () => {

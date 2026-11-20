@@ -19,6 +19,12 @@ export function errorHandler(log: (entry: Record<string, unknown>) => void): Err
       return sendProblem(res, err.code, err.message, undefined, err.extensions);
     if (err instanceof DomainError) return sendProblem(res, err.code, err.message, err.details);
     if (typeof err === 'object' && err !== null && (err as { code?: unknown }).code === '42501') {
+      log({
+        level: 'warn',
+        msg: 'http.sql_forbidden',
+        requestId: res.locals['requestId'],
+        err: String(err),
+      });
       return sendProblem(res, 'forbidden', 'Operación no permitida');
     }
     if (
@@ -27,6 +33,13 @@ export function errorHandler(log: (entry: Record<string, unknown>) => void): Err
       (err as { type?: unknown }).type === 'entity.parse.failed'
     ) {
       return sendProblem(res, 'validation_error', 'JSON inválido');
+    }
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      (err as { type?: unknown }).type === 'entity.too.large'
+    ) {
+      return sendProblem(res, 'payload_too_large', 'Cuerpo de la petición demasiado grande');
     }
     log({
       level: 'error',

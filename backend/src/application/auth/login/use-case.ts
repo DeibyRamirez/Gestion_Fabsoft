@@ -28,7 +28,7 @@ export class Login {
       async ({ login, audit }) => {
         const user = await login.findByEmail(input.email);
         const ok = await this.hasher.verify(user?.passwordHash ?? this.dummyHash, input.password);
-        if (!user || !ok || user.status !== 'active') {
+        if (!user || !ok || user.status !== 'activo') {
           await audit.write({
             actor: { type: 'system' },
             action: 'auth.login_failed',

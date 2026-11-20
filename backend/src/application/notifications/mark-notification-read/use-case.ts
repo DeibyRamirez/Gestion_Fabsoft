@@ -20,7 +20,7 @@ export class MarkNotificationRead {
         !current ||
         current.recipient.id !== actor.userId ||
         current.channel !== 'in_app' ||
-        current.status !== 'sent'
+        current.status !== 'enviada'
       ) {
         throw new ApplicationError('not_found', 'Notificación no encontrada');
       }

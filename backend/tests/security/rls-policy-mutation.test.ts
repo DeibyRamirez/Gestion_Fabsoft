@@ -84,8 +84,8 @@ describe.skipIf(!ownerUrl)('RLS policy mutations (deben detectar fuga)', () => {
       await c.query(
         `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle,
            price_amount, supplier_cost_amount, status, visible_in_portal)
-         values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1,1,'active',true),
-                ($4,$5,$3,'2026-01-01','2026-12-31','annual',2,2,'active',true) on conflict do nothing`,
+         values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1,1,'activa',true),
+                ($4,$5,$3,'2026-01-01','2026-12-31','annual',2,2,'activa',true) on conflict do nothing`,
         [ids.subA, ids.clientA, '00000000-0000-4000-8ff0-0000000000f1', ids.subB, ids.clientB],
       );
       await c.query(
@@ -108,7 +108,7 @@ describe.skipIf(!ownerUrl)('RLS policy mutations (deben detectar fuga)', () => {
       );
       await c.query(
         `insert into app.tasks (id, task_type, client_id, title, due_date, status) values
-          ($1,'contact_client',$2,'Task Mut B','2026-12-31','pending') on conflict do nothing`,
+          ($1,'contact_client',$2,'Task Mut B','2026-12-31','pendiente') on conflict do nothing`,
         [ids.taskB, ids.clientB],
       );
       await c.query(
@@ -127,7 +127,7 @@ describe.skipIf(!ownerUrl)('RLS policy mutations (deben detectar fuga)', () => {
       );
       await c.query(
         `insert into app.renewal_requests (id, subscription_id, client_id, requested_by_user_id, status)
-         values ($1,$2,$3,$4,'pending_review'),($5,$6,$7,$8,'pending_review') on conflict do nothing`,
+         values ($1,$2,$3,$4,'pendiente_revision'),($5,$6,$7,$8,'pendiente_revision') on conflict do nothing`,
         [
           ids.renewalA,
           ids.subA,

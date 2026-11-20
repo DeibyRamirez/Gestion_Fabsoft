@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProductDto, ProductPage } from '@fabsoft/shared';
 import { ProductsAdmin } from './products-admin';
@@ -41,7 +41,7 @@ const activeProduct: ProductDto = {
   productType: 'third_party',
   vendor: 'Microsoft',
   referenceCode: null,
-  status: 'active',
+  status: 'activo',
   createdAt: '2026-11-01T00:00:00.000Z',
   updatedAt: '2026-11-01T00:00:00.000Z',
 };
@@ -52,7 +52,7 @@ const inactiveProduct: ProductDto = {
   name: 'Soporte anual',
   productType: 'own',
   vendor: null,
-  status: 'inactive',
+  status: 'inactivo',
 };
 
 const productPage: ProductPage = {
@@ -114,13 +114,14 @@ describe('ProductsAdmin', () => {
     ).toBeInTheDocument();
   });
 
-  it('desactivar envía status inactive y no borra el producto', async () => {
+  it('desactivar envía status inactivo y no borra el producto', async () => {
     mockCatalog();
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<ProductsAdmin />);
 
     await screen.findByText('Microsoft 365');
     fireEvent.click(screen.getAllByRole('button', { name: 'Desactivar' })[0]!);
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Desactivar' }));
 
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(
@@ -129,7 +130,7 @@ describe('ProductsAdmin', () => {
           (c[1] as { method?: string }).method === 'PATCH',
       );
       expect(call).toBeTruthy();
-      expect(JSON.parse((call?.[1] as { body: string }).body)).toEqual({ status: 'inactive' });
+      expect(JSON.parse((call?.[1] as { body: string }).body)).toEqual({ status: 'inactivo' });
     });
     expect(
       await screen.findByText(
@@ -139,7 +140,6 @@ describe('ProductsAdmin', () => {
     expect(
       fetchMock.mock.calls.some((c) => (c[1] as { method?: string }).method === 'DELETE'),
     ).toBe(false);
-    confirm.mockRestore();
   });
 
   it('edita un producto y envía los campos del catálogo', async () => {

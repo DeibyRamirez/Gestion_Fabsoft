@@ -2,20 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { canArchiveClient, canReactivateClient, isArchived } from './client.js';
 
 describe('client transitions', () => {
-  it('archivar sólo desde active/inactive', () => {
-    expect(canArchiveClient('active')).toBe(true);
-    expect(canArchiveClient('inactive')).toBe(true);
-    expect(canArchiveClient('archived')).toBe(false);
+  it('archivar sólo desde activo/inactivo', () => {
+    expect(canArchiveClient('activo')).toBe(true);
+    expect(canArchiveClient('inactivo')).toBe(true);
+    expect(canArchiveClient('archivado')).toBe(false);
   });
 
-  it('reactivar desde archived/inactive', () => {
-    expect(canReactivateClient('archived')).toBe(true);
-    expect(canReactivateClient('inactive')).toBe(true);
-    expect(canReactivateClient('active')).toBe(false);
+  it('reactivar desde archivado/inactivo', () => {
+    expect(canReactivateClient('archivado')).toBe(true);
+    expect(canReactivateClient('inactivo')).toBe(true);
+    expect(canReactivateClient('activo')).toBe(false);
   });
 
   it('isArchived', () => {
-    expect(isArchived('archived')).toBe(true);
-    expect(isArchived('active')).toBe(false);
+    expect(isArchived('archivado')).toBe(true);
+    expect(isArchived('activo')).toBe(false);
   });
 });

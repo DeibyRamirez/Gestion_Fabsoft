@@ -9,12 +9,12 @@ export class PgExpireSubscriptionsRepository implements ExpireSubscriptionsRepos
   constructor(private readonly tx: Tx) {}
 
   async expire(today: LocalDate): Promise<ExpireSubscriptionsResult> {
-    const { rows } = await this.tx.query<{ status: 'expired' | 'not_renewed' }>(
+    const { rows } = await this.tx.query<{ status: 'vencida' | 'no_renovada' }>(
       `with target as (
          select s.id,
-                case when per.renewal_outcome = 'not_renewed'
-                     then 'not_renewed'::app.subscription_status
-                     else 'expired'::app.subscription_status
+                case when per.renewal_outcome = 'no_renovada'
+                     then 'no_renovada'::app.subscription_status
+                     else 'vencida'::app.subscription_status
                 end as next_status
            from app.subscriptions s
            left join lateral (
@@ -24,7 +24,7 @@ export class PgExpireSubscriptionsRepository implements ExpireSubscriptionsRepos
               order by sp.period_number desc
               limit 1
            ) per on true
-          where s.status in ('active','in_renewal')
+          where s.status in ('activa','en_renovacion')
             and s.current_period_end < $1::date
        )
        update app.subscriptions s
@@ -35,8 +35,8 @@ export class PgExpireSubscriptionsRepository implements ExpireSubscriptionsRepos
       [today],
     );
     return {
-      expired: rows.filter((r) => r.status === 'expired').length,
-      notRenewed: rows.filter((r) => r.status === 'not_renewed').length,
+      expired: rows.filter((r) => r.status === 'vencida').length,
+      notRenewed: rows.filter((r) => r.status === 'no_renovada').length,
     };
   }
 }

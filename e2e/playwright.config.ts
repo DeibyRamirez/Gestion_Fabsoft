@@ -12,16 +12,22 @@ function backendWebEnv(): Record<string, string> {
   env.TZ = 'UTC';
   env.APP_ENV = 'test';
   env.PORT = '4000';
+  // La suite usa logins frescos por contexto; el límite anti-abuso no aplica aquí.
+  env.LOGIN_RATE_LIMIT_PER_MINUTE ??= '1000';
+  env.LOGIN_RATE_LIMIT_PER_EMAIL ??= '1000';
   return env;
 }
 
 export default defineConfig({
   testDir: './smoke',
+  globalSetup: './global-setup.ts',
   timeout: process.env.CI ? 90_000 : 30_000,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // La cookie de refresh rota en cada carga: serializar evita que dos contextos
+  // reutilicen el mismo token y revoquen la familia.
+  workers: 1,
   reporter: [['list'], ['html', { outputFolder: '../playwright-report', open: 'never' }]],
   use: {
     baseURL: webBase,

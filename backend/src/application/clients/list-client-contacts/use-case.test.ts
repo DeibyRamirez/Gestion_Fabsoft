@@ -23,7 +23,7 @@ const client: ClientView = {
   id: 'cl-1',
   legalName: 'Acme',
   taxId: null,
-  status: 'active',
+  status: 'activo',
   email: null,
   phone: null,
   owner: null,

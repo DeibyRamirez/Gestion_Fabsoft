@@ -30,7 +30,7 @@ describe.skipIf(!ownerUrl || !appUrl)('audit_logs.changes column privilege', () 
       );
       await c.query(
         `insert into app.users (id, email, full_name, password_hash, role, client_id, status)
-         values ($1,'col-op@t.co','Col Operator','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','operator',null,'active')
+         values ($1,'col-op@t.co','Col Operator','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','operator',null,'activo')
          on conflict do nothing`,
         [operatorId],
       );
@@ -80,7 +80,7 @@ describe.skipIf(!ownerUrl || !appUrl)('audit_logs.changes column privilege', () 
       );
       await boot.query(
         `insert into app.subscriptions (id, client_id, product_id, start_date, current_period_end, billing_cycle, price_amount, status)
-         values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1,'active') on conflict do nothing`,
+         values ($1,$2,$3,'2026-01-01','2026-12-31','annual',1,'activa') on conflict do nothing`,
         [subId, clientId, productId],
       );
     } finally {

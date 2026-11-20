@@ -48,13 +48,13 @@ describe.skipIf(!ownerUrl || !appUrl)('audit_write B3', () => {
       );
       await boot.query(
         `insert into app.users (id, email, full_name, password_hash, role, client_id, status)
-         values ($1,'b3client@t.co','B3 Client','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','client',$2,'active')
+         values ($1,'b3client@t.co','B3 Client','$argon2id$v=19$m=19456,t=2,p=1$c2FsdA$aGFzaA','client',$2,'activo')
          on conflict do nothing`,
         [clientUserId, clientA],
       );
       await boot.query(
         `insert into app.products (id, name, product_type, status)
-         values ($1,'B3 Product','third_party','active') on conflict do nothing`,
+         values ($1,'B3 Product','third_party','activo') on conflict do nothing`,
         [productId],
       );
     } finally {

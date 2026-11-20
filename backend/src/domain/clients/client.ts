@@ -1,13 +1,13 @@
 import type { ClientStatus } from './client-status.js';
 
 export function canArchiveClient(status: ClientStatus): boolean {
-  return status === 'active' || status === 'inactive';
+  return status === 'activo' || status === 'inactivo';
 }
 
 export function canReactivateClient(status: ClientStatus): boolean {
-  return status === 'archived' || status === 'inactive';
+  return status === 'archivado' || status === 'inactivo';
 }
 
 export function isArchived(status: ClientStatus): boolean {
-  return status === 'archived';
+  return status === 'archivado';
 }

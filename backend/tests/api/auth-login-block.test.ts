@@ -23,10 +23,7 @@ async function setup() {
 }
 
 const login = (app: ReturnType<typeof createApp>, email: string, password: string, ip: string) =>
-  request(app)
-    .post('/api/v1/auth/login')
-    .set('X-Forwarded-For', ip)
-    .send({ email, password });
+  request(app).post('/api/v1/auth/login').set('X-Forwarded-For', ip).send({ email, password });
 
 describe('T-AUTH-07 — bloqueo temporal de IP en login', () => {
   let ctx: Awaited<ReturnType<typeof setup>>;

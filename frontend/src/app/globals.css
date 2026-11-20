@@ -1,42 +1,142 @@
 @import 'tailwindcss';
 
+/*
+ * FabSoft · Opción C «Atelier» — sistema visual.
+ *
+ * Se conservan los nombres de token existentes (bg, surface, fg, primary,
+ * status-*…) para que las clases actuales hereden el nuevo look sin reescribir
+ * cada vista. Los contrastes están calculados con WCAG 2.x (ver docs/design).
+ */
 @theme {
-  --color-bg: #f6f8fc;
+  /* Neutros */
+  --color-bg: #f3f5fb;
   --color-surface: #ffffff;
-  --color-fg: #14213d;
-  --color-fg-muted: #5c6b7a;
-  --color-border: #e4e9f2;
-  --color-border-input: #64748b;
-  --color-primary: #4338ca;
+  --color-surface-muted: #f3f5fb;
+  --color-fg: #0b1023;
+  --color-fg-muted: #525c7a;
+  --color-border: rgb(11 16 35 / 0.08);
+  --color-border-input: #6b7593;
+
+  /* Marca */
+  --color-night: #0b1023;
+  --color-nebula: #1a1550;
+  --color-nebula-2: #2a1b7a;
+  --color-iris: #5b3df5;
+  --color-iris-soft: #eee8ff;
+  --color-glow-cyan: #00c8f0;
+  --color-primary: #5b3df5;
   --color-primary-fg: #ffffff;
-  --color-brand-panel: #14213d;
-  --color-brand-panel-muted: #94a3b8;
-  --color-danger: #b91c1c;
+  --color-link: #0e7490;
+  --color-focus: #5b3df5;
+  --color-brand-panel: #0b1023;
+  --color-brand-panel-muted: #c9d2ee;
+  --color-danger: #be123c;
   --color-danger-fg: #ffffff;
-  --color-focus: #4338ca;
-  --color-nav-active-bg: #eef2ff;
+  --color-nav-active-bg: #eee8ff;
+
+  /* Acentos SOLO sobre la tarjeta nebulosa */
+  --color-on-nebula-cyan: #7fe6fb;
+  --color-on-nebula-rose: #ff8fa3;
+  --color-on-nebula-amber: #ffc27a;
+
+  /* Estados de suscripción (texto / fondo) */
   --color-status-active-fg: #166534;
   --color-status-active-bg: #dcfce7;
-  --color-status-in-renewal-fg: #1e40af;
-  --color-status-in-renewal-bg: #dbeafe;
-  --color-status-expired-fg: #991b1b;
-  --color-status-expired-bg: #fee2e2;
+  --color-status-in-renewal-fg: #0e5a8a;
+  --color-status-in-renewal-bg: #dff3ff;
+  --color-status-expired-fg: #9f1239;
+  --color-status-expired-bg: #ffe4e9;
   --color-status-cancelled-fg: #3f3f46;
-  --color-status-cancelled-bg: #e4e4e7;
+  --color-status-cancelled-bg: #ececef;
   --color-status-not-renewed-fg: #9a3412;
   --color-status-not-renewed-bg: #ffedd5;
-  --color-status-pending-fg: #334155;
-  --color-status-pending-bg: #f1f5f9;
+  --color-status-pending-fg: #5b21b6;
+  --color-status-pending-bg: #eee8ff;
+  --color-status-neutral-fg: #334155;
+  --color-status-neutral-bg: #f1f5f9;
   --color-urgency-soon-fg: #854d0e;
-  --color-urgency-soon-bg: #fef9c3;
-  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --color-urgency-soon-bg: #fef6c3;
+
+  /* Tipografía (variables inyectadas por next/font en app/layout.tsx) */
+  --font-sans: var(--font-jakarta), system-ui, sans-serif;
+  --font-serif: var(--font-instrument), Georgia, serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+
+  /* Espaciado y forma */
   --spacing: 0.25rem;
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-2xl: 26px;
   --radius-full: 9999px;
-  --shadow-sm: 0 1px 2px 0 rgb(20 33 61 / 0.06);
-  --shadow-card: 0 1px 3px 0 rgb(20 33 61 / 0.08);
+
+  /* Profundidad */
+  --shadow-sm: 0 1px 2px 0 rgb(11 16 35 / 0.06);
+  --shadow-card:
+    0 1px 0 rgb(11 16 35 / 0.04), 0 2px 6px -2px rgb(11 16 35 / 0.06),
+    0 18px 40px -24px rgb(26 21 80 / 0.22);
+  --shadow-card-hover:
+    0 1px 0 rgb(11 16 35 / 0.04), 0 4px 10px -2px rgb(11 16 35 / 0.08),
+    0 28px 50px -24px rgb(26 21 80 / 0.32);
+  --shadow-cta: 0 12px 24px -10px rgb(91 61 245 / 0.7);
+  --shadow-nebula: 0 30px 60px -30px rgb(26 21 80 / 0.9);
+  --shadow-nav-active: 0 10px 24px -12px rgb(26 21 80 / 0.8);
+
+  /* Motion (solo transform + opacity) */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-rise: rise 400ms var(--ease-out-expo) both;
+  --animate-fade: fade 180ms ease-out both;
+  --animate-pop: pop 180ms var(--ease-out-expo) both;
+  --animate-slide: slide 240ms var(--ease-out-expo) both;
+  --animate-drift: drift 20s ease-in-out infinite alternate;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -48%) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
+  @keyframes slide {
+    from {
+      opacity: 0;
+      transform: translateX(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  @keyframes drift {
+    from {
+      transform: translate3d(-4%, -3%, 0);
+    }
+    to {
+      transform: translate3d(4%, 3%, 0);
+    }
+  }
 }
 
 @layer base {
@@ -48,6 +148,11 @@
 
   body {
     @apply bg-bg font-sans text-base leading-normal text-fg antialiased;
+  }
+
+  ::selection {
+    background: var(--color-iris-soft);
+    color: var(--color-night);
   }
 
   :focus-visible {
@@ -64,5 +169,31 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+  }
+}
+
+@layer components {
+  /*
+   * Fondo «nebulosa» de la UrgentCard / hero de detalle.
+   * Glow cian ≤ .35 para mantener blanco ≥ 7:1.
+   * No se llama .bg-nebula para no colisionar con la utilidad de color.
+   */
+  .nebula-surface {
+    background:
+      radial-gradient(120% 140% at 85% 0%, rgb(0 200 240 / 0.35), transparent 45%),
+      radial-gradient(90% 120% at 0% 100%, rgb(91 61 245 / 0.75), transparent 55%),
+      linear-gradient(135deg, #0b1023, #1a1550 60%, #2a1b7a);
+  }
+
+  /* Grano SVG inline, decorativo */
+  .nebula-grain {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence baseFrequency='.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='.5'/></svg>");
+    mix-blend-mode: overlay;
+    opacity: 0.18;
+    pointer-events: none;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }

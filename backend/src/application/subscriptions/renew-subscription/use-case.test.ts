@@ -41,8 +41,8 @@ const sample = (over: Partial<SubscriptionView> = {}): SubscriptionView => ({
   supplierCostAmount: null,
   renewalTerms: null,
   isRenewable: true,
-  status: 'active',
-  followUpStatus: 'none',
+  status: 'activa',
+  followUpStatus: 'sin_gestion',
   visibleInPortal: true,
   ownerUserId: null,
   owner: null,
@@ -58,9 +58,9 @@ const sample = (over: Partial<SubscriptionView> = {}): SubscriptionView => ({
     billingCycle: 'monthly',
     priceAmount: 100,
     currency: 'COP',
-    renewalOutcome: 'pending',
+    renewalOutcome: 'pendiente',
     outcomeReason: null,
-    paymentStatus: 'received',
+    paymentStatus: 'recibido',
     confirmedAt: null,
     confirmedBy: null,
     contractReference: null,
@@ -148,7 +148,7 @@ describe('RenewSubscription', () => {
     });
   });
 
-  it.each(['pending_activation', 'cancelled', 'not_renewed'] as const)(
+  it.each(['pendiente_activacion', 'cancelada', 'no_renovada'] as const)(
     'no renueva desde %s',
     async (status) => {
       const { uc } = makeUc(sample({ status }), sample());
@@ -179,7 +179,7 @@ describe('RenewSubscription', () => {
         endDate: '2026-12-31',
         billingCycle: 'monthly',
         priceAmount: 150,
-        paymentStatus: 'pending',
+        paymentStatus: 'pendiente',
         confirmedAt: new Date('2026-11-14T12:00:00Z'),
       }),
       'o',
@@ -191,7 +191,12 @@ describe('RenewSubscription', () => {
       'Renovación confirmada',
       'o',
     );
-    expect(resolveOpenForSubscription).toHaveBeenCalledWith('sub-1', 'Renovación confirmada', 'o');
+    expect(resolveOpenForSubscription).toHaveBeenCalledWith(
+      'sub-1',
+      'renovada',
+      'Renovación confirmada',
+      'o',
+    );
     expect(scheduleForPeriod).toHaveBeenCalledWith('sub-1', '2026-11-14');
     expect(auditWrite).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'subscription.renewed' }),
@@ -220,7 +225,7 @@ describe('RenewSubscription', () => {
         priceAmount: 150,
         supplierCostAmount: 20,
         contractReference: 'C-2',
-        paymentStatus: 'not_tracked',
+        paymentStatus: 'sin_seguimiento',
       },
     });
     expect(renew).toHaveBeenCalledWith(
@@ -233,7 +238,7 @@ describe('RenewSubscription', () => {
         customCycleMonths: 2,
         supplierCostAmount: 20,
         contractReference: 'C-2',
-        paymentStatus: 'not_tracked',
+        paymentStatus: 'sin_seguimiento',
       }),
       'a',
     );

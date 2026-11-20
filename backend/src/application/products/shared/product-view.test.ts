@@ -10,7 +10,7 @@ describe('ProductView', () => {
       productType: 'recurring_service',
       vendor: null,
       referenceCode: null,
-      status: 'active',
+      status: 'activo',
       createdAt: new Date('2026-11-01T00:00:00.000Z'),
       updatedAt: new Date('2026-11-01T00:00:00.000Z'),
     };

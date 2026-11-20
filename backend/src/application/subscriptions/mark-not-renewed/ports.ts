@@ -4,7 +4,7 @@ import type { SubscriptionView } from '../shared/subscription-view.js';
 export interface MarkNotRenewedParams {
   periodId: string;
   reason: string;
-  immediateStatus: Extract<SubscriptionStatus, 'not_renewed'> | null;
+  immediateStatus: Extract<SubscriptionStatus, 'no_renovada'> | null;
   confirmedAt: Date;
 }
 

@@ -9,41 +9,45 @@ import type {
   TaskDto,
   TaskPage,
 } from '@fabsoft/shared';
+import {
+  AlertOctagonIcon,
+  CalendarClockIcon,
+  ClockAlertIcon,
+  HourglassIcon,
+  InboxIcon,
+  TriangleAlertIcon,
+} from 'lucide-react';
 import { apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
+import { ActivityFeed } from '@/shared/components/activity-feed';
+import { NebulaStat, UrgentCard } from '@/shared/components/bento';
+import { BarChart } from '@/shared/components/charts/bar-chart';
+import { Sparkline } from '@/shared/components/charts/sparkline';
+import { EmptyState } from '@/shared/components/empty-state';
+import { LoadingState } from '@/shared/components/loading-state';
 import { PageHeader } from '@/shared/components/page-header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card';
-import { KpiCard } from './kpi-card';
+import { SectionHeader } from '@/shared/components/section-header';
+import { formatDate } from '@/shared/lib/format';
+import { Button } from '@/shared/ui/button';
+import { StatusBadge } from '@/shared/ui/status-badge';
+import { buildExpirationBuckets, buildExpirationSeries, buildStatusSegments } from './chart-data';
+import { indicatorHref, KpiCard } from './kpi-card';
+import { PortfolioCard } from './portfolio-card';
+import { usePortfolio } from './use-portfolio';
 
-const formatDateTime = (value: string): string =>
-  new Intl.DateTimeFormat('es-CO', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    timeZone: 'America/Bogota',
-  }).format(new Date(value));
-
-const actionLabel = (action: string): string => {
-  const labels: Record<string, string> = {
-    'client.created': 'Cliente creado',
-    'client.updated': 'Cliente actualizado',
-    'client.archived': 'Cliente archivado',
-    'subscription.created': 'Suscripción creada',
-    'subscription.updated': 'Suscripción actualizada',
-    'subscription.activated': 'Suscripción activada',
-    'subscription.renewed': 'Suscripción renovada',
-    'subscription.not_renewed': 'Suscripción no renovada',
-    'subscription.cancelled': 'Suscripción cancelada',
-    'subscription.expiration_corrected': 'Vencimiento corregido',
-    'task.completed': 'Tarea completada',
-    'task.cancelled': 'Tarea cancelada',
-    'alert_rule.updated': 'Regla de alerta actualizada',
-    'notification.retried': 'Alerta reintentada',
-  };
-  return labels[action] ?? action;
-};
+function greeting(): string {
+  const h = Number(
+    new Intl.DateTimeFormat('es-CO', {
+      hour: 'numeric',
+      hour12: false,
+      timeZone: 'America/Bogota',
+    }).format(new Date()),
+  );
+  return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+}
 
 export function DashboardPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [activity, setActivity] = useState<DashboardActivity['data']>([]);
   const [todayTasks, setTodayTasks] = useState<TaskDto[]>([]);
@@ -75,7 +79,7 @@ export function DashboardPage() {
     let alive = true;
     const params = new URLSearchParams({
       assigneeUserId: 'me',
-      status: 'pending,in_progress',
+      status: 'pendiente,en_progreso',
       dueFrom: summary.today,
       dueTo: summary.today,
       pageSize: '5',
@@ -83,7 +87,7 @@ export function DashboardPage() {
     });
     Promise.all([
       apiFetch<TaskPage>(`/renewal-tasks?${params.toString()}`, { token }),
-      apiFetch<NotificationPage>('/notifications?status=failed&pageSize=1', { token }),
+      apiFetch<NotificationPage>('/notifications?status=fallida&pageSize=1', { token }),
     ])
       .then(([tasks, notifications]) => {
         if (!alive) return;
@@ -98,16 +102,40 @@ export function DashboardPage() {
     };
   }, [summary, token]);
 
+  const firstName = user?.fullName.split(/\s+/)[0] ?? '';
+  const {
+    subscriptions: portfolio,
+    error: chartsError,
+    loading: chartsLoading,
+  } = usePortfolio(token);
+  const expirationBuckets = portfolio ? buildExpirationBuckets(portfolio) : [];
+  const expirationSeries = portfolio
+    ? buildExpirationSeries(portfolio)
+    : { values: [], total: 0, max: 0 };
+  const statusSegments = portfolio ? buildStatusSegments(portfolio) : [];
+  const portfolioTotal = portfolio?.length ?? 0;
+
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8">
+    <div className="mx-auto flex max-w-7xl flex-col gap-5">
       <PageHeader
-        breadcrumbs={['Gestión']}
         title="Panel"
         description="Qué requiere atención hoy: vencimientos, seguimiento y tareas abiertas."
+        className="sr-only"
       />
 
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <p className="text-3xl leading-tight font-extrabold tracking-tight text-fg lg:text-4xl">
+          {greeting()}
+          {firstName ? `, ${firstName}.` : '.'}{' '}
+          <span className="font-serif font-normal text-iris italic">esto pide atención hoy.</span>
+        </p>
+        <Button asChild>
+          <Link href="/subscriptions/new">Nueva suscripción</Link>
+        </Button>
+      </div>
+
       {message ? (
-        <div role="status" className="rounded-md border border-border bg-surface px-4 py-3 text-sm">
+        <div role="status" className="rounded-2xl bg-surface px-4 py-3 text-sm shadow-card">
           {message}
         </div>
       ) : null}
@@ -115,87 +143,213 @@ export function DashboardPage() {
       {failedAlerts > 0 ? (
         <div
           role="status"
-          className="rounded-md border border-danger/40 bg-danger/5 px-4 py-3 text-sm text-fg"
+          className="flex flex-wrap items-center gap-3 rounded-2xl bg-status-expired-bg px-4 py-3 text-sm font-medium text-status-expired-fg"
         >
-          Hay {failedAlerts} alerta(s) con envío fallido.{' '}
-          <Link className="text-link underline" href="/notifications?status=failed">
+          <TriangleAlertIcon aria-hidden className="size-4 shrink-0" />
+          <span>Hay {failedAlerts} alerta(s) con envío fallido.</span>
+          <Link
+            className="ml-auto font-bold underline underline-offset-4"
+            href="/notifications?status=fallida"
+          >
             Revisar alertas
           </Link>
         </div>
       ) : null}
 
       {summary ? (
-        <section aria-labelledby="kpi-title" className="flex flex-col gap-4">
-          <h2 id="kpi-title" className="text-lg font-semibold text-fg">
+        <section aria-labelledby="kpi-title" className="grid gap-4 lg:grid-cols-12">
+          <h2 id="kpi-title" className="sr-only">
             Indicadores
           </h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <KpiCard label="Suscripciones activas" indicator={summary.activeSubscriptions} />
-            <KpiCard label="Vencen en 30 días" indicator={summary.expiringIn30Days} />
-            <KpiCard label="Vencen en 15 días" indicator={summary.expiringIn15Days} />
-            <KpiCard label="Vencen en 7 días" indicator={summary.expiringIn7Days} />
-            <KpiCard label="Suscripciones vencidas" indicator={summary.expiredSubscriptions} />
-            <KpiCard
-              label="Renovaciones pendientes de respuesta"
-              indicator={summary.renewalsPendingResponse}
+          {/* Los conteos 30/15/7 son ACUMULADOS (hoy → hoy+N). No restar entre ellos. */}
+          <UrgentCard className="flex flex-col lg:col-span-7">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-white/85">Vencimientos próximos</p>
+                <p className="font-serif text-xl italic">los próximos 30 días</p>
+              </div>
+              <Link
+                href={indicatorHref(summary.expiringIn30Days)}
+                className="grid h-8 place-items-center rounded-full border border-white/20 bg-white/10 px-3 text-xs font-medium text-white hover:bg-white/15"
+              >
+                Ver lista →
+              </Link>
+            </div>
+            <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_minmax(180px,240px)] lg:items-end">
+              <div className="flex flex-wrap items-end gap-4 xl:flex-nowrap">
+                <NebulaStat
+                  href={indicatorHref(summary.expiringIn30Days)}
+                  value={summary.expiringIn30Days.count}
+                  label="En 30 días"
+                  size="xl"
+                />
+                <NebulaStat
+                  href={indicatorHref(summary.expiringIn15Days)}
+                  value={summary.expiringIn15Days.count}
+                  label="En 15 días"
+                  tone="amber"
+                />
+                <NebulaStat
+                  href={indicatorHref(summary.expiringIn7Days)}
+                  value={summary.expiringIn7Days.count}
+                  label="En 7 días"
+                  tone="rose"
+                />
+              </div>
+              {portfolio ? (
+                <BarChart
+                  data={expirationBuckets}
+                  label="Distribución de vencimientos por rango"
+                  height={96}
+                  valueClassName="text-white/85"
+                  labelClassName="text-white/70"
+                />
+              ) : (
+                <div className="flex h-24 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 text-center text-xs text-white/70">
+                  {chartsLoading ? 'Calculando distribución…' : 'Sin datos de distribución.'}
+                </div>
+              )}
+            </div>
+            <div className="mt-auto pt-6">
+              <div className="border-t border-white/10 pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-white/85">
+                    Ritmo diario de vencimientos
+                  </p>
+                  {!chartsLoading && !chartsError ? (
+                    <span className="text-[11px] text-white/65">
+                      Máx. {expirationSeries.max}/día · {expirationSeries.total} en total
+                    </span>
+                  ) : null}
+                </div>
+                {chartsLoading ? (
+                  <p className="mt-3 text-xs text-white/65">Calculando ritmo…</p>
+                ) : chartsError ? (
+                  <p className="mt-3 text-xs text-white/65">{chartsError}</p>
+                ) : (
+                  <>
+                    <Sparkline
+                      values={expirationSeries.values}
+                      label={`Vencimientos por día en los próximos 30 días. Máximo ${expirationSeries.max} en un día; ${expirationSeries.total} en total.`}
+                      height={88}
+                      color="#7FE6FB"
+                      fill="#7FE6FB"
+                      className="mt-2"
+                    />
+                    <div className="mt-1 flex justify-between text-[10px] text-white/60">
+                      <span>Hoy</span>
+                      <span>+15 días</span>
+                      <span>+30 días</span>
+                    </div>
+                  </>
+                )}
+              </div>
+              <p className="pt-3 text-[11px] leading-relaxed text-white/65">
+                Los conteos superiores son acumulados; las barras y la línea, la distribución por
+                rango y por día.
+              </p>
+            </div>
+          </UrgentCard>
+
+          <div className="flex flex-col gap-3 lg:col-span-5">
+            <PortfolioCard
+              indicator={summary.activeSubscriptions}
+              activeCount={summary.activeSubscriptions.count}
+              segments={statusSegments}
+              total={portfolioTotal}
+              loading={chartsLoading}
+              error={chartsError}
             />
-            <KpiCard label="Tareas vencidas" indicator={summary.overdueTasks} />
-            <KpiCard label="Tareas próximas" indicator={summary.upcomingTasks} />
-            <KpiCard label="Solicitudes nuevas" indicator={summary.newRenewalRequests} />
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <KpiCard
+                label="Suscripciones vencidas"
+                indicator={summary.expiredSubscriptions}
+                icon={AlertOctagonIcon}
+                tone="danger"
+              />
+              <KpiCard
+                label="Renovaciones pendientes de respuesta"
+                indicator={summary.renewalsPendingResponse}
+                icon={HourglassIcon}
+                tone="soon"
+              />
+              <KpiCard
+                label="Tareas vencidas"
+                indicator={summary.overdueTasks}
+                icon={ClockAlertIcon}
+                tone="danger"
+              />
+              <KpiCard
+                label="Tareas próximas"
+                indicator={summary.upcomingTasks}
+                icon={CalendarClockIcon}
+                tone="info"
+              />
+              <KpiCard
+                className="col-span-2"
+                label="Solicitudes nuevas"
+                indicator={summary.newRenewalRequests}
+                icon={InboxIcon}
+                tone="violet"
+              />
+            </div>
           </div>
         </section>
       ) : (
-        <p aria-busy="true">Cargando indicadores…</p>
+        <LoadingState label="Cargando indicadores…" />
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Mis tareas de hoy</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {todayTasks.length === 0 ? (
-              <p className="text-sm text-fg-muted">No tienes tareas para hoy.</p>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {todayTasks.map((task) => (
-                  <li key={task.id} className="flex items-start justify-between gap-3">
-                    <div>
-                      <Link className="text-sm font-medium text-link hover:underline" href={`/tasks/${task.id}`}>
-                        {task.title}
-                      </Link>
-                      <p className="text-xs text-fg-muted">
-                        {task.priority} · vence {task.dueDate}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+      <div className="grid gap-5 lg:grid-cols-12">
+        <section className="rounded-xl border border-border bg-surface p-5 shadow-card lg:col-span-7 md:p-6">
+          <SectionHeader
+            title="Mis tareas de hoy"
+            action={
+              <Link href="/tasks" className="text-sm font-semibold text-link hover:underline">
+                Ver todas
+              </Link>
+            }
+          />
+          {todayTasks.length === 0 ? (
+            <EmptyState
+              icon={CalendarClockIcon}
+              title="No tienes tareas para hoy."
+              className="mt-4"
+            />
+          ) : (
+            <ul className="mt-2 flex flex-col">
+              {todayTasks.map((task) => (
+                <li
+                  key={task.id}
+                  className="flex items-center gap-3 border-t border-border py-3 first:border-0"
+                >
+                  <span
+                    aria-hidden
+                    className="size-5 shrink-0 rounded-md border-2 border-border-input/40"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      className="block truncate text-sm font-semibold text-fg hover:text-link hover:underline"
+                      href={`/tasks/${task.id}`}
+                    >
+                      {task.title}
+                    </Link>
+                    <p className="text-xs text-fg-muted">vence {formatDate(task.dueDate)}</p>
+                  </div>
+                  <StatusBadge kind="taskPriority" value={task.priority} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Actividad reciente</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {activity.length === 0 ? (
-              <p className="text-sm text-fg-muted">Sin actividad reciente.</p>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {activity.map((event) => (
-                  <li key={event.id} className="flex flex-col gap-0.5">
-                    <span className="text-sm text-fg">{actionLabel(event.action)}</span>
-                    <span className="text-xs text-fg-muted">
-                      {event.actor?.name ?? 'Sistema'} · {formatDateTime(event.occurredAt)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+        <section className="rounded-xl border border-border bg-surface p-5 shadow-card lg:col-span-5 md:p-6">
+          <SectionHeader
+            title="Actividad reciente"
+            action={<span className="text-xs text-fg-muted">hoy</span>}
+          />
+          <ActivityFeed className="mt-2" items={activity} empty="Sin actividad reciente." />
+        </section>
       </div>
     </div>
   );

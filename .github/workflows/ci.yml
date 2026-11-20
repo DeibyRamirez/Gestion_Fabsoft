@@ -32,6 +32,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: pnpm openapi:check
       - run: pnpm format:check
 
   unit-tests:
@@ -51,7 +52,7 @@ jobs:
       - run: pnpm --filter @fabsoft/backend check-coverage-paths
         env:
           COVERAGE_REQUIRED_PATHS: src/domain/subscriptions,src/application/subscriptions
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: backend/coverage/
@@ -70,6 +71,42 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+
+  security-audit:
+    name: security audit (dependencias + secretos)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit:dependencies
+      - run: pnpm secrets:check
+
+  docker-images:
+    name: docker images (build)
+    runs-on: ubuntu-latest
+    needs: [lint-typecheck]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Validar compose de producción
+        run: |
+          for f in deploy/env/*.example; do cp "$f" "${f%.example}"; done
+          cp deploy/.env.example deploy/.env
+          docker compose --env-file deploy/.env -f docker-compose.prod.yml config --quiet
+      - name: Build API runtime + tools
+        run: |
+          docker build --target runtime -t fabsoft-api:ci -f backend/Dockerfile .
+          docker build --target tools -t fabsoft-tools:ci -f backend/Dockerfile .
+      - name: Build frontend standalone
+        run: |
+          docker build --target runtime \
+            --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:4000/api/v1 \
+            -t fabsoft-web:ci -f frontend/Dockerfile .
 
   db-security:
     name: db-security (migraciones + RLS)
@@ -219,7 +256,7 @@ jobs:
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: playwright-report
@@ -266,7 +303,7 @@ jobs:
           pnpm db:migrate
           pnpm db:roles:dev
       - run: pnpm test:perf
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: perf-results

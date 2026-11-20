@@ -33,9 +33,9 @@ const period = (over: Partial<SubscriptionPeriodView> = {}): SubscriptionPeriodV
   billingCycle: 'monthly',
   priceAmount: 100,
   currency: 'COP',
-  renewalOutcome: 'pending',
+  renewalOutcome: 'pendiente',
   outcomeReason: null,
-  paymentStatus: 'pending',
+  paymentStatus: 'pendiente',
   confirmedAt: null,
   confirmedBy: null,
   contractReference: null,
@@ -62,29 +62,29 @@ describe('UpdatePeriodPayment', () => {
   it('rechaza rol client', async () => {
     const { uc } = makeUc(period(), period());
     await expect(
-      uc.execute(clientUser, 'sub-1', 'per-1', { paymentStatus: 'received' }),
+      uc.execute(clientUser, 'sub-1', 'per-1', { paymentStatus: 'recibido' }),
     ).rejects.toMatchObject({ code: 'forbidden' });
   });
 
   it('periodo ajeno o inexistente devuelve not_found', async () => {
     const { uc } = makeUc(null, null);
     await expect(
-      uc.execute(admin, 'sub-1', 'per-1', { paymentStatus: 'received' }),
+      uc.execute(admin, 'sub-1', 'per-1', { paymentStatus: 'recibido' }),
     ).rejects.toMatchObject({ code: 'not_found' });
   });
 
   it('actualiza pago y referencia contractual, y audita', async () => {
-    const updated = period({ paymentStatus: 'received', contractReference: 'C-1' });
+    const updated = period({ paymentStatus: 'recibido', contractReference: 'C-1' });
     const { uc, updatePayment, auditWrite } = makeUc(period(), updated);
     const result = await uc.execute(operator, 'sub-1', 'per-1', {
-      paymentStatus: 'received',
+      paymentStatus: 'recibido',
       contractReference: 'C-1',
     });
 
     expect(updatePayment).toHaveBeenCalledWith(
       'sub-1',
       'per-1',
-      { paymentStatus: 'received', contractReference: 'C-1' },
+      { paymentStatus: 'recibido', contractReference: 'C-1' },
       'o',
     );
     expect(result).toBe(updated);
@@ -99,17 +99,17 @@ describe('UpdatePeriodPayment', () => {
 
   it('no cambia la vigencia de la suscripción', async () => {
     const { uc, updatePayment } = makeUc(
-      period({ paymentStatus: 'pending' }),
-      period({ paymentStatus: 'received' }),
+      period({ paymentStatus: 'pendiente' }),
+      period({ paymentStatus: 'recibido' }),
     );
-    await uc.execute(operator, 'sub-1', 'per-1', { paymentStatus: 'received' });
+    await uc.execute(operator, 'sub-1', 'per-1', { paymentStatus: 'recibido' });
     expect(updatePayment).toHaveBeenCalledOnce();
   });
 
   it('si el repositorio no devuelve el periodo devuelve not_found', async () => {
     const { uc } = makeUc(period(), null);
     await expect(
-      uc.execute(admin, 'sub-1', 'per-1', { paymentStatus: 'received' }),
+      uc.execute(admin, 'sub-1', 'per-1', { paymentStatus: 'recibido' }),
     ).rejects.toMatchObject({ code: 'not_found' });
   });
 });

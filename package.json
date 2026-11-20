@@ -25,11 +25,17 @@
     "db:rollback": "pnpm --filter @fabsoft/backend db:rollback",
     "test:security": "pnpm --filter @fabsoft/backend test:security",
     "db:seed": "pnpm --filter @fabsoft/backend db:seed",
-    "db:roles:dev": "pnpm --filter @fabsoft/backend db:roles:dev"
+    "db:roles:dev": "pnpm --filter @fabsoft/backend db:roles:dev",
+    "openapi:build": "pnpm --filter @fabsoft/backend openapi:build",
+    "openapi:check": "pnpm --filter @fabsoft/backend openapi:check",
+    "audit:dependencies": "node scripts/audit-dependencies.mjs",
+    "secrets:check": "node scripts/check-secrets.mjs",
+    "security:dast": "node scripts/security-dast.mjs",
+    "smoke:deploy": "node scripts/smoke-deploy.mjs"
   },
   "devDependencies": {
     "@fabsoft/config": "workspace:*",
-    "@playwright/test": "^1.56.1",
+    "@playwright/test": "^1.65.1",
     "cross-env": "^10.1.0",
     "prettier": "^3",
     "typescript": "^5.9"

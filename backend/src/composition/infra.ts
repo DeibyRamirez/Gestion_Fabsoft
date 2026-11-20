@@ -17,10 +17,43 @@ import type { RefreshSessionRepos } from '../application/auth/refresh-session/po
 import type { IdempotencyPurgeRepository } from '../application/maintenance/purge-idempotency-keys/ports.js';
 import type { MaintenanceRepos } from '../application/maintenance/cleanup/ports.js';
 import type { AlertSchedulingRepos } from '../application/alerts/shared/alert-scheduling.js';
+import type { AlertEmailTemplateRepos } from '../application/alerts/shared/email-template.js';
 import type { ListAlertRulesRepos } from '../application/alerts/list-alert-rules/ports.js';
 import type { UpdateAlertRuleRepos } from '../application/alerts/update-alert-rule/ports.js';
+import type { SettingsRepos } from '../application/settings/shared/settings.js';
 import type { GetDashboardSummaryRepos } from '../application/dashboard/get-dashboard-summary/ports.js';
-import type { ListRenewalRequestsRepos } from '../application/renewal-requests/list-renewal-requests/ports.js';
+import type {
+  GetRenewalRequestQuery,
+  ListRenewalRequestsRepos,
+} from '../application/renewal-requests/list-renewal-requests/ports.js';
+import type { UpdateRenewalRequestRepos } from '../application/renewal-requests/update-renewal-request/ports.js';
+import type { ResolveRenewalRequestRepos } from '../application/renewal-requests/resolve-renewal-request/ports.js';
+import type {
+  ApiKeyAuthRepository,
+  CredentialQuery,
+  IntegrationClientQuery,
+  IntegrationCreateRepository,
+  IntegrationGetRepository,
+  IntegrationListRepository,
+  IntegrationManifestRepository,
+  IntegrationUpdateRepository,
+} from '../application/integrations/shared/ports.js';
+import type { ApiKeyService } from '../application/integrations/shared/api-key.js';
+import type { IntegrationRateLimiter } from '../application/integrations/shared/rate-limit.js';
+import type {
+  CreateIntegrationRenewalRequestRepos,
+  IntegrationPeriodsRepos,
+} from '../application/integrations/public-api/ports.js';
+import type { ListSubscriptionsQuery } from '../application/subscriptions/list-subscriptions/ports.js';
+import type { GetSubscriptionQuery } from '../application/subscriptions/get-subscription/ports.js';
+import type { CreateRenewalRequestRepos } from '../application/renewal-requests/create-renewal-request/ports.js';
+import type { ProcessRenewalRequestRepos } from '../application/renewal-requests/process-created/ports.js';
+import type { GetPortalMeRepos } from '../application/portal/get-portal-me/ports.js';
+import type { ListPortalSubscriptionsRepos } from '../application/portal/list-portal-subscriptions/ports.js';
+import type { GetPortalSubscriptionRepos } from '../application/portal/get-portal-subscription/ports.js';
+import type { ListPortalSubscriptionPeriodsRepos } from '../application/portal/list-portal-subscription-periods/ports.js';
+import type { ListPortalRenewalRequestsRepos } from '../application/portal/list-portal-renewal-requests/ports.js';
+import type { GetPortalRenewalRequestRepos } from '../application/portal/get-portal-renewal-request/ports.js';
 import type { ListNotificationsRepos } from '../application/notifications/list-notifications/ports.js';
 import type { MarkNotificationReadRepos } from '../application/notifications/mark-notification-read/ports.js';
 import type { RetryNotificationRepos } from '../application/notifications/retry-notification/ports.js';
@@ -39,6 +72,7 @@ import type { CreateClientContactRepos } from '../application/clients/create-cli
 import type { GetClientRepos } from '../application/clients/get-client/ports.js';
 import type { ListClientActivityRepos } from '../application/clients/list-client-activity/ports.js';
 import type { ListClientContactsRepos } from '../application/clients/list-client-contacts/ports.js';
+import type { ListClientOwnerCandidatesRepos } from '../application/clients/list-owner-candidates/ports.js';
 import type { ListClientsRepos } from '../application/clients/list-clients/ports.js';
 import type { ReactivateClientRepos } from '../application/clients/reactivate-client/ports.js';
 import type { UpdateClientContactRepos } from '../application/clients/update-client-contact/ports.js';
@@ -91,6 +125,7 @@ export type UserScopeRepos = GetMeRepos &
   ArchiveClientRepos &
   ReactivateClientRepos &
   ListClientContactsRepos &
+  ListClientOwnerCandidatesRepos &
   CreateClientContactRepos &
   UpdateClientContactRepos &
   CreateSubscriptionRepos &
@@ -119,22 +154,49 @@ export type UserScopeRepos = GetMeRepos &
   RetryNotificationRepos &
   ChangePasswordRepos &
   AlertSchedulingRepos &
+  AlertEmailTemplateRepos &
   ListAlertRulesRepos &
   UpdateAlertRuleRepos &
+  SettingsRepos &
   GetDashboardSummaryRepos &
-  ListRenewalRequestsRepos & { idempotency: IdempotencyRepository };
+  ListRenewalRequestsRepos &
+  UpdateRenewalRequestRepos &
+  ResolveRenewalRequestRepos &
+  CreateRenewalRequestRepos &
+  GetPortalMeRepos &
+  ListPortalSubscriptionsRepos &
+  GetPortalSubscriptionRepos &
+  ListPortalSubscriptionPeriodsRepos &
+  ListPortalRenewalRequestsRepos &
+  GetPortalRenewalRequestRepos &
+  IntegrationPeriodsRepos &
+  CreateIntegrationRenewalRequestRepos & {
+    integrationsList: IntegrationListRepository;
+    integrationDetail: IntegrationGetRepository;
+    integrationClients: IntegrationClientQuery;
+    integrationCreate: IntegrationCreateRepository;
+    integrationUpdate: IntegrationUpdateRepository;
+    integrationManifest: IntegrationManifestRepository;
+    credentials: CredentialQuery;
+    integrationSubscriptions: ListSubscriptionsQuery;
+    integrationSubscriptionDetail: GetSubscriptionQuery;
+    renewalRequestDetail: GetRenewalRequestQuery;
+  } & { idempotency: IdempotencyRepository };
 
 /** Repos disponibles en contexto system/auth. */
 export type AuthScopeRepos = LoginRepos &
   RefreshSessionRepos &
   LogoutRepos &
-  AuthenticateRepos & { idempotencyRelease: IdempotencyReleaseRepository };
+  AuthenticateRepos & { apiKeyAuth: ApiKeyAuthRepository } & {
+    idempotencyRelease: IdempotencyReleaseRepository;
+  };
 
 /** Repos de jobs: purgas, expiración, dispatch y reconciliación. */
 export type WorkerScopeRepos = { idempotency: IdempotencyPurgeRepository } & AlertSchedulingRepos &
   NotificationDispatchRepos &
   ExpireSubscriptionsRepos &
-  MaintenanceRepos;
+  MaintenanceRepos &
+  ProcessRenewalRequestRepos;
 
 /** Todo lo que los módulos necesitan; Pg en producción, memoria en tests (DIP). */
 export interface Infra {
@@ -142,6 +204,8 @@ export interface Infra {
   authUow: AuthUnitOfWork<AuthScopeRepos>;
   workerUow: AuthUnitOfWork<WorkerScopeRepos>;
   hasher: PasswordHasher;
+  apiKeys: ApiKeyService;
+  integrationRateLimiter: IntegrationRateLimiter;
   tokens: AccessTokenService;
   refreshTokens: RefreshTokenFactory;
   passwords: TemporaryPasswordGenerator;

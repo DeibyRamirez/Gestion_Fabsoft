@@ -1,8 +1,8 @@
-import type { UserActor } from './actor.js';
+import type { Actor } from './actor.js';
 
-/** Transacción + contexto RLS de un actor humano (ADR-007 §3). */
+/** Transacción + contexto RLS de un actor humano o integración (ADR-007 §3). */
 export interface UnitOfWork<R> {
-  run<T>(actor: UserActor, work: (repos: R) => Promise<T>): Promise<T>;
+  run<T>(actor: Actor, work: (repos: R) => Promise<T>): Promise<T>;
 }
 
 /**
@@ -60,11 +60,20 @@ export type AuditAction =
   | 'task.completed'
   | 'task.cancelled'
   | 'alert_rule.updated'
-  | 'notification.retried';
+  | 'app_setting.updated'
+  | 'notification.retried'
+  | 'integration.created'
+  | 'integration.updated'
+  | 'integration.manifest_updated'
+  | 'api_credential.created'
+  | 'api_credential.revoked';
 
 export interface AuditEntry {
   /** El actor real lo fija el contexto RLS en Postgres; este campo documenta la intención en capa app. */
-  actor: { type: 'user'; userId: string } | { type: 'system' };
+  actor:
+    | { type: 'user'; userId: string }
+    | { type: 'integration'; integrationId: string }
+    | { type: 'system' };
   action: AuditAction;
   resourceType:
     | 'user'

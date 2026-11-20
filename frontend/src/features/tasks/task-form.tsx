@@ -9,13 +9,14 @@ import {
   type UserPage,
 } from '@fabsoft/shared';
 import { ApiError, apiFetch } from '@/shared/api/client';
+import { FormField } from '@/shared/components/form-field';
+import { FormActions, FormGrid } from '@/shared/components/form-layout';
+import { formatDate } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/input';
-import { Label } from '@/shared/ui/label';
+import { nativeSelectClassName } from '@/shared/ui/native-select';
+import { Textarea } from '@/shared/ui/textarea';
 import { TASK_PRIORITY_LABELS, TASK_TYPE_LABELS } from './labels';
-
-const selectClassName =
-  'flex h-10 w-full rounded-md border border-border-input bg-bg px-3 py-2 text-sm text-fg shadow-sm focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2';
 
 type Props = {
   token: string | null;
@@ -36,7 +37,7 @@ export function TaskForm({ token, role, clients, onCreated }: Props) {
     Promise.all([
       apiFetch<SubscriptionPage>('/subscriptions?pageSize=100', { token }),
       role === 'admin'
-        ? apiFetch<UserPage>('/users?pageSize=100&status=active', { token })
+        ? apiFetch<UserPage>('/users?pageSize=100&status=activo', { token })
         : Promise.resolve<UserPage | null>(null),
     ])
       .then(([subs, userPage]) => {
@@ -99,113 +100,100 @@ export function TaskForm({ token, role, clients, onCreated }: Props) {
     : subscriptions;
 
   return (
-    <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
+    <form onSubmit={submit}>
       {message ? (
-        <p role="status" className="text-sm md:col-span-2">
+        <p role="status" className="mb-4 text-sm text-fg-muted">
           {message}
         </p>
       ) : null}
-      <div className="grid gap-2">
-        <Label htmlFor="task-title">Título</Label>
-        <Input id="task-title" name="title" required minLength={2} maxLength={200} />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="task-type">Tipo</Label>
-        <select id="task-type" name="taskType" required className={selectClassName}>
-          {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="task-client">Cliente</Label>
-        <select
-          id="task-client"
-          name="clientId"
-          required
-          value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
-          className={selectClassName}
-        >
-          <option value="">Seleccione…</option>
-          {clients
-            .filter((c) => c.status === 'active')
-            .map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.legalName}
-              </option>
-            ))}
-        </select>
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="task-subscription">Suscripción (opcional)</Label>
-        <select
-          id="task-subscription"
-          name="subscriptionId"
-          className={selectClassName}
-          disabled={!clientId}
-        >
-          <option value="">Sin suscripción</option>
-          {filteredSubscriptions.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.product.name} · vence {s.currentPeriodEnd}
-            </option>
-          ))}
-        </select>
-      </div>
-      {role === 'admin' ? (
-        <div className="grid gap-2">
-          <Label htmlFor="task-assignee">Responsable</Label>
-          <select id="task-assignee" name="assigneeUserId" className={selectClassName}>
-            <option value="">Sin asignar</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.fullName}
+      <FormGrid>
+        <FormField label="Título" htmlFor="task-title">
+          <Input id="task-title" name="title" required minLength={2} maxLength={200} />
+        </FormField>
+        <FormField label="Tipo" htmlFor="task-type">
+          <select id="task-type" name="taskType" required className={nativeSelectClassName}>
+            {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
               </option>
             ))}
           </select>
-        </div>
-      ) : null}
-      <div className="grid gap-2">
-        <Label htmlFor="task-priority">Prioridad</Label>
-        <select
-          id="task-priority"
-          name="priority"
-          defaultValue="medium"
-          className={selectClassName}
-        >
-          {Object.entries(TASK_PRIORITY_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="task-due">Vence</Label>
-        <Input id="task-due" name="dueDate" type="date" required />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="task-next-action">Siguiente acción</Label>
-        <Input id="task-next-action" name="nextAction" maxLength={500} />
-      </div>
-      <div className="grid gap-2 md:col-span-2">
-        <Label htmlFor="task-notes">Notas</Label>
-        <textarea
-          id="task-notes"
-          name="notes"
-          maxLength={5000}
-          rows={3}
-          className="w-full rounded-md border border-border-input bg-bg px-3 py-2 text-sm text-fg shadow-sm focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
-        />
-      </div>
-      <div className="md:col-span-2">
+        </FormField>
+        <FormField label="Cliente" htmlFor="task-client">
+          <select
+            id="task-client"
+            name="clientId"
+            required
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            className={nativeSelectClassName}
+          >
+            <option value="">Seleccione…</option>
+            {clients
+              .filter((c) => c.status === 'activo')
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.legalName}
+                </option>
+              ))}
+          </select>
+        </FormField>
+        <FormField label="Suscripción (opcional)" htmlFor="task-subscription">
+          <select
+            id="task-subscription"
+            name="subscriptionId"
+            className={nativeSelectClassName}
+            disabled={!clientId}
+          >
+            <option value="">Sin suscripción</option>
+            {filteredSubscriptions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.product.name} · vence {formatDate(s.currentPeriodEnd)}
+              </option>
+            ))}
+          </select>
+        </FormField>
+        {role === 'admin' ? (
+          <FormField label="Responsable" htmlFor="task-assignee">
+            <select id="task-assignee" name="assigneeUserId" className={nativeSelectClassName}>
+              <option value="">Sin asignar</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.fullName}
+                </option>
+              ))}
+            </select>
+          </FormField>
+        ) : null}
+        <FormField label="Prioridad" htmlFor="task-priority">
+          <select
+            id="task-priority"
+            name="priority"
+            defaultValue="medium"
+            className={nativeSelectClassName}
+          >
+            {Object.entries(TASK_PRIORITY_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </FormField>
+        <FormField label="Vence" htmlFor="task-due">
+          <Input id="task-due" name="dueDate" type="date" required />
+        </FormField>
+        <FormField label="Siguiente acción" htmlFor="task-next-action">
+          <Input id="task-next-action" name="nextAction" maxLength={500} />
+        </FormField>
+        <FormField label="Notas" htmlFor="task-notes" className="md:col-span-2">
+          <Textarea id="task-notes" name="notes" maxLength={5000} rows={3} />
+        </FormField>
+      </FormGrid>
+      <FormActions className="mt-5">
         <Button type="submit" disabled={pending}>
           Crear tarea
         </Button>
-      </div>
+      </FormActions>
     </form>
   );
 }

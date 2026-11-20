@@ -23,7 +23,7 @@ const sampleClient = (): ClientView => ({
   id: 'cl-1',
   legalName: 'Acme',
   taxId: '9001234567',
-  status: 'active',
+  status: 'activo',
   email: null,
   phone: null,
   owner: null,
@@ -36,7 +36,7 @@ describe('CreateClient', () => {
   it('rechaza rol client', async () => {
     const uc = new CreateClient({ run: vi.fn() });
     await expect(
-      uc.execute(clientUser, { legalName: 'X', status: 'active' }),
+      uc.execute(clientUser, { legalName: 'X', status: 'activo' }),
     ).rejects.toMatchObject({ code: 'forbidden' });
   });
 
@@ -45,7 +45,7 @@ describe('CreateClient', () => {
     const input: ClientCreateInput = {
       legalName: 'Acme',
       taxId: '900.123.456-7',
-      status: 'active',
+      status: 'activo',
     };
     const uc = new CreateClient({
       run: async (_a, work) =>
@@ -82,7 +82,7 @@ describe('CreateClient', () => {
         }),
     });
     await expect(
-      uc.execute(admin, { legalName: 'Dup', taxId: '900123456-7', status: 'active' }),
+      uc.execute(admin, { legalName: 'Dup', taxId: '900123456-7', status: 'activo' }),
     ).rejects.toMatchObject({
       code: 'client_tax_id_taken',
       extensions: { existingClientId: 'other', archived: true },

@@ -29,6 +29,14 @@ export interface ListRenewalRequestsQuery {
   list(query: RenewalRequestListQuery): Promise<{ items: RenewalRequestView[]; total: number }>;
 }
 
+export interface GetRenewalRequestQuery {
+  findById(id: string): Promise<RenewalRequestView | null>;
+}
+
 export interface ListRenewalRequestsRepos {
   renewalRequestsList: ListRenewalRequestsQuery;
+}
+
+export interface GetRenewalRequestRepos {
+  renewalRequestDetail: GetRenewalRequestQuery;
 }

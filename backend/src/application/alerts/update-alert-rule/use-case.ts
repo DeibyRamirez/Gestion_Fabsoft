@@ -15,11 +15,7 @@ type UpdateAlertRuleUow = UpdateAlertRuleRepos & { audit: AuditWriter };
 export class UpdateAlertRule {
   constructor(private readonly uow: UnitOfWork<UpdateAlertRuleUow>) {}
 
-  async execute(
-    actor: UserActor,
-    id: string,
-    input: AlertRuleUpdateInput,
-  ): Promise<AlertRuleView> {
+  async execute(actor: UserActor, id: string, input: AlertRuleUpdateInput): Promise<AlertRuleView> {
     requireRole(actor, 'admin');
     return this.uow.run(actor, async ({ alertRuleUpdate, audit }) => {
       const current = await alertRuleUpdate.loadForUpdate(id);

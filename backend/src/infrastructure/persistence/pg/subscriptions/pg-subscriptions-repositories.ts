@@ -289,7 +289,7 @@ export class PgCreateSubscriptionRepository implements CreateSubscriptionReposit
          (subscription_id, period_number, start_date, end_date, billing_cycle,
           custom_cycle_months, price_amount, currency, payment_status, renewal_outcome,
           contract_reference, created_by)
-       values ($1, $2, $3, $4, $5, $6, $7, 'COP', $8, 'pending', $9, $10)`,
+       values ($1, $2, $3, $4, $5, $6, $7, 'COP', $8, 'pendiente', $9, $10)`,
       [
         id,
         r.initialPeriod.periodNumber,
@@ -321,7 +321,7 @@ export class PgActivateSubscriptionRepository implements ActivateSubscriptionRep
   ): Promise<SubscriptionView | null> {
     const { rowCount } = await this.tx.query(
       `update app.subscriptions
-          set status = 'active', version = version + 1, updated_by = $2
+          set status = 'activa', version = version + 1, updated_by = $2
         where id = $1 and version = $3`,
       [id, updatedBy, expectedVersion],
     );
@@ -387,7 +387,7 @@ export class PgCancelSubscriptionRepository implements CancelSubscriptionReposit
   ): Promise<SubscriptionView | null> {
     const { rowCount } = await this.tx.query(
       `update app.subscriptions
-          set status = 'cancelled', cancelled_at = $2, cancellation_reason = $3,
+          set status = 'cancelada', cancelled_at = $2, cancellation_reason = $3,
               version = version + 1, updated_by = $4
         where id = $1 and version = $5`,
       [id, cancelledAt, reason, updatedBy, expectedVersion],
@@ -466,7 +466,7 @@ export class PgRenewSubscriptionRepository implements RenewSubscriptionRepositor
   ): Promise<SubscriptionView | null> {
     const { rowCount } = await this.tx.query(
       `update app.subscriptions
-          set current_period_end = $2, status = 'active', follow_up_status = 'none',
+          set current_period_end = $2, status = 'activa', follow_up_status = 'sin_gestion',
               version = version + 1, updated_by = $3
         where id = $1 and version = $4`,
       [id, p.endDate, updatedBy, expectedVersion],
@@ -481,7 +481,7 @@ export class PgRenewSubscriptionRepository implements RenewSubscriptionRepositor
     if (previous > 0) {
       await this.tx.query(
         `update app.subscription_periods
-            set renewal_outcome = 'renewed', outcome_reason = null,
+            set renewal_outcome = 'renovada', outcome_reason = null,
                 confirmed_at = $2, confirmed_by = $3
           where subscription_id = $1 and period_number = $4`,
         [id, p.confirmedAt, updatedBy, previous],
@@ -492,7 +492,7 @@ export class PgRenewSubscriptionRepository implements RenewSubscriptionRepositor
          (subscription_id, period_number, start_date, end_date, billing_cycle,
           custom_cycle_months, price_amount, currency, supplier_cost_amount,
           payment_status, renewal_outcome, contract_reference, created_by)
-       values ($1, $2, $3, $4, $5, $6, $7, 'COP', $8, $9, 'pending', $10, $11)`,
+       values ($1, $2, $3, $4, $5, $6, $7, 'COP', $8, $9, 'pendiente', $10, $11)`,
       [
         id,
         previous + 1,
@@ -523,7 +523,7 @@ export class PgStartRenewalRepository implements StartRenewalRepository {
   ): Promise<SubscriptionView | null> {
     const { rowCount } = await this.tx.query(
       `update app.subscriptions
-          set status = 'in_renewal', follow_up_status = 'in_progress',
+          set status = 'en_renovacion', follow_up_status = 'en_gestion',
               version = version + 1, updated_by = $2
         where id = $1 and version = $3`,
       [id, updatedBy, expectedVersion],
@@ -546,7 +546,7 @@ export class PgMarkNotRenewedRepository implements MarkNotRenewedRepository {
     const { rowCount } = await this.tx.query(
       `update app.subscriptions
           set status = coalesce($2::app.subscription_status, status),
-              follow_up_status = 'closed', version = version + 1, updated_by = $3
+              follow_up_status = 'cerrado', version = version + 1, updated_by = $3
         where id = $1 and version = $4`,
       [id, p.immediateStatus, updatedBy, expectedVersion],
     );
@@ -554,7 +554,7 @@ export class PgMarkNotRenewedRepository implements MarkNotRenewedRepository {
 
     const period = await this.tx.query(
       `update app.subscription_periods
-          set renewal_outcome = 'not_renewed', outcome_reason = $3,
+          set renewal_outcome = 'no_renovada', outcome_reason = $3,
               confirmed_at = $4, confirmed_by = $5
         where id = $1 and subscription_id = $2`,
       [p.periodId, id, p.reason, p.confirmedAt, updatedBy],

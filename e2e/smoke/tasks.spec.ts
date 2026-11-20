@@ -1,11 +1,10 @@
-import path from 'node:path';
 import { expect, test } from '@playwright/test';
-
-const adminState = path.join(process.cwd(), 'e2e/.auth/admin.json');
+import { seedUsers } from './seed-users';
+import { openAuthenticatedContext } from './session';
 
 test.describe('HU-10 — tareas', () => {
   test('admin navega al listado y abre el formulario manual', async ({ browser }) => {
-    const context = await browser.newContext({ storageState: adminState });
+    const { context, storagePath } = await openAuthenticatedContext(browser, seedUsers.admin);
     const page = await context.newPage();
 
     await page.goto('/tasks');
@@ -14,9 +13,9 @@ test.describe('HU-10 — tareas', () => {
 
     await page.getByRole('button', { name: 'Nueva tarea' }).click();
     await expect(page.getByRole('heading', { name: 'Nueva tarea manual', level: 2 })).toBeVisible();
-    await expect(page.getByLabel('Cliente')).toBeVisible();
+    await expect(page.locator('#task-client')).toBeVisible();
 
-    await context.storageState({ path: adminState });
+    await context.storageState({ path: storagePath });
     await context.close();
   });
 });

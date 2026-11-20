@@ -7,7 +7,7 @@ const client: ClientDto = {
   id: '00000000-0000-4000-8000-000000000101',
   legalName: 'Acme SAS',
   taxId: null,
-  status: 'active',
+  status: 'activo',
   email: null,
   phone: null,
   owner: null,
@@ -29,7 +29,7 @@ const page: TaskPage = {
       priority: 'high',
       dueDate: '2026-11-18',
       isOverdue: true,
-      status: 'pending',
+      status: 'pendiente',
       notes: null,
       nextAction: null,
       outcome: null,
@@ -46,13 +46,13 @@ const page: TaskPage = {
 describe('TasksTable', () => {
   it('muestra tarea, cliente, responsable y vencimiento', () => {
     render(<TasksTable page={page} clients={[client]} />);
-    expect(screen.getByRole('link', { name: 'Llamar al cliente' })).toHaveAttribute(
+    expect(screen.getAllByRole('link', { name: 'Llamar al cliente' })[0]).toHaveAttribute(
       'href',
       '/tasks/00000000-0000-4000-8000-000000000301',
     );
-    expect(screen.getByText('Acme SAS')).toBeInTheDocument();
-    expect(screen.getByText('Ana Admin')).toBeInTheDocument();
-    expect(screen.getByText('Vencida')).toBeInTheDocument();
-    expect(screen.getByText('Alta')).toBeInTheDocument();
+    expect(screen.getAllByText('Acme SAS').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Ana Admin').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Vencida').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Alta').length).toBeGreaterThan(0);
   });
 });

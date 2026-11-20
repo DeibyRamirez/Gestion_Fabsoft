@@ -1,8 +1,4 @@
-import type {
-  DashboardIndicator,
-  DashboardSummary,
-  DashboardSummaryQuery,
-} from '@fabsoft/shared';
+import type { DashboardIndicator, DashboardSummary, DashboardSummaryQuery } from '@fabsoft/shared';
 import { addDays } from '../../../domain/subscriptions/local-date.js';
 import { toBogotaLocalDate } from '../../../domain/subscriptions/bogota-date.js';
 import type { UserActor } from '../../shared/actor.js';
@@ -33,7 +29,7 @@ export class GetDashboardSummary {
     return this.uow.run(actor, async ({ dashboardSummary }) => {
       const counts = await dashboardSummary.counts(today, ownerUserId);
       const expiringFilter = (days: number): Record<string, string> => ({
-        status: 'active,in_renewal',
+        status: 'activa,en_renovacion',
         expiresFrom: today,
         expiresTo: addDays(today, days),
         ...owner,
@@ -43,43 +39,35 @@ export class GetDashboardSummary {
         today,
         activeSubscriptions: indicator(
           'subscriptions',
-          { status: 'active,in_renewal', ...owner },
+          { status: 'activa,en_renovacion', ...owner },
           counts.activeSubscriptions,
         ),
-        expiringIn30Days: indicator(
-          'subscriptions',
-          expiringFilter(30),
-          counts.expiringIn30Days,
-        ),
-        expiringIn15Days: indicator(
-          'subscriptions',
-          expiringFilter(15),
-          counts.expiringIn15Days,
-        ),
+        expiringIn30Days: indicator('subscriptions', expiringFilter(30), counts.expiringIn30Days),
+        expiringIn15Days: indicator('subscriptions', expiringFilter(15), counts.expiringIn15Days),
         expiringIn7Days: indicator('subscriptions', expiringFilter(7), counts.expiringIn7Days),
         expiredSubscriptions: indicator(
           'subscriptions',
-          { status: 'expired', ...owner },
+          { status: 'vencida', ...owner },
           counts.expiredSubscriptions,
         ),
         renewalsPendingResponse: indicator(
           'subscriptions',
-          { followUpStatus: 'awaiting_client', ...owner },
+          { followUpStatus: 'esperando_cliente', ...owner },
           counts.renewalsPendingResponse,
         ),
         overdueTasks: indicator(
           'renewal-tasks',
-          { status: 'pending,in_progress', overdue: 'true', ...assignee },
+          { status: 'pendiente,en_progreso', overdue: 'true', ...assignee },
           counts.overdueTasks,
         ),
         upcomingTasks: indicator(
           'renewal-tasks',
-          { status: 'pending,in_progress', dueFrom: today, ...assignee },
+          { status: 'pendiente,en_progreso', dueFrom: today, ...assignee },
           counts.upcomingTasks,
         ),
         newRenewalRequests: indicator(
           'renewal-requests',
-          { status: 'pending_review', ...assigned },
+          { status: 'pendiente_revision', ...assigned },
           counts.newRenewalRequests,
         ),
       };

@@ -1,5 +1,9 @@
 version: 2
 secret:
+  # Fixtures de tests y plantillas de entorno: no contienen credenciales reales.
+  ignored_paths:
+    - 'backend/tests/api/auth-login-rate-limit.test.ts'
+    - 'deploy/env/*.example'
   ignored-matches:
     - name: CI disposable migrator password
       match: ci_migrator

@@ -84,8 +84,8 @@ backend/
 │   │   │   │                  # rate-limit, error-handler, not-found
 │   │   │   ├── routes/v1/     # auth.ts, users.ts, clients.ts, products.ts, subscriptions.ts,
 │   │   │   │                  # renewal-requests.ts, renewal-tasks.ts, notifications.ts, alert-rules.ts,
-│   │   │   │                  # dashboard.ts, portal.ts, integrations.ts, audit-logs.ts, settings.ts, health.ts
-│   │   │   └── openapi/       # registry.ts (zod-to-openapi)
+│   │   │   │                  # dashboard.ts, portal.ts, integrations.ts, integration-api.ts, openapi-docs.ts, health.ts
+│   │   │   └── openapi/       # spec.ts (carga docs/api/openapi.json para Swagger UI)
 │   │   └── worker/            # worker.ts (registro de colas/crons), handlers/*.ts
 │   ├── composition/           # container.ts, modules/*.ts
 │   ├── main-api.ts            # arranque API
@@ -122,7 +122,7 @@ export class RenewSubscription {
       await alerts.cancelPendingForPeriod(change.subscriptionId, change.previousPeriodEnd, 'renewed');
       await alerts.scheduleForPeriod(change.subscriptionId, change.newPeriodEnd);
       await tasks.closeOpenRenewalTasks(change.subscriptionId, 'Renovación confirmada');
-      await requests.resolveOpen(change.subscriptionId, 'renewed', actor.userId);
+      await requests.resolveOpen(change.subscriptionId, 'renovada', actor.userId);
       await audit.record(actor, 'subscription.renewed', change.auditSnapshot());
       return change.toDetailDto();
     });

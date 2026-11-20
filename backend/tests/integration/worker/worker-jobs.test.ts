@@ -73,7 +73,7 @@ describe.skipIf(!dbTestsConfigured())('Worker jobs (Postgres)', () => {
   });
 
   async function createSubscription(startDate: LocalDate = today) {
-    return factories.subscription(client, product, { status: 'active', startDate });
+    return factories.subscription(client, product, { status: 'activa', startDate });
   }
 
   async function insertNotification(
@@ -89,7 +89,7 @@ describe.skipIf(!dbTestsConfigured())('Worker jobs (Postgres)', () => {
           `insert into app.notifications
              (notification_type, subscription_id, alert_rule_id, period_end, channel,
               recipient_user_id, scheduled_for, status, dedupe_key)
-           values ('expiration_alert',$1,$2,$3,$4,$5,$6,'pending',$7)
+           values ('expiration_alert',$1,$2,$3,$4,$5,$6,'pendiente',$7)
            returning id`,
           [
             sub.id,
@@ -144,7 +144,7 @@ describe.skipIf(!dbTestsConfigured())('Worker jobs (Postgres)', () => {
         );
         await c.query(
           `update app.subscription_periods
-              set renewal_outcome = 'not_renewed', outcome_reason = 'Fin', confirmed_at = now(),
+              set renewal_outcome = 'no_renovada', outcome_reason = 'Fin', confirmed_at = now(),
                   confirmed_by = $2
             where subscription_id = $1`,
           [notRenewed.id, adminId],
@@ -164,9 +164,9 @@ describe.skipIf(!dbTestsConfigured())('Worker jobs (Postgres)', () => {
         return new Map(rows.map((r) => [r.id, r.status]));
       },
     );
-    expect(statuses.get(expired.id)).toBe('expired');
-    expect(statuses.get(notRenewed.id)).toBe('not_renewed');
-    expect(statuses.get(future.id)).toBe('active');
+    expect(statuses.get(expired.id)).toBe('vencida');
+    expect(statuses.get(notRenewed.id)).toBe('no_renovada');
+    expect(statuses.get(future.id)).toBe('activa');
   });
 
   it('T-NOT-04: dispatch envía in_app/email y registra intentos', async () => {
@@ -193,8 +193,8 @@ describe.skipIf(!dbTestsConfigured())('Worker jobs (Postgres)', () => {
     expect(messages[0]?.to).toContain('@');
     const a = await readNotification(inApp);
     const e = await readNotification(email);
-    expect(a).toMatchObject({ status: 'sent', attempts: 0 });
-    expect(e).toMatchObject({ status: 'sent', attempts: 1, provider_message_id: 're_1' });
+    expect(a).toMatchObject({ status: 'enviada', attempts: 0 });
+    expect(e).toMatchObject({ status: 'enviada', attempts: 1, provider_message_id: 're_1' });
   });
 
   it('dispatch programa backoff y luego falla el email', async () => {
@@ -213,7 +213,7 @@ describe.skipIf(!dbTestsConfigured())('Worker jobs (Postgres)', () => {
     );
     await expect(retryable.execute('job-retry')).resolves.toMatchObject({ retried: 1 });
     const pending = await readNotification(id);
-    expect(pending.status).toBe('pending');
+    expect(pending.status).toBe('pendiente');
     expect(pending.attempts).toBe(1);
     expect(pending.next_attempt_at).not.toBeNull();
 
@@ -238,7 +238,7 @@ describe.skipIf(!dbTestsConfigured())('Worker jobs (Postgres)', () => {
       'http://localhost:3000',
     );
     await expect(permanent.execute('job-permanent')).resolves.toMatchObject({ failed: 1 });
-    expect(await readNotification(id)).toMatchObject({ status: 'failed', attempts: 2 });
+    expect(await readNotification(id)).toMatchObject({ status: 'fallida', attempts: 2 });
   });
 
   it('T-RN10-03: dispatch cancela pendientes de una suscripción cancelada sin enviarlas', async () => {
@@ -249,7 +249,7 @@ describe.skipIf(!dbTestsConfigured())('Worker jobs (Postgres)', () => {
       async (c) => {
         await c.query(
           `update app.subscriptions
-              set status = 'cancelled', cancelled_at = now(), cancellation_reason = 'test'
+              set status = 'cancelada', cancelled_at = now(), cancellation_reason = 'test'
             where id = $1`,
           [sub.id],
         );
@@ -273,7 +273,7 @@ describe.skipIf(!dbTestsConfigured())('Worker jobs (Postgres)', () => {
       cancelled: 1,
     });
     expect(called).toBe(false);
-    expect(await readNotification(id)).toMatchObject({ status: 'cancelled' });
+    expect(await readNotification(id)).toMatchObject({ status: 'cancelada' });
   });
 
   it('maintenance.cleanup elimina idempotencia vencida', async () => {

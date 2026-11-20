@@ -55,14 +55,14 @@ describe.skipIf(!dbTestsConfigured())('Dashboard API (Postgres)', () => {
           id: string,
           endOffset: number,
           status: string,
-          followUp = 'none',
+          followUp = 'sin_gestion',
         ) => {
           await c.query(
             `insert into app.subscriptions
                (id, client_id, product_id, start_date, current_period_end, billing_cycle,
                 price_amount, status, follow_up_status, owner_user_id)
              values ($1, $2, $3, $4, $5, 'monthly', '100000.00',
-                     'active', $6::app.follow_up_status, $7)`,
+                     'activa', $6::app.follow_up_status, $7)`,
             [
               id,
               clientRow.id,
@@ -73,59 +73,59 @@ describe.skipIf(!dbTestsConfigured())('Dashboard API (Postgres)', () => {
               admin.id,
             ],
           );
-          if (status !== 'active') {
+          if (status !== 'activa') {
             await c.query(
               `update app.subscriptions set status = $2::app.subscription_status where id = $1`,
               [id, status],
             );
           }
         };
-      await insertSubscription(ids.s1, 30, 'active');
-      await insertSubscription(ids.s2, 15, 'in_renewal');
-      await insertSubscription(ids.s3, 7, 'active');
-      await insertSubscription(ids.s4, 0, 'active');
-      await insertSubscription(ids.s5, 31, 'active');
-      await insertSubscription(ids.s6, -1, 'expired');
-      await insertSubscription(ids.s7, 15, 'active', 'awaiting_client');
-      await insertSubscription(ids.s8, 75, 'active');
+        await insertSubscription(ids.s1, 30, 'activa');
+        await insertSubscription(ids.s2, 15, 'en_renovacion');
+        await insertSubscription(ids.s3, 7, 'activa');
+        await insertSubscription(ids.s4, 0, 'activa');
+        await insertSubscription(ids.s5, 31, 'activa');
+        await insertSubscription(ids.s6, -1, 'vencida');
+        await insertSubscription(ids.s7, 15, 'activa', 'esperando_cliente');
+        await insertSubscription(ids.s8, 75, 'activa');
 
-      const insertTask = async (id: string, dueOffset: number, status: string) =>
-        c.query(
-          `insert into app.tasks
+        const insertTask = async (id: string, dueOffset: number, status: string) =>
+          c.query(
+            `insert into app.tasks
              (id, task_type, client_id, subscription_id, assignee_user_id, priority,
               due_date, status, title, completed_at)
            values ($1, 'other', $2, $3, $4, 'medium', $5, $6::app.task_status, 'Tarea',
-                   case when $6::app.task_status in ('completed','cancelled') then now() end)`,
-          [id, clientRow.id, ids.s1, admin.id, addDays(today, dueOffset), status],
-        );
-      await insertTask(randomUUID(), -1, 'pending');
-      await insertTask(randomUUID(), 0, 'pending');
-      await insertTask(randomUUID(), 5, 'in_progress');
-      await insertTask(randomUUID(), -2, 'completed');
-      await insertTask(randomUUID(), 1, 'cancelled');
+                   case when $6::app.task_status in ('completada','cancelada') then now() end)`,
+            [id, clientRow.id, ids.s1, admin.id, addDays(today, dueOffset), status],
+          );
+        await insertTask(randomUUID(), -1, 'pendiente');
+        await insertTask(randomUUID(), 0, 'pendiente');
+        await insertTask(randomUUID(), 5, 'en_progreso');
+        await insertTask(randomUUID(), -2, 'completada');
+        await insertTask(randomUUID(), 1, 'cancelada');
 
-      const pendingRequestId = randomUUID();
-      const inProgressRequestId = randomUUID();
-      await c.query(
-        `insert into app.renewal_requests
+        const pendingRequestId = randomUUID();
+        const inProgressRequestId = randomUUID();
+        await c.query(
+          `insert into app.renewal_requests
            (id, subscription_id, client_id, requested_by_user_id, status, assigned_user_id)
          values
-           ($1, $2, $3, $4, 'pending_review', $4),
-           ($5, $2, $3, $4, 'pending_review', $4)`,
-        [pendingRequestId, ids.s1, clientRow.id, admin.id, inProgressRequestId],
-      );
-      await c.query(
-        `update app.renewal_requests set status = 'in_progress' where id = $1`,
-        [inProgressRequestId],
-      );
+           ($1, $2, $3, $4, 'pendiente_revision', $4),
+           ($5, $2, $3, $4, 'pendiente_revision', $4)`,
+          [pendingRequestId, ids.s1, clientRow.id, admin.id, inProgressRequestId],
+        );
+        await c.query(`update app.renewal_requests set status = 'en_progreso' where id = $1`, [
+          inProgressRequestId,
+        ]);
 
-      await c.query(
-        `insert into app.alert_rules
+        await c.query(
+          `insert into app.alert_rules
            (code, description, offset_days, channels, creates_task, applies_when_not_renewable)
          values ('D30', 'Preparar renovación', 30, '{in_app}', false, false)
          on conflict (code) do nothing`,
-      );
-    });
+        );
+      },
+    );
 
     return { clientRow, product, ids };
   }
@@ -171,17 +171,17 @@ describe.skipIf(!dbTestsConfigured())('Dashboard API (Postgres)', () => {
     expect(summary.upcomingTasks.count).toBe(2);
     expect(summary.newRenewalRequests.count).toBe(1);
 
-    expect(summary.activeSubscriptions.filter).toEqual({ status: 'active,in_renewal' });
+    expect(summary.activeSubscriptions.filter).toEqual({ status: 'activa,en_renovacion' });
     expect(summary.expiringIn30Days.filter).toEqual({
-      status: 'active,in_renewal',
+      status: 'activa,en_renovacion',
       expiresFrom: today,
       expiresTo: addDays(today, 30),
     });
     expect(summary.overdueTasks.filter).toMatchObject({
-      status: 'pending,in_progress',
+      status: 'pendiente,en_progreso',
       overdue: 'true',
     });
-    expect(summary.newRenewalRequests.filter).toEqual({ status: 'pending_review' });
+    expect(summary.newRenewalRequests.filter).toEqual({ status: 'pendiente_revision' });
 
     const operatorRes = await request(app)
       .get('/api/v1/dashboard/summary')
@@ -192,7 +192,7 @@ describe.skipIf(!dbTestsConfigured())('Dashboard API (Postgres)', () => {
   it('expone expiresFrom/expiresTo en el listado de suscripciones', async () => {
     const res = await request(app)
       .get(
-        `/api/v1/subscriptions?status=active,in_renewal&expiresFrom=${today}&expiresTo=${addDays(today, 30)}`,
+        `/api/v1/subscriptions?status=activa,en_renovacion&expiresFrom=${today}&expiresTo=${addDays(today, 30)}`,
       )
       .set(auth(adminToken));
     expect(res.status).toBe(200);
@@ -214,9 +214,11 @@ describe.skipIf(!dbTestsConfigured())('Dashboard API (Postgres)', () => {
     expect(mine.overdueTasks.filter.assigneeUserId).toBe(admin.id);
 
     const none = DashboardSummarySchema.parse(
-      (await request(app)
-        .get(`/api/v1/dashboard/summary?ownerUserId=${operator.id}`)
-        .set(auth(adminToken))).body,
+      (
+        await request(app)
+          .get(`/api/v1/dashboard/summary?ownerUserId=${operator.id}`)
+          .set(auth(adminToken))
+      ).body,
     );
     expect(none.activeSubscriptions.count).toBe(0);
     expect(none.overdueTasks.count).toBe(0);
@@ -257,9 +259,9 @@ describe.skipIf(!dbTestsConfigured())('Dashboard API (Postgres)', () => {
     expect(operatorActivity.data).toHaveLength(1);
     expect(operatorActivity.data[0]?.resourceType).toBe('client');
 
-    expect((await request(app).get('/api/v1/dashboard/summary').set(auth(clientToken))).status).toBe(
-      403,
-    );
+    expect(
+      (await request(app).get('/api/v1/dashboard/summary').set(auth(clientToken))).status,
+    ).toBe(403);
     expect(
       (await request(app).get('/api/v1/dashboard/activity').set(auth(clientToken))).status,
     ).toBe(403);

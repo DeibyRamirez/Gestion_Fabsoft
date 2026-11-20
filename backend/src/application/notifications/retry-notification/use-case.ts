@@ -18,7 +18,7 @@ export class RetryNotification {
     return this.uow.run(actor, async ({ notificationsRetry, audit }) => {
       const current = await notificationsRetry.loadForRetry(id);
       if (!current) throw new ApplicationError('not_found', 'Notificación no encontrada');
-      if (current.notification.status !== 'failed') {
+      if (current.notification.status !== 'fallida') {
         throw new ApplicationError(
           'invalid_state_transition',
           'Sólo se reintenta una notificación fallida',

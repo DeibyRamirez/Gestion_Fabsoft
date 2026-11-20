@@ -7,7 +7,7 @@ import type { UpdateProductRepos } from '../update-product/ports.js';
 
 type ActivateProductUow = UpdateProductRepos & { audit: AuditWriter };
 
-/** Activa un producto (`status=active`). */
+/** Activa un producto (`status=activo`). */
 export class ActivateProduct {
   constructor(private readonly uow: UnitOfWork<ActivateProductUow>) {}
 
@@ -16,8 +16,8 @@ export class ActivateProduct {
     return this.uow.run(actor, async ({ productUpdate, audit }) => {
       const current = await productUpdate.loadForUpdate(id);
       if (!current) throw new ApplicationError('not_found', 'Producto no encontrado');
-      if (current.status === 'active') return current;
-      const outcome = await productUpdate.save(id, { status: 'active', updatedBy: actor.userId });
+      if (current.status === 'activo') return current;
+      const outcome = await productUpdate.save(id, { status: 'activo', updatedBy: actor.userId });
       if (!outcome.ok) {
         throw new ApplicationError(
           'duplicate_product',
@@ -29,7 +29,7 @@ export class ActivateProduct {
         action: 'product.updated',
         resourceType: 'product',
         resourceId: id,
-        changes: { before: { status: current.status }, after: { status: 'active' } },
+        changes: { before: { status: current.status }, after: { status: 'activo' } },
         requestId: actor.requestId,
       });
       return outcome.product;

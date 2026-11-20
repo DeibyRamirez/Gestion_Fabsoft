@@ -7,7 +7,7 @@ import type { UpdateProductRepos } from '../update-product/ports.js';
 
 type DeactivateProductUow = UpdateProductRepos & { audit: AuditWriter };
 
-/** Desactiva un producto (`status=inactive`); no nuevas suscripciones (RN-01). */
+/** Desactiva un producto (`status=inactivo`); no nuevas suscripciones (RN-01). */
 export class DeactivateProduct {
   constructor(private readonly uow: UnitOfWork<DeactivateProductUow>) {}
 
@@ -16,8 +16,8 @@ export class DeactivateProduct {
     return this.uow.run(actor, async ({ productUpdate, audit }) => {
       const current = await productUpdate.loadForUpdate(id);
       if (!current) throw new ApplicationError('not_found', 'Producto no encontrado');
-      if (current.status === 'inactive') return current;
-      const outcome = await productUpdate.save(id, { status: 'inactive', updatedBy: actor.userId });
+      if (current.status === 'inactivo') return current;
+      const outcome = await productUpdate.save(id, { status: 'inactivo', updatedBy: actor.userId });
       if (!outcome.ok) {
         throw new ApplicationError(
           'duplicate_product',
@@ -29,7 +29,7 @@ export class DeactivateProduct {
         action: 'product.deactivated',
         resourceType: 'product',
         resourceId: id,
-        changes: { before: { status: current.status }, after: { status: 'inactive' } },
+        changes: { before: { status: current.status }, after: { status: 'inactivo' } },
         requestId: actor.requestId,
       });
       return outcome.product;

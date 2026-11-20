@@ -11,7 +11,7 @@ const admin: UserActor = {
   requestId: 'r',
 };
 
-const product = (status: 'active' | 'inactive'): ProductView => ({
+const product = (status: 'activo' | 'inactivo'): ProductView => ({
   id: 'p1',
   name: 'Svc',
   description: null,
@@ -30,13 +30,13 @@ describe('UpdateProduct', () => {
       run: async (_a, work) =>
         work({
           productUpdate: {
-            loadForUpdate: async () => product('active'),
-            save: async () => ({ ok: true, product: product('inactive') }),
+            loadForUpdate: async () => product('activo'),
+            save: async () => ({ ok: true, product: product('inactivo') }),
           },
           audit: { write: auditWrite },
         }),
     });
-    await uc.execute(admin, 'p1', { status: 'inactive' });
+    await uc.execute(admin, 'p1', { status: 'inactivo' });
     expect(auditWrite).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'product.deactivated' }),
     );
