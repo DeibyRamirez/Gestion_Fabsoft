@@ -56,7 +56,7 @@
   "devDependencies": {
     "@apidevtools/json-schema-ref-parser": "^11.7.2",
     "@fabsoft/config": "workspace:*",
-    "@faker-js/faker": "^9.9",
+    "@faker-js/faker": "^10.6",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5",
