@@ -39,7 +39,7 @@ composition (root) conoce todo y ensambla
 |---|---|---|---|
 | `domain/` | Entidades (`Subscription`, `SubscriptionPeriod`, `RenewalRequest`, `Task`, `Notification`), value objects (`Money` COP, `LocalDate`, `BillingCycle`, `Scope`), máquina de estados, cálculo de periodos y fechas de alerta, errores de dominio. | Nada externo salvo `date-fns` puro. | `pg`, `express`, `process.env`, I/O. |
 | `application/` | Casos de uso (un archivo por caso de uso), **puertos** (interfaces) que necesitan, DTOs de entrada/salida (Zod de `@fabsoft/shared`), políticas de autorización (`Authorizer`). | `domain`, `@fabsoft/shared`. | SQL, Express, SDKs. |
-| `infrastructure/` | Adaptadores: `persistence/pg/*` (repos), `db/` (pool, `withRlsContext`, providers Supabase/Postgres), `queue/PgBossJobQueue`, `email/ResendEmailSender` y `LogEmailSender`, `security/` (`JoseTokenService`, `Argon2PasswordHasher`, `HmacApiKeyHasher`), `clock/SystemClock`, `logging/`. | `application` (puertos), `domain`. | `interfaces`. |
+| `infrastructure/` | Adaptadores: `persistence/pg/*` (repos), `db/` (pool, `withRlsContext`, providers Supabase/Postgres), `email/ResendEmailSender`, `email/SmtpEmailSender` y `email/LogEmailSender`, `security/` (`JoseTokenService`, `Argon2PasswordHasher`, `HmacApiKeyService`), `clock/SystemClock`, `logging/`. | `application` (puertos), `domain`. | `interfaces`. |
 | `interfaces/` | `http/` (app Express, rutas `/api/v1`, controladores, middlewares, mapeo de errores a problem+json, registro OpenAPI) y `worker/` (registro de colas y crons, handlers que invocan casos de uso). | `application`, `@fabsoft/shared`. | `infrastructure` directo (lo recibe inyectado), SQL. |
 | `composition/` | Composition root: construye singletons de infraestructura y casos de uso. | Todo. | Lógica de negocio. |
 
@@ -137,7 +137,7 @@ export class RenewSubscription {
 
 ### L — Sustitución de Liskov
 Toda implementación de un puerto respeta el mismo contrato observable y se prueba con la **misma suite de contrato**:
-- `ResendEmailSender` y `LogEmailSender` → `emailSenderContract()` (idempotencia por clave, errores clasificados en `RetryableEmailError`/`PermanentEmailError`).
+- `ResendEmailSender`, `SmtpEmailSender` y `LogEmailSender` → `emailSenderContract()` (idempotencia por clave, errores clasificados en `RetryableEmailError`/`PermanentEmailError`).
 - `SupabasePoolerProvider` y `DirectPostgresProvider` → `connectionProviderContract()` (transacción, `set_config` local, liberación).
 - Repositorio Pg y *fake* en memoria → `renewSubscriptionRepositoryContract()`.
 
@@ -168,8 +168,8 @@ export function subscriptionsModule(infra: Infra) {
 | `UnitOfWork<R>` | `PgUnitOfWork` | Envuelve `withRlsContext` (ADR-004). |
 | Repositorios/consultas por caso de uso | `Pg*Repository` / `Pg*Query` | SQL explícito, columnas explícitas. |
 | `DatabaseConnectionProvider` | `SupabasePoolerProvider` · `DirectPostgresProvider` | **Único punto que cambia** al migrar a VPS (más variables de entorno). |
-| `JobQueue` (`enqueue(name, payload, {tx})`, `schedule`) | `PgBossJobQueue` | Envío transaccional usando la misma conexión (`db` de pg-boss). |
-| `EmailSender` | `ResendEmailSender` · `LogEmailSender` | Selección `CORREO_CANAL`. |
+| `JobQueue` | No implementado en el MVP | El worker usa pg-boss directamente en `main-worker.ts`; la API no encola jobs. |
+| `EmailSender` | `ResendEmailSender` · `SmtpEmailSender` · `LogEmailSender` | Selección `CORREO_CANAL`. |
 | `TokenService` | `JoseTokenService` | EdDSA + JWKS. |
 | `PasswordHasher` | `Argon2PasswordHasher` | argon2id. |
 | `ApiKeyHasher` | `HmacApiKeyHasher` | HMAC-SHA256 + pepper. |
@@ -211,7 +211,7 @@ export function subscriptionsModule(infra: Infra) {
 5. Ensayo: restaurar un volcado de producción en staging-VPS, apuntar una API de staging (`DB_PROVIDER=postgres`) y pasar *smoke tests* + RLS.
 
 **Corte (ventana estimada < 30 min con este volumen)**
-6. Anunciar ventana; poner la API en modo mantenimiento (`MAINTENANCE_MODE=true` → `503` con `Retry-After` en escrituras) y **detener el worker**.
+6. Anunciar ventana; detener la API y el worker (no hay `MAINTENANCE_MODE` implementado en el MVP).
 7. Volcado de datos de Supabase: `pg_dump --data-only --schema=app -Fc -f fabsoft_app.dump` con el rol `postgres` de Supabase. Excluir `pgboss` (los trabajos se regeneran con `alerts.reconcile`).
 8. Restaurar en VPS como superusuario local (necesario por las FKs circulares `clients`↔`users` y los triggers de guarda): `pg_restore --data-only --schema=app --disable-triggers --single-transaction -d fabsoft fabsoft_app.dump`. Reajustar la identidad de `audit_logs` (`select setval(pg_get_serial_sequence('app.audit_logs','id'), max(id)) from app.audit_logs`).
 9. Verificación: recuentos por tabla iguales, sumas de control (`count`, `max(updated_at)`) y consultas de muestreo; `dbmate status` idéntico.
