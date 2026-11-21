@@ -39,6 +39,22 @@ describe('ResendEmailSender', () => {
     );
   });
 
+  it('envía también la versión HTML cuando está presente', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ id: 're_123' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    ) as unknown as typeof fetch;
+    await senderWith(fetchImpl).send({ ...message, html: '<p>Hola</p>' });
+    const init = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]![1] as RequestInit;
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(body['html']).toBe('<p>Hola</p>');
+    expect(body['text']).toBe('Texto');
+  });
+
   it('clasifica 429/5xx como recuperables y 4xx como permanentes', async () => {
     const tooMany = vi.fn(
       async () =>

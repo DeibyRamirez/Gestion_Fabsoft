@@ -1,7 +1,10 @@
 export interface EmailMessage {
   to: string;
   subject: string;
+  /** Fallback de texto plano para clientes que no renderizan HTML. */
   text: string;
+  /** Versión con la identidad visual de FabSoft. */
+  html?: string;
   idempotencyKey: string;
 }
 

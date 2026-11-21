@@ -14,6 +14,7 @@ export class LogEmailSender implements EmailSender {
       to: message.to,
       subject: message.subject,
       text: message.text,
+      html: message.html ? '(html)' : null,
       idempotencyKey: message.idempotencyKey,
     });
     return { providerMessageId: `log:${message.idempotencyKey}` };

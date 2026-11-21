@@ -14,6 +14,7 @@ export interface SmtpTransport {
     to: string;
     subject: string;
     text: string;
+    html?: string;
     headers: Record<string, string>;
   }): Promise<{ messageId?: string }>;
 }
@@ -77,6 +78,7 @@ export class SmtpEmailSender implements EmailSender {
         to: message.to,
         subject: message.subject,
         text: message.text,
+        ...(message.html ? { html: message.html } : {}),
         headers: { 'X-Idempotency-Key': message.idempotencyKey },
       });
       return { providerMessageId: info.messageId ?? `smtp:${message.idempotencyKey}` };

@@ -120,6 +120,7 @@ stateDiagram-v2
 - Plantilla editable en `app_settings` con asunto y cuerpo en texto plano; placeholders permitidos: cliente, producto, fecha de vencimiento, regla, enlace a la suscripción y URL del frontend. El contenido por defecto se mantiene en `DEFAULT_ALERT_EMAIL_TEMPLATE` y se usa si aún no hay configuración guardada.
 - Sin precio ni costo en el correo (minimizar datos sensibles en buzones).
 - Remitente `CORREO_DESDE` en un dominio verificado en Resend o autorizado por el servidor SMTP.
+- El correo se envía en dos versiones: `text` (fallback para clientes sin HTML) y `html` con la identidad visual del frontend (cabecera nebulosa, tarjeta de datos, botón iris y pie). El asunto y el cuerpo editables siguen siendo texto plano; el worker los envuelve en la plantilla HTML. El HTML evita duplicar el enlace del botón; el texto plano sí conserva la URL.
 
 ## 9. Observabilidad
 

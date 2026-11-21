@@ -38,6 +38,17 @@ describe('SmtpEmailSender', () => {
     });
   });
 
+  it('envía también la versión HTML cuando está presente', async () => {
+    const sendMail = vi.fn(async () => ({ messageId: '<smtp-1@fabsoft.test>' }));
+    const sender = new SmtpEmailSender(config({ sendMail }));
+
+    await sender.send({ ...message, html: '<p>Contenido</p>' });
+
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'Contenido', html: '<p>Contenido</p>' }),
+    );
+  });
+
   it('usa un id sintético si el servidor no devuelve messageId', async () => {
     const sender = new SmtpEmailSender(config({ sendMail: async () => ({}) }));
     await expect(sender.send(message)).resolves.toEqual({
