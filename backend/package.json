@@ -8,6 +8,7 @@
     "dev": "tsx watch --env-file-if-exists=.env src/main-api.ts",
     "worker": "tsx watch --env-file-if-exists=.env src/main-worker.ts",
     "worker:start": "node dist/main-worker.js",
+    "worker:tick": "tsx --env-file-if-exists=.env scripts/worker-tick.ts",
     "openapi:build": "tsx scripts/build-openapi.ts",
     "openapi:check": "tsx scripts/build-openapi.ts --check",
     "build": "tsc -p tsconfig.build.json",
