@@ -20,6 +20,7 @@ import type { AlertSchedulingRepos } from '../application/alerts/shared/alert-sc
 import type { AlertEmailTemplateRepos } from '../application/alerts/shared/email-template.js';
 import type { ListAlertRulesRepos } from '../application/alerts/list-alert-rules/ports.js';
 import type { UpdateAlertRuleRepos } from '../application/alerts/update-alert-rule/ports.js';
+import type { SettingsRepos } from '../application/settings/shared/settings.js';
 import type { GetDashboardSummaryRepos } from '../application/dashboard/get-dashboard-summary/ports.js';
 import type {
   GetRenewalRequestQuery,
@@ -156,6 +157,7 @@ export type UserScopeRepos = GetMeRepos &
   AlertEmailTemplateRepos &
   ListAlertRulesRepos &
   UpdateAlertRuleRepos &
+  SettingsRepos &
   GetDashboardSummaryRepos &
   ListRenewalRequestsRepos &
   UpdateRenewalRequestRepos &

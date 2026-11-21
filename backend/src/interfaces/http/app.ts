@@ -28,6 +28,7 @@ import { clientContactsRouter, type ClientContactsRouteDeps } from './routes/v1/
 import { notificationsRouter, type NotificationsRouteDeps } from './routes/v1/notifications.js';
 import { portalRouter, type PortalRouteDeps } from './routes/v1/portal.js';
 import { productsRouter, type ProductsRouteDeps } from './routes/v1/products.js';
+import { settingsRouter, type SettingsRouteDeps } from './routes/v1/settings.js';
 import { subscriptionsRouter, type SubscriptionsRouteDeps } from './routes/v1/subscriptions.js';
 import { tasksRouter, type TasksRouteDeps } from './routes/v1/tasks.js';
 import { usersRouter, type UsersRouteDeps } from './routes/v1/users.js';
@@ -48,6 +49,7 @@ export type AppDeps = HealthRouteDeps &
   IntegrationsRouteDeps &
   IntegrationApiRouteDeps &
   AuditLogsRouteDeps &
+  SettingsRouteDeps &
   ClientActivityRouteDeps & {
     corsOrigins: string[];
     idempotencyService: IdempotencyService;
@@ -144,6 +146,7 @@ export function createApp(deps: AppDeps): Express {
   app.use(API_VERSION_PREFIX, tasksRouter(deps, guards, createTaskIdempotency));
   app.use(API_VERSION_PREFIX, notificationsRouter(deps, guards));
   app.use(API_VERSION_PREFIX, auditLogsRouter(deps, guards));
+  app.use(API_VERSION_PREFIX, settingsRouter(deps, guards));
 
   app.use((_req, res) => sendProblem(res, 'not_found', 'Recurso no encontrado'));
   app.use(errorHandler(deps.log));

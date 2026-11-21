@@ -4643,7 +4643,6 @@
         ],
         "operationId": "getSettings",
         "summary": "Configuración general",
-        "x-implementation-status": "pending",
         "x-roles": [
           "admin",
           "operator"
@@ -4673,7 +4672,6 @@
         ],
         "operationId": "updateSettings",
         "summary": "Actualiza la configuración general",
-        "x-implementation-status": "pending",
         "x-roles": [
           "admin"
         ],
@@ -8308,17 +8306,26 @@
       "Settings": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "contactChannel"
+        ],
         "properties": {
           "contactChannel": {
             "type": "object",
             "additionalProperties": false,
+            "required": [
+              "email",
+              "phone",
+              "hours"
+            ],
             "properties": {
               "email": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "format": "email"
+                "format": "email",
+                "maxLength": 254
               },
               "phone": {
                 "type": [

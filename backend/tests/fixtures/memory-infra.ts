@@ -3,8 +3,10 @@ import {
   DEFAULT_ALERT_EMAIL_TEMPLATE,
   type AlertEmailTemplate,
   type AuditLogListQuery,
+  type ContactChannel,
   type PortalRenewalRequestListQuery,
   type PortalSubscriptionListQuery,
+  type Settings,
 } from '@fabsoft/shared';
 import type { AuditLogView } from '../../src/application/audit/shared/audit-log-view.js';
 import type {
@@ -218,6 +220,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
     expiresAt: new Date(Date.now() + 86_400_000),
   });
   let alertEmailTemplate: AlertEmailTemplate = { ...DEFAULT_ALERT_EMAIL_TEMPLATE };
+  let contactChannel: ContactChannel = { email: null, phone: null, hours: null };
   const userRepos: UserScopeRepos = {
     audit,
     alerts,
@@ -269,6 +272,13 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
       update: async (template: AlertEmailTemplate) => {
         alertEmailTemplate = template;
         return alertEmailTemplate;
+      },
+    },
+    settings: {
+      get: async (): Promise<Settings> => ({ contactChannel: { ...contactChannel } }),
+      update: async (settings: Settings) => {
+        contactChannel = { ...settings.contactChannel };
+        return { contactChannel: { ...contactChannel } };
       },
     },
     auditLogs: {
@@ -953,7 +963,7 @@ export function memoryInfra(store = new MemoryStore()): Promise<Infra & { store:
         const c = store.clientRows.get(clientId);
         return c ? { id: c.id, legalName: c.legalName, taxId: c.taxId } : null;
       },
-      findContactChannel: async () => ({ email: null, phone: null, hours: null }),
+      findContactChannel: async () => ({ ...contactChannel }),
     },
     portalSubscriptions: {
       list: async (clientId: string, query: PortalSubscriptionListQuery) => {

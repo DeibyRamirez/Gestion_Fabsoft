@@ -47,7 +47,7 @@ export const INTERNAL_ADMIN_NAV: NavItem[] = [
   { href: '/admin/integrations', label: 'Integraciones', implemented: true, icon: PlugIcon },
   { href: '/admin/alert-rules', label: 'Reglas de alerta', implemented: true, icon: SirenIcon },
   { href: '/admin/audit', label: 'Auditoría', implemented: true, icon: ScrollTextIcon },
-  { href: '/admin/settings', label: 'Configuración', implemented: false, icon: SettingsIcon },
+  { href: '/admin/settings', label: 'Configuración', implemented: true, icon: SettingsIcon },
 ];
 
 export const PORTAL_NAV: NavItem[] = [

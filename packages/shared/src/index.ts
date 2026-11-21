@@ -13,6 +13,7 @@ export * from './portal.js';
 export * from './problem.js';
 export * from './products.js';
 export * from './renewal-requests.js';
+export * from './settings.js';
 export * from './subscriptions.js';
 export * from './tasks.js';
 export * from './users.js';

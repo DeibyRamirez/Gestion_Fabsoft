@@ -15,13 +15,14 @@ import {
   ClockAlertIcon,
   HourglassIcon,
   InboxIcon,
-  RepeatIcon,
   TriangleAlertIcon,
 } from 'lucide-react';
 import { apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/features/auth/auth-provider';
 import { ActivityFeed } from '@/shared/components/activity-feed';
 import { NebulaStat, UrgentCard } from '@/shared/components/bento';
+import { BarChart } from '@/shared/components/charts/bar-chart';
+import { Sparkline } from '@/shared/components/charts/sparkline';
 import { EmptyState } from '@/shared/components/empty-state';
 import { LoadingState } from '@/shared/components/loading-state';
 import { PageHeader } from '@/shared/components/page-header';
@@ -29,7 +30,10 @@ import { SectionHeader } from '@/shared/components/section-header';
 import { formatDate } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { StatusBadge } from '@/shared/ui/status-badge';
+import { buildExpirationBuckets, buildExpirationSeries, buildStatusSegments } from './chart-data';
 import { indicatorHref, KpiCard } from './kpi-card';
+import { PortfolioCard } from './portfolio-card';
+import { usePortfolio } from './use-portfolio';
 
 function greeting(): string {
   const h = Number(
@@ -99,6 +103,17 @@ export function DashboardPage() {
   }, [summary, token]);
 
   const firstName = user?.fullName.split(/\s+/)[0] ?? '';
+  const {
+    subscriptions: portfolio,
+    error: chartsError,
+    loading: chartsLoading,
+  } = usePortfolio(token);
+  const expirationBuckets = portfolio ? buildExpirationBuckets(portfolio) : [];
+  const expirationSeries = portfolio
+    ? buildExpirationSeries(portfolio)
+    : { values: [], total: 0, max: 0 };
+  const statusSegments = portfolio ? buildStatusSegments(portfolio) : [];
+  const portfolioTotal = portfolio?.length ?? 0;
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-5">
@@ -147,7 +162,7 @@ export function DashboardPage() {
             Indicadores
           </h2>
           {/* Los conteos 30/15/7 son ACUMULADOS (hoy → hoy+N). No restar entre ellos. */}
-          <UrgentCard className="lg:col-span-7">
+          <UrgentCard className="flex flex-col lg:col-span-7">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-white/85">Vencimientos próximos</p>
@@ -160,35 +175,90 @@ export function DashboardPage() {
                 Ver lista →
               </Link>
             </div>
-            <div className="mt-6 flex flex-wrap items-end gap-8">
-              <NebulaStat
-                href={indicatorHref(summary.expiringIn30Days)}
-                value={summary.expiringIn30Days.count}
-                label="Vencen en 30 días"
-                size="xl"
-              />
-              <NebulaStat
-                href={indicatorHref(summary.expiringIn15Days)}
-                value={summary.expiringIn15Days.count}
-                label="Vencen en 15 días"
-                tone="amber"
-              />
-              <NebulaStat
-                href={indicatorHref(summary.expiringIn7Days)}
-                value={summary.expiringIn7Days.count}
-                label="Vencen en 7 días"
-                tone="rose"
-              />
+            <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_minmax(180px,240px)] lg:items-end">
+              <div className="flex flex-wrap items-end gap-4 xl:flex-nowrap">
+                <NebulaStat
+                  href={indicatorHref(summary.expiringIn30Days)}
+                  value={summary.expiringIn30Days.count}
+                  label="En 30 días"
+                  size="xl"
+                />
+                <NebulaStat
+                  href={indicatorHref(summary.expiringIn15Days)}
+                  value={summary.expiringIn15Days.count}
+                  label="En 15 días"
+                  tone="amber"
+                />
+                <NebulaStat
+                  href={indicatorHref(summary.expiringIn7Days)}
+                  value={summary.expiringIn7Days.count}
+                  label="En 7 días"
+                  tone="rose"
+                />
+              </div>
+              {portfolio ? (
+                <BarChart
+                  data={expirationBuckets}
+                  label="Distribución de vencimientos por rango"
+                  height={96}
+                  valueClassName="text-white/85"
+                  labelClassName="text-white/70"
+                />
+              ) : (
+                <div className="flex h-24 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-3 text-center text-xs text-white/70">
+                  {chartsLoading ? 'Calculando distribución…' : 'Sin datos de distribución.'}
+                </div>
+              )}
+            </div>
+            <div className="mt-auto pt-6">
+              <div className="border-t border-white/10 pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-white/85">
+                    Ritmo diario de vencimientos
+                  </p>
+                  {!chartsLoading && !chartsError ? (
+                    <span className="text-[11px] text-white/65">
+                      Máx. {expirationSeries.max}/día · {expirationSeries.total} en total
+                    </span>
+                  ) : null}
+                </div>
+                {chartsLoading ? (
+                  <p className="mt-3 text-xs text-white/65">Calculando ritmo…</p>
+                ) : chartsError ? (
+                  <p className="mt-3 text-xs text-white/65">{chartsError}</p>
+                ) : (
+                  <>
+                    <Sparkline
+                      values={expirationSeries.values}
+                      label={`Vencimientos por día en los próximos 30 días. Máximo ${expirationSeries.max} en un día; ${expirationSeries.total} en total.`}
+                      height={88}
+                      color="#7FE6FB"
+                      fill="#7FE6FB"
+                      className="mt-2"
+                    />
+                    <div className="mt-1 flex justify-between text-[10px] text-white/60">
+                      <span>Hoy</span>
+                      <span>+15 días</span>
+                      <span>+30 días</span>
+                    </div>
+                  </>
+                )}
+              </div>
+              <p className="pt-3 text-[11px] leading-relaxed text-white/65">
+                Los conteos superiores son acumulados; las barras y la línea, la distribución por
+                rango y por día.
+              </p>
             </div>
           </UrgentCard>
 
           <div className="flex flex-col gap-3 lg:col-span-5">
-            <KpiCard
-              label="Suscripciones activas"
+            <PortfolioCard
               indicator={summary.activeSubscriptions}
-              icon={RepeatIcon}
-              tone="success"
-              size="large"
+              activeCount={summary.activeSubscriptions.count}
+              segments={statusSegments}
+              total={portfolioTotal}
+              loading={chartsLoading}
+              error={chartsError}
             />
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

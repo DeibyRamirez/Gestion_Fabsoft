@@ -74,7 +74,7 @@ export function NebulaStat({
       <span
         className={cn(
           'tabular block leading-[.85] font-extrabold tracking-tighter',
-          size === 'xl' ? 'text-7xl lg:text-8xl' : 'text-4xl',
+          size === 'xl' ? 'text-6xl lg:text-7xl' : 'text-4xl',
           color,
         )}
       >
