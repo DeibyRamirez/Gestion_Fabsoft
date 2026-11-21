@@ -94,3 +94,77 @@ Opciones válidas:
 - El frontend no necesita Supabase Auth: la autenticación es propia (ADR-001/ADR-008).
 - El worker sigue siendo el mismo proceso Node; sólo cambia dónde se ejecuta.
 - El correo sigue detrás del puerto `EmailSender`; Vercel no envía correos por ti.
+
+## 7. Render + Neon: configuración de referencia
+
+### Neon
+
+1. Crear el proyecto/branch y obtener dos URLs:
+   - **Pooled** (API): usar el host con `-pooler` y el rol `fabsoft_app`.
+   - **Directa** (worker, migraciones, pg-boss): usar el host directo.
+2. Aplicar migraciones con dbmate y `DATABASE_MIGRATION_URL` (rol propietario/directo).
+3. Dar LOGIN a `fabsoft_app` y `fabsoft_worker`; las migraciones los crean NOLOGIN.
+4. Instalar pg-boss:
+   ```bash
+   DATABASE_PROVISION_URL=postgres://... pnpm --filter @fabsoft/backend db:pgboss:install
+   ```
+5. Verificar la base limpia:
+   ```bash
+   pnpm --filter @fabsoft/backend db:verify:empty -- --before-admin
+   ```
+6. Crear el primer admin:
+   ```bash
+   pnpm --filter @fabsoft/backend primeradmin:db
+   ```
+7. Verificar después del bootstrap:
+   ```bash
+   pnpm --filter @fabsoft/backend db:verify:empty -- --after-admin
+   ```
+
+### Render: API
+
+- Tipo: **Web Service**.
+- Build:
+  ```bash
+  corepack enable
+  pnpm install --frozen-lockfile
+  pnpm --filter @fabsoft/shared build
+  pnpm --filter @fabsoft/backend build
+  ```
+- Start:
+  ```bash
+  pnpm --filter @fabsoft/backend start
+  ```
+- Health check: `/api/v1/health`.
+- Variables mínimas:
+  - `APP_ENV=prod`, `NODE_ENV=production`
+  - `DB_PROVIDER=postgres`
+  - `DATABASE_URL` (pooled de Neon)
+  - `DATABASE_SSL_MODE=verify-full` + `DATABASE_SSL_CA`
+  - `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEYS`, `JWT_ACTIVE_KID`
+  - `API_KEY_PEPPER`, `API_KEY_ENV=live`
+  - `CORS_ALLOWED_ORIGINS=https://app.tudominio.com`
+  - `COOKIE_DOMAIN=.tudominio.com`
+
+### Render: worker
+
+- Tipo: **Background Worker**.
+- Mismo build; start:
+  ```bash
+  pnpm --filter @fabsoft/backend worker:start
+  ```
+- Variables mínimas:
+  - `APP_ENV=prod`, `NODE_ENV=production`
+  - `WORKER_DATABASE_URL` (directa de Neon)
+  - `DATABASE_SSL_MODE=verify-full` + `DATABASE_SSL_CA`
+  - `DB_POOL_MAX=4`
+  - `CORREO_CANAL=resend|smtp|log`
+  - `RESEND_API_KEY` o `SMTP_*`
+  - `CORREO_DESDE`
+  - `FRONTEND_URL=https://app.tudominio.com`
+  - `BUSINESS_TIMEZONE=America/Bogota`
+- Debe estar siempre activo. pg-boss ejecuta los cron; no hace falta un Render Cron Job aparte.
+
+### Regla de oro
+
+No ejecutes `pnpm db:seed` en Neon/Render. Las migraciones sólo crean referencia; el primer admin se crea con `primeradmin:db` y los operadores los crea ese admin desde la aplicación.

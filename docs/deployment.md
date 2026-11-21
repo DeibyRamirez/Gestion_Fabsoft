@@ -183,12 +183,37 @@ Las migraciones crean `fabsoft_app`, `fabsoft_worker` (0003), `fabsoft_secure_vi
 
 ### 7.3 Primer administrador (`app.bootstrap_first_admin`, 0005)
 
-`fabsoft_bootstrap` es NOLOGIN y es el único con EXECUTE sobre `app.bootstrap_first_admin` (que falla si ya existe un admin). Procedimiento puntual:
-1. `grant fabsoft_bootstrap to <operador_o_rol_ci>;` (o `alter role fabsoft_bootstrap login password :'pwd'` con secreto temporal).
-2. Ejecutar `pnpm --filter @fabsoft/backend admin:create ...` con esa conexión; la contraseña temporal se entrega por canal seguro (cambio obligatorio al primer login).
-3. Revocar: `revoke fabsoft_bootstrap from <rol>;` o `alter role fabsoft_bootstrap nologin password null;`.
+`fabsoft_bootstrap` es NOLOGIN y es el único con EXECUTE sobre `app.bootstrap_first_admin` (que falla si ya existe un admin). El alta es interactiva y no guarda la contraseña en disco:
 
-## 8. Despliegue alternativo en Vercel
+1. Preparar una conexión temporal, según el entorno:
+   - **Opción A (recomendada en local):** `BOOTSTRAP_DATABASE_URL` con el rol `fabsoft_bootstrap` y LOGIN temporal.
+   - **Opción B (Neon/VPS):** usar `DATABASE_PROVISION_URL` y ejecutar `grant fabsoft_bootstrap to <rol_propietario>;` para que el script pueda hacer `SET LOCAL ROLE fabsoft_bootstrap`.
+2. Ejecutar:
+   ```bash
+   pnpm --filter @fabsoft/backend primeradmin:db
+   ```
+   El comando pide correo, nombre completo, contraseña y confirmación. Calcula el hash Argon2id y llama a `app.bootstrap_first_admin`; la contraseña en claro no se escribe en logs, archivos ni argumentos de shell.
+3. El primer login exigirá cambiar la contraseña (`must_change_password=true`).
+4. Revocar el acceso temporal: `alter role fabsoft_bootstrap nologin password null;` o `revoke fabsoft_bootstrap from <rol>;`.
+
+## 8. Primer despliegue limpio (sin datos seed)
+
+Las migraciones sólo crean datos de referencia necesarios (`alert_rules` y `app_settings.contact_channel`). **No crean usuarios, clientes, productos ni suscripciones demo.**
+
+- `pnpm db:seed` es exclusivo de dev/test; falla si `APP_ENV=prod` y valida hosts/BD permitidos. **No lo ejecutes en Neon, Render ni producción.**
+- Antes del primer admin, verifica que la base esté limpia:
+  ```bash
+  pnpm --filter @fabsoft/backend db:verify:empty -- --before-admin
+  ```
+  Debe fallar si encuentra usuarios `@fabsoft.test`, clientes demo o cualquier dato de negocio.
+- Crea el primer admin con `pnpm --filter @fabsoft/backend primeradmin:db`.
+- Después del bootstrap, verifica que sólo exista ese admin:
+  ```bash
+  pnpm --filter @fabsoft/backend db:verify:empty -- --after-admin
+  ```
+- Si el check falla, no despliegues: revisa si alguien ejecutó el seed o si la BD no es la correcta.
+
+## 9. Despliegue alternativo en Vercel
 
 El frontend Next.js puede desplegarse en Vercel, pero la API, el worker pg-boss y PostgreSQL tienen requisitos distintos. Guía completa: [`docs/vercel.md`](vercel.md).
 
