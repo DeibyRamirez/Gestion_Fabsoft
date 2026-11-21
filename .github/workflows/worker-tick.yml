@@ -30,11 +30,6 @@ jobs:
         run: pnpm install --frozen-lockfile --prod=false
       - name: Compilar paquete compartido
         run: pnpm --filter @fabsoft/shared build
-      - name: Despertar API free de Render
-        continue-on-error: true
-        run: >-
-          curl --fail --silent --show-error --retry 3 --retry-delay 5 --max-time 120
-          https://fabsoft-api.onrender.com/api/v1/health
       - name: Ejecutar pasada del worker
         run: pnpm --filter @fabsoft/backend worker:tick
         env:

@@ -195,7 +195,9 @@ API_PROXY_TARGET=https://fabsoft-api.onrender.com
 
 ### 8.2 Worker sin Background Worker
 
-`backend/scripts/worker-tick.ts` ejecuta una pasada de los cuatro casos de uso (`expire`, `reconcile`, `dispatch`, `cleanup`) y termina. No usa pg-boss; conserva el rol `fabsoft_worker` y las mismas reglas de negocio. El workflow [`.github/workflows/worker-tick.yml`](../.github/workflows/worker-tick.yml) lo ejecuta cada 10 minutos y, en el mismo job, hace un `GET /api/v1/health` para mantener despierta la API free.
+`backend/scripts/worker-tick.ts` ejecuta una pasada de los cuatro casos de uso (`expire`, `reconcile`, `dispatch`, `cleanup`) y termina. No usa pg-boss; conserva el rol `fabsoft_worker` y las mismas reglas de negocio. El workflow [`.github/workflows/worker-tick.yml`](../.github/workflows/worker-tick.yml) lo ejecuta cada 10 minutos.
+
+La API free se mantiene despierta en horario laboral (06:00–18:50 America/Bogota) con [`.github/workflows/api-keepalive.yml`](../.github/workflows/api-keepalive.yml). Así consume ~400 h/mes de las 750 h gratuitas del workspace, que son **compartidas** con otros servicios free de Render. Fuera de esa ventana el primer request tarda ~50 s.
 
 Secretos del repositorio (Settings → Secrets and variables → Actions):
 
@@ -212,9 +214,10 @@ gh workflow run worker-tick.yml
 
 Limitaciones aceptadas de este modo gratuito:
 
-- La API free se duerme si GitHub Actions deja de ejecutarse; el primer request puede tardar ~50 s.
+- La API free se duerme fuera del horario del keep-alive; el primer request puede tardar ~50 s.
 - El cron de GitHub puede retrasarse varios minutos y se desactiva tras 60 días sin actividad en el repo.
 - El worker deja de ser un proceso persistente: la cola pg-boss no se usa en este modo; las notificaciones se procesan en cada pasada.
-- Un solo servicio free de Render evita superar las 750 h/mes. No agregues un segundo servicio free siempre activo.
+- Las 750 h/mes de Render son del **workspace**, no por servicio. Este repo ya comparte workspace con otros servicios free: si todos se usan mucho, Render puede suspender instancias hasta el siguiente mes.
+- No agregues un segundo servicio Render free siempre activo para FabSoft.
 
 Cuando haya presupuesto, el cambio a Render Starter + Background Worker es directo: crear el worker con `worker:start`, retirar el workflow y dejar de hacer el health check periódico.
