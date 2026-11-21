@@ -29,6 +29,8 @@
     "db:status": "node scripts/with-env.mjs -- dbmate --env DATABASE_MIGRATION_URL --migrations-dir migrations --migrations-table public.schema_migrations status",
     "keys:generate": "tsx scripts/generate-jwt-keys.ts",
     "admin:create": "tsx --env-file-if-exists=.env scripts/create-admin.ts",
+    "primeradmin:db": "tsx --env-file-if-exists=.env scripts/first-admin.ts",
+    "db:verify:empty": "tsx --env-file-if-exists=.env scripts/verify-empty-database.ts",
     "db:seed": "tsx --env-file-if-exists=.env scripts/seed.ts",
     "db:roles:dev": "tsx --env-file-if-exists=.env scripts/dev-roles.ts",
     "db:pgboss:install": "tsx --env-file-if-exists=.env scripts/install-pgboss.ts",
