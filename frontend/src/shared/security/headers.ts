@@ -2,11 +2,12 @@ export type SecurityHeader = { key: string; value: string };
 
 const DEFAULT_API_BASE_URL = 'http://localhost:4000/api/v1';
 
-function apiOrigin(apiBaseUrl: string | undefined): string {
+/** Origen del API; `null` cuando la URL es relativa (mismo origen vía proxy de Vercel). */
+function apiOrigin(apiBaseUrl: string | undefined): string | null {
   try {
     return new URL(apiBaseUrl ?? DEFAULT_API_BASE_URL).origin;
   } catch {
-    return new URL(DEFAULT_API_BASE_URL).origin;
+    return apiBaseUrl?.startsWith('/') ? null : new URL(DEFAULT_API_BASE_URL).origin;
   }
 }
 
@@ -16,7 +17,11 @@ export function contentSecurityPolicy(
   isDev = process.env.NODE_ENV !== 'production',
 ): string {
   const origin = apiOrigin(apiBaseUrl);
-  const connect = ["'self'", origin, ...(isDev ? ['ws://localhost:3000'] : [])].join(' ');
+  const connect = [
+    "'self'",
+    ...(origin ? [origin] : []),
+    ...(isDev ? ['ws://localhost:3000'] : []),
+  ].join(' ');
   return [
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline'" + (isDev ? " 'unsafe-eval'" : ''),

@@ -28,4 +28,10 @@ describe('cabeceras de seguridad del frontend', () => {
     expect(csp).toContain("'self'");
     expect(csp).not.toContain('*');
   });
+
+  it('con URL relativa el API se sirve por el mismo origen (proxy de Vercel)', () => {
+    const csp = contentSecurityPolicy('/api/v1', false);
+    expect(csp).toContain("connect-src 'self'");
+    expect(csp).not.toContain('localhost');
+  });
 });
