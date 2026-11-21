@@ -177,7 +177,7 @@ Render **no permite Background Workers en el plan free**: la API responde `402`/
 |---|---|---|---|
 | Frontend | Vercel Hobby | — | `NEXT_PUBLIC_API_BASE_URL=/api/v1` y proxy same-origin. |
 | API | Render Web Service free | 750 h/mes | Se duerme tras 15 min sin tráfico. |
-| Worker | GitHub Actions | Repo público | Pasada cada 10 min con `worker:tick`. |
+| Worker | GitHub Actions | Repo público | Pasada cada 30 min con `worker:tick`. |
 | Base de datos | Neon free | Plan gratuito de Neon | Conexión pooled para API y directa para el tick. |
 | Correo | Resend free | 100 correos/día | Requiere dominio verificado en Resend. |
 
@@ -195,7 +195,7 @@ API_PROXY_TARGET=https://fabsoft-api.onrender.com
 
 ### 8.2 Worker sin Background Worker
 
-`backend/scripts/worker-tick.ts` ejecuta una pasada de los cuatro casos de uso (`expire`, `reconcile`, `dispatch`, `cleanup`) y termina. No usa pg-boss; conserva el rol `fabsoft_worker` y las mismas reglas de negocio. El workflow [`.github/workflows/worker-tick.yml`](../.github/workflows/worker-tick.yml) lo ejecuta cada 10 minutos.
+`backend/scripts/worker-tick.ts` ejecuta una pasada de los cuatro casos de uso (`expire`, `reconcile`, `dispatch`, `cleanup`) y termina. No usa pg-boss; conserva el rol `fabsoft_worker` y las mismas reglas de negocio. El workflow [`.github/workflows/worker-tick.yml`](../.github/workflows/worker-tick.yml) lo ejecuta cada 30 minutos para no agotar las horas de cómputo de Neon free.
 
 La API free se mantiene despierta en horario laboral (06:00–18:50 America/Bogota) con [`.github/workflows/api-keepalive.yml`](../.github/workflows/api-keepalive.yml). Así consume ~400 h/mes de las 750 h gratuitas del workspace, que son **compartidas** con otros servicios free de Render. Fuera de esa ventana el primer request tarda ~50 s.
 
@@ -218,6 +218,7 @@ Limitaciones aceptadas de este modo gratuito:
 - El cron de GitHub puede retrasarse varios minutos y se desactiva tras 60 días sin actividad en el repo.
 - El worker deja de ser un proceso persistente: la cola pg-boss no se usa en este modo; las notificaciones se procesan en cada pasada.
 - Las 750 h/mes de Render son del **workspace**, no por servicio. Este repo ya comparte workspace con otros servicios free: si todos se usan mucho, Render puede suspender instancias hasta el siguiente mes.
+- Neon free incluye ~191.9 h/mes de cómputo. El tick cada 30 min y el autosuspend del plan mantienen el consumo bajo; la cuenta free no permite cambiar `suspend_timeout_seconds` (la API responde `412`).
 - No agregues un segundo servicio Render free siempre activo para FabSoft.
 
 Cuando haya presupuesto, el cambio a Render Starter + Background Worker es directo: crear el worker con `worker:start`, retirar el workflow y dejar de hacer el health check periódico.

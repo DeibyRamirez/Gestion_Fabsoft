@@ -2,8 +2,9 @@ name: worker-tick
 
 on:
   schedule:
-    # Cada 10 minutos: aproximación gratuita al worker persistente.
-    - cron: '*/10 * * * *'
+    # Cada 30 minutos: aproximación gratuita al worker persistente sin agotar
+    # las horas de cómputo de Neon free.
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 concurrency:
