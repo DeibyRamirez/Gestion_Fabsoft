@@ -140,7 +140,7 @@ Opciones válidas:
   - `APP_ENV=prod`, `NODE_ENV=production`
   - `DB_PROVIDER=postgres`
   - `DATABASE_URL` (pooled de Neon)
-  - `DATABASE_SSL_MODE=verify-full` + `DATABASE_SSL_CA`
+  - `DATABASE_SSL_MODE=verify-full` (Neon funciona con las CAs del sistema; `DATABASE_SSL_CA` sólo si usas una CA propia)
   - `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEYS`, `JWT_ACTIVE_KID`
   - `API_KEY_PEPPER`, `API_KEY_ENV=live`
   - `CORS_ALLOWED_ORIGINS=https://app.tudominio.com`
@@ -168,3 +168,53 @@ Opciones válidas:
 ### Regla de oro
 
 No ejecutes `pnpm db:seed` en Neon/Render. Las migraciones sólo crean referencia; el primer admin se crea con `primeradmin:db` y los operadores los crea ese admin desde la aplicación.
+
+## 8. Despliegue 100 % gratuito (Vercel Hobby + Render free + Neon free + Resend free)
+
+Render **no permite Background Workers en el plan free**: la API responde `402`/`only web services allowed for plan`. Para un despliegue sin tarjeta se usa este esquema:
+
+| Componente | Plataforma | Límite gratuito | Nota |
+|---|---|---|---|
+| Frontend | Vercel Hobby | — | `NEXT_PUBLIC_API_BASE_URL=/api/v1` y proxy same-origin. |
+| API | Render Web Service free | 750 h/mes | Se duerme tras 15 min sin tráfico. |
+| Worker | GitHub Actions | Repo público | Pasada cada 10 min con `worker:tick`. |
+| Base de datos | Neon free | Plan gratuito de Neon | Conexión pooled para API y directa para el tick. |
+| Correo | Resend free | 100 correos/día | Requiere dominio verificado en Resend. |
+
+### 8.1 Proxy same-origin en Vercel
+
+Sin dominio propio, el frontend (`*.vercel.app`) y la API (`*.onrender.com`) son sitios distintos. La cookie de refresh es `SameSite=Strict`, así que el navegador no la enviaría. La solución es proxear el API bajo el mismo origen:
+
+```env
+# Vercel → Settings → Environment Variables
+NEXT_PUBLIC_API_BASE_URL=/api/v1
+API_PROXY_TARGET=https://fabsoft-api.onrender.com
+```
+
+`API_PROXY_TARGET` se usa en `frontend/next.config.ts` para reescribir `/api/v1/*` hacia Render. No es `NEXT_PUBLIC_*`: no se expone al navegador. En local debe quedar sin definir.
+
+### 8.2 Worker sin Background Worker
+
+`backend/scripts/worker-tick.ts` ejecuta una pasada de los cuatro casos de uso (`expire`, `reconcile`, `dispatch`, `cleanup`) y termina. No usa pg-boss; conserva el rol `fabsoft_worker` y las mismas reglas de negocio. El workflow [`.github/workflows/worker-tick.yml`](../.github/workflows/worker-tick.yml) lo ejecuta cada 10 minutos y, en el mismo job, hace un `GET /api/v1/health` para mantener despierta la API free.
+
+Secretos del repositorio (Settings → Secrets and variables → Actions):
+
+- `WORKER_DATABASE_URL`: conexión **directa** de Neon con `fabsoft_worker`.
+- `RESEND_API_KEY`: clave de Resend.
+- `CORREO_DESDE`: remitente verificado, p. ej. `FabSoft <alertas@send.ejemplo.com>`.
+
+Disparo manual para probar:
+
+```bash
+gh workflow run worker-tick.yml
+# o desde Actions → worker-tick → Run workflow
+```
+
+Limitaciones aceptadas de este modo gratuito:
+
+- La API free se duerme si GitHub Actions deja de ejecutarse; el primer request puede tardar ~50 s.
+- El cron de GitHub puede retrasarse varios minutos y se desactiva tras 60 días sin actividad en el repo.
+- El worker deja de ser un proceso persistente: la cola pg-boss no se usa en este modo; las notificaciones se procesan en cada pasada.
+- Un solo servicio free de Render evita superar las 750 h/mes. No agregues un segundo servicio free siempre activo.
+
+Cuando haya presupuesto, el cambio a Render Starter + Background Worker es directo: crear el worker con `worker:start`, retirar el workflow y dejar de hacer el health check periódico.
