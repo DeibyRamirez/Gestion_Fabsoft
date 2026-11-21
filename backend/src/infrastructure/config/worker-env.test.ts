@@ -37,6 +37,39 @@ describe('loadWorkerEnv', () => {
     ).toBe('resend');
   });
 
+  it('con CORREO_CANAL=smtp exige host y remitente', () => {
+    const base = {
+      WORKER_DATABASE_URL: 'postgres://fabsoft_worker:x@localhost:54320/fabsoft',
+      CORREO_CANAL: 'smtp',
+    };
+    expect(() => loadWorkerEnv(base)).toThrow(/SMTP_HOST/);
+    expect(() => loadWorkerEnv({ ...base, SMTP_HOST: 'smtp.example.test' })).toThrow(
+      /CORREO_DESDE/,
+    );
+
+    const env = loadWorkerEnv({
+      ...base,
+      SMTP_HOST: 'smtp.example.test',
+      CORREO_DESDE: 'FabSoft <alertas@fabsoft.test>',
+    });
+    expect(env.CORREO_CANAL).toBe('smtp');
+    expect(env.SMTP_PORT).toBe(587);
+    expect(env.SMTP_SECURE).toBe(false);
+    expect(env.SMTP_REJECT_UNAUTHORIZED).toBe(true);
+  });
+
+  it('SMTP_USER y SMTP_PASSWORD deben ir juntos', () => {
+    expect(() =>
+      loadWorkerEnv({
+        WORKER_DATABASE_URL: 'postgres://fabsoft_worker:x@localhost:54320/fabsoft',
+        CORREO_CANAL: 'smtp',
+        SMTP_HOST: 'smtp.example.test',
+        CORREO_DESDE: 'FabSoft <alertas@fabsoft.test>',
+        SMTP_USER: 'usuario',
+      }),
+    ).toThrow(/SMTP_USER y SMTP_PASSWORD/);
+  });
+
   it('WORKER_RUN_ON_START=false se interpreta como false', () => {
     const env = loadWorkerEnv({
       WORKER_DATABASE_URL: 'postgres://fabsoft_worker:x@localhost:54320/fabsoft',

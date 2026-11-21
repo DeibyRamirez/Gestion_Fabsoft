@@ -8,8 +8,8 @@
 |---|---|---|---|---|
 | **dev** (local) | Desarrollo | `postgres:16` en docker-compose (`localhost:54320`) | `CORREO_CANAL=log` | Seed demo (`docs/seed-data.md`) |
 | **test** (CI y local) | Tests automatizados | `postgres:16` efímero (`localhost:54329`, `tmpfs`) | `log` / fakes | Fábricas por test |
-| **staging** (recomendado) | Validación previa a release, ensayo de migración | Proyecto Supabase separado (fase 1) / BD separada en VPS (fase 2) | Resend con dominio de pruebas y lista blanca de destinatarios | Seed demo, nunca datos reales |
-| **prod** | Operación | Supabase (fase 1) → VPS (fase 2) | Resend (dominio verificado) | Reales |
+| **staging** (recomendado) | Validación previa a release, ensayo de migración | Proyecto Supabase separado (fase 1) / BD separada en VPS (fase 2) | Resend o SMTP con dominio de pruebas y lista blanca de destinatarios | Seed demo, nunca datos reales |
+| **prod** | Operación | Supabase (fase 1) → VPS (fase 2) | Resend o SMTP con dominio verificado | Reales |
 
 Cada entorno tiene sus **propios** secretos, claves JWT, pepper y proyecto/BD. Nunca se apunta un entorno no productivo a la BD de producción.
 
@@ -19,8 +19,9 @@ Cada entorno tiene sus **propios** secretos, claves JWT, pepper y proyecto/BD. N
 |---|---|---|
 | `NODE_ENV` | api, worker | `development` / `test` / `production` |
 | `APP_ENV` | api, worker | `dev` / `test` / `staging` / `prod` (logs) |
+| `APP_VERSION` | api | Opcional; default `0.1.0`, se muestra en `/health` |
 | `PORT` | api | `4000` |
-| `DB_PROVIDER` | api, worker | `supabase` \| `postgres` (selecciona adaptador, ADR-008) |
+| `DB_PROVIDER` | api | `supabase` \| `postgres` (selecciona adaptador, ADR-008). El worker siempre usa conexión directa |
 | `DATABASE_URL` | api | Rol `fabsoft_app` (sólo API; no se comparte con el worker). Supabase: `postgresql://fabsoft_app.<ref>:<pwd>@aws-0-<region>.pooler.supabase.com:6543/postgres` (modo transacción) |
 | `WORKER_DATABASE_URL` | worker | Rol **`fabsoft_worker`** (separado desde `0003`; credencial propia, nunca la de la API). Supabase: mismo host puerto **5432** (modo sesión) o conexión directa |
 | `DATABASE_MIGRATION_URL` | CI/CD (dbmate) | Rol propietario (`postgres` en Supabase, `fabsoft_owner` en VPS). Nunca en contenedores de la app |
@@ -41,17 +42,19 @@ Cada entorno tiene sus **propios** secretos, claves JWT, pepper y proyecto/BD. N
 | `API_KEY_ENV` | api | `live` (prod) / `test` (resto) → prefijo `fsk_live_`/`fsk_test_` |
 | `CORS_ALLOWED_ORIGINS` | api | `https://app.fabsoft.example` |
 | `COOKIE_DOMAIN` | api | `api.fabsoft.example` (host-only si se omite) |
-| `BUSINESS_TIMEZONE` | api, worker | `America/Bogota` (fijo) |
-| `CORREO_CANAL` | worker | `log` \| `resend` |
-| `RESEND_API_KEY` | worker | Sólo worker |
+| `BUSINESS_TIMEZONE` | worker | `America/Bogota`; sólo afecta los cron de pg-boss |
+| `CORREO_CANAL` | worker | `log` \| `resend` \| `smtp` |
+| `RESEND_API_KEY` | worker | Obligatoria con `CORREO_CANAL=resend` |
 | `RESEND_MAX_RPS` | worker | `2` |
-| `CORREO_DESDE` | worker | `FabSoft <alertas@fabsoft.example>` |
+| `CORREO_DESDE` | worker | Remitente; obligatorio con `resend` o `smtp` |
+| `SMTP_HOST` | worker | Obligatorio con `CORREO_CANAL=smtp` |
+| `SMTP_PORT` | worker | `587` (465 si `SMTP_SECURE=true`) |
+| `SMTP_SECURE` | worker | `false` en 587/STARTTLS; `true` en 465 |
+| `SMTP_USER` / `SMTP_PASSWORD` | worker | Opcionales; si se usan, deben configurarse juntos |
+| `SMTP_REJECT_UNAUTHORIZED` | worker | `true`; no desactivar en producción |
 | `FRONTEND_URL` | worker | Enlaces en correos |
-| `LOG_LEVEL` | api, worker | `info` |
-| `MAINTENANCE_MODE` | api | `false` (true ⇒ 503 en escrituras) |
 | `OPENAPI_SPEC_PATH` | api | Opcional: ruta absoluta a `docs/api/openapi.json` si la imagen no incluye `docs/` |
 | `NEXT_PUBLIC_API_BASE_URL` | frontend | `https://api.fabsoft.example/api/v1` |
-| `NEXT_PUBLIC_APP_ENV` | frontend | `prod` |
 
 `backend/src/infrastructure/config/env.ts` valida las variables de la API al arrancar y aborta si falta algo. [`backend/.env.example`](../backend/.env.example) y [`frontend/.env.example`](../frontend/.env.example) documentan cada variable sin valores reales. En producción cada servicio recibe su propio conjunto (archivo env en el VPS, secretos del proveedor de BD, variables del panel de Vercel/Netlify para el frontend, etc.); no hay un `.env` unificado en la raíz del monorepo.
 
@@ -154,7 +157,7 @@ Las migraciones crean `fabsoft_app`, `fabsoft_worker` (0003), `fabsoft_secure_vi
    alter role fabsoft_worker set statement_timeout = '60s';
    ```
    `fabsoft_worker` no tiene BYPASSRLS ni CREATE en la BD; sólo es propietario del esquema `pgboss`.
-3. Componer `WORKER_DATABASE_URL` en el gestor y montarla **sólo** en el contenedor del worker. La API usa `DATABASE_URL` con `fabsoft_app` (mismo procedimiento con su propio secreto). `env.ts` rechaza un `WORKER_DATABASE_URL` que no use `fabsoft_worker`.
+3. Componer `WORKER_DATABASE_URL` en el gestor y montarla **sólo** en el contenedor del worker. La API usa `DATABASE_URL` con `fabsoft_app` (mismo procedimiento con su propio secreto). `worker-env.ts` rechaza un `WORKER_DATABASE_URL` que no use `fabsoft_worker`.
 4. Instalar las tablas de pg-boss con el rol propietario **una vez por base** antes de arrancar el worker (pg-boss no puede crear el esquema si el worker no tiene `CREATE ON DATABASE`):
    ```bash
    DATABASE_PROVISION_URL=postgres://fabsoft_owner:...@host:5432/fabsoft \
@@ -184,3 +187,13 @@ Las migraciones crean `fabsoft_app`, `fabsoft_worker` (0003), `fabsoft_secure_vi
 1. `grant fabsoft_bootstrap to <operador_o_rol_ci>;` (o `alter role fabsoft_bootstrap login password :'pwd'` con secreto temporal).
 2. Ejecutar `pnpm --filter @fabsoft/backend admin:create ...` con esa conexión; la contraseña temporal se entrega por canal seguro (cambio obligatorio al primer login).
 3. Revocar: `revoke fabsoft_bootstrap from <rol>;` o `alter role fabsoft_bootstrap nologin password null;`.
+
+## 8. Despliegue alternativo en Vercel
+
+El frontend Next.js puede desplegarse en Vercel, pero la API, el worker pg-boss y PostgreSQL tienen requisitos distintos. Guía completa: [`docs/vercel.md`](vercel.md).
+
+Resumen:
+- Vercel: frontend y, opcionalmente, API como función serverless.
+- Worker: proceso persistente en Render/Railway/Fly/VPS; no serverless.
+- BD: PostgreSQL gestionado (Supabase/Neon/RDS), no el Docker local.
+- Migraciones: job externo con `DATABASE_MIGRATION_URL`, nunca en el build de Vercel.

@@ -3,10 +3,8 @@ import { CleanupMaintenance } from './application/maintenance/cleanup/use-case.j
 import { ReconcileAlerts } from './application/alerts/reconcile-alerts/use-case.js';
 import { DispatchNotifications } from './application/notifications/dispatch-notifications/use-case.js';
 import { ExpireSubscriptions } from './application/subscriptions/expire-subscriptions/use-case.js';
-import type { EmailSender } from './application/notifications/shared/email-sender.js';
 import { buildWorkerInfra } from './composition/worker-infra.js';
-import { LogEmailSender } from './infrastructure/email/log-email-sender.js';
-import { ResendEmailSender } from './infrastructure/email/resend-email-sender.js';
+import { createEmailSender } from './infrastructure/email/create-email-sender.js';
 import { loadWorkerEnv } from './infrastructure/config/worker-env.js';
 
 const QUEUES = {
@@ -20,14 +18,7 @@ const log = (entry: Record<string, unknown>) => console.log(JSON.stringify(entry
 
 const env = loadWorkerEnv();
 const infra = await buildWorkerInfra(env);
-const emailSender: EmailSender =
-  env.CORREO_CANAL === 'resend'
-    ? new ResendEmailSender({
-        apiKey: env.RESEND_API_KEY!,
-        from: env.CORREO_DESDE,
-        maxRps: env.RESEND_MAX_RPS,
-      })
-    : new LogEmailSender(log);
+const emailSender = createEmailSender(env, log);
 
 const expire = new ExpireSubscriptions(infra.workerUow, infra.clock);
 const reconcile = new ReconcileAlerts(infra.workerUow, infra.clock);

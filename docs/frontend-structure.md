@@ -8,7 +8,7 @@
 2. **Componentes cliente para datos** (TanStack Query) — el access token vive en memoria del navegador, por lo que las llamadas autenticadas se hacen desde el cliente. Los Server Components se usan para layout estático, metadatos y páginas públicas (login).
 3. **Organización por módulo funcional** (`src/features/<módulo>`), alineada con los módulos del backend.
 4. **Tipos y validación compartidos** desde `@fabsoft/shared` (DTOs Zod). Nunca se duplican enums ni esquemas.
-5. Variables públicas sólo con prefijo `NEXT_PUBLIC_` y nunca secretas: `NEXT_PUBLIC_API_BASE_URL`, `NEXT_PUBLIC_APP_ENV`.
+5. Variables públicas sólo con prefijo `NEXT_PUBLIC_` y nunca secretas: `NEXT_PUBLIC_API_BASE_URL`.
 
 ## 2. Árbol
 

@@ -1,11 +1,11 @@
 # Alertas y notificaciones — FabSoft
 
-> Decisión: ADR-005 (Resend detrás de worker pg-boss). Tabla: `app.notifications`. Reglas: RN-08, RN-09, RN-10. Funcional §6.7 y Flujo B.
+> Decisión: ADR-005 (correo detrás de worker pg-boss). Tabla: `app.notifications`. Reglas: RN-08, RN-09, RN-10. Funcional §6.7 y Flujo B.
 
 ## 1. Conceptos
 
 - **Alerta** = fila en `notifications` (informa). **Tarea** = fila en `tasks` (acción). Una regla puede crear ambas, pero son entidades distintas (§4 funcional).
-- Cada alerta tiene **canal** (`in_app` siempre disponible; `email` vía Resend) y **destinatario** (`recipient_user_id`).
+- Cada alerta tiene **canal** (`in_app` siempre disponible; `email` vía Resend o SMTP) y **destinatario** (`recipient_user_id`).
 - La BD es la única fuente de verdad de fechas (no calendarios externos).
 
 ## 2. Política por defecto (configurable en `/api/v1/alert-rules`)
@@ -22,7 +22,7 @@
 - **Fecha programada:** `scheduled_for = (current_period_end − offset_days) a las 08:00 America/Bogota` (13:00 UTC).
 - **Destinatarios** (pregunta funcional 8 pendiente; regla inicial): responsable de la suscripción (`subscriptions.owner_user_id`) → si es nulo, responsable del cliente (`clients.owner_user_id`) → si es nulo, todos los admins activos. Sólo usuarios internos activos.
 - Las tareas automáticas se asignan al mismo destinatario principal, con `due_date = fecha de la alerta + 2 días` (y nunca posterior al vencimiento para reglas previas).
-- **Email:** habilitado por regla (`channels`) y globalmente por `CORREO_CANAL=resend`. Con `CORREO_CANAL=log` (dev/test) el envío se escribe en log y se marca `enviada`.
+- **Email:** habilitado por regla (`channels`) y globalmente por `CORREO_CANAL=resend|smtp`. Con `CORREO_CANAL=log` (dev/test) el envío se escribe en log y se marca `enviada`.
 - **Plantilla:** asunto y cuerpo editables desde `/admin/alert-rules` mediante `GET/PATCH /api/v1/alert-rules/email-template`; se guardan en `app_settings` (`key=alert_email_template`) y el worker las aplica a los correos de vencimiento. Placeholders: `{{recipientName}}`, `{{clientName}}`, `{{productName}}`, `{{periodEnd}}`, `{{ruleCode}}`, `{{subscriptionUrl}}`, `{{frontendUrl}}`. `/alert-rules` configura además umbrales, canales, creación de tarea y excepción RN-10.
 
 ## 3. Programación (scheduling)
@@ -33,7 +33,7 @@ sequenceDiagram
   participant DB as PostgreSQL
   participant Q as pg-boss
   participant W as Worker
-  participant R as Resend
+  participant R as Proveedor correo (Resend/SMTP)
   UC->>DB: crea/renueva/corrige suscripción (tx)
   UC->>DB: INSERT notifications ... ON CONFLICT (dedupe_key) DO NOTHING (misma tx)
   UC->>DB: INSERT tasks automáticas de reglas creates_task (misma tx)
@@ -41,8 +41,8 @@ sequenceDiagram
   W->>DB: SELECT ... FOR UPDATE SKIP LOCKED (due, pendiente)
   W->>DB: in_app → status=enviada
   W->>DB: email → attempts+1, locked_until=now()+2min (commit)
-  W->>R: POST /emails (Idempotency-Key = dedupe_key)
-  R-->>W: 200 id / error
+  W->>R: POST /emails o sendMail SMTP (idempotencia por cabecera)
+  R-->>W: 200/id o error
   W->>DB: enviada (provider_message_id) | pendiente + next_attempt_at | fallida
 ```
 
@@ -66,7 +66,7 @@ Una misma regla nunca produce dos filas para la misma suscripción y periodo (y 
 ```mermaid
 stateDiagram-v2
   [*] --> pendiente
-  pendiente --> enviada : entregado (in_app visible / Resend 2xx)
+  pendiente --> enviada : entregado (in_app visible / proveedor 2xx)
   pendiente --> pendiente : fallo recuperable (attempts+1, next_attempt_at)
   pendiente --> fallida : fallo permanente o attempts = max_attempts
   pendiente --> cancelada : recálculo / renovación / cancelación / no elegible
@@ -90,11 +90,12 @@ stateDiagram-v2
 | 5 | → `fallida` |
 
 - Jitter ±20 % para no sincronizar reintentos. `max_attempts` por defecto 5 (1–10).
-- **Clasificación de errores** (`ResendEmailSender`):
-  - Recuperables: timeout/red, HTTP 429 (respeta `Retry-After` si es mayor que el backoff), 5xx.
-  - Permanentes ⇒ `fallida` inmediato: 400/401/403/404/422 (p. ej. dirección inválida, dominio no verificado, clave inválida). Un 401/403 además emite log `error` "credencial Resend inválida".
-- **Caída del worker tras enviar y antes de marcar `enviada`:** `locked_until` expira (2 min) y la fila se vuelve a reclamar; Resend deduplica por `Idempotency-Key` durante 24 h, así que no hay correo duplicado.
-- **Límite de tasa:** `RESEND_MAX_RPS` (por defecto 2) aplicado por el adaptador; el lote por ejecución es de 50 notificaciones.
+- **Clasificación de errores** (`ResendEmailSender` o `SmtpEmailSender`):
+  - Recuperables: timeout/red, HTTP 429 (respeta `Retry-After` si es mayor que el backoff), 5xx, códigos SMTP 4xx.
+  - Permanentes ⇒ `fallida` inmediato: 400/401/403/404/422 (p. ej. dirección inválida, dominio no verificado, clave inválida), `EAUTH`/`EENVELOPE`/`EMESSAGE` y códigos SMTP 5xx.
+- **Selección de proveedor:** `CORREO_CANAL=log|resend|smtp`. El worker sólo depende del puerto `EmailSender`; `createEmailSender` inyecta `ResendEmailSender`, `SmtpEmailSender` o `LogEmailSender`. Cambiar de proveedor es cambiar variables, no código.
+- **Caída del worker tras enviar y antes de marcar `enviada`:** `locked_until` expira (2 min) y la fila se vuelve a reclamar; Resend deduplica por `Idempotency-Key` durante 24 h. En SMTP la cabecera `X-Idempotency-Key` es informativa y el servidor puede no deduplicar.
+- **Límite de tasa:** `RESEND_MAX_RPS` (por defecto 2) aplicado sólo al adaptador Resend; el lote por ejecución es de 50 notificaciones.
 
 ## 6. Recálculo
 
@@ -118,7 +119,7 @@ stateDiagram-v2
 
 - Plantilla editable en `app_settings` con asunto y cuerpo en texto plano; placeholders permitidos: cliente, producto, fecha de vencimiento, regla, enlace a la suscripción y URL del frontend. El contenido por defecto se mantiene en `DEFAULT_ALERT_EMAIL_TEMPLATE` y se usa si aún no hay configuración guardada.
 - Sin precio ni costo en el correo (minimizar datos sensibles en buzones).
-- Remitente `CORREO_DESDE` en dominio verificado en Resend.
+- Remitente `CORREO_DESDE` en un dominio verificado en Resend o autorizado por el servidor SMTP.
 
 ## 9. Observabilidad
 
