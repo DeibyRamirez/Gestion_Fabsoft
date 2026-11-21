@@ -31,16 +31,15 @@ describe('ChangePasswordForm', () => {
     expect(current).toHaveAttribute('type', 'password');
     expect(next).toHaveAttribute('type', 'password');
 
-    const [showCurrent, showNext] = screen.getAllByRole('button', {
-      name: 'Mostrar contraseña',
-    });
-    await userEvent.click(showCurrent!);
+    await userEvent.click(screen.getByRole('button', { name: 'Mostrar la contraseña actual' }));
     expect(current).toHaveAttribute('type', 'text');
     expect(next).toHaveAttribute('type', 'password');
 
-    await userEvent.click(showNext!);
+    await userEvent.click(screen.getByRole('button', { name: 'Mostrar la nueva contraseña' }));
     expect(next).toHaveAttribute('type', 'text');
-    expect(screen.getAllByRole('button', { name: 'Ocultar contraseña' })).toHaveLength(2);
+    expect(
+      screen.getByRole('button', { name: 'Ocultar la contraseña actual' }),
+    ).toBeInTheDocument();
   });
 
   it('avisa del cambio obligatorio y rechaza contraseñas cortas sin llamar a la API', async () => {

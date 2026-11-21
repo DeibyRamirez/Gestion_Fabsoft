@@ -67,6 +67,7 @@ export function ChangePasswordForm() {
           id="current-password"
           name="currentPassword"
           autoComplete="current-password"
+          toggleLabel="la contraseña actual"
           required
         />
       </FormField>
@@ -79,6 +80,7 @@ export function ChangePasswordForm() {
           id="new-password"
           name="newPassword"
           autoComplete="new-password"
+          toggleLabel="la nueva contraseña"
           minLength={PASSWORD_MIN_LENGTH}
           required
         />
