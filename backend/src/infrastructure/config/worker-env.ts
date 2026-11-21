@@ -17,10 +17,16 @@ const WorkerEnvSchema = z
     DATABASE_SSL_CA: z.string().optional(),
     DB_POOL_MAX: z.coerce.number().int().positive().default(4),
     BUSINESS_TIMEZONE: z.string().default('America/Bogota'),
-    CORREO_CANAL: z.enum(['log', 'resend']).default('log'),
+    CORREO_CANAL: z.enum(['log', 'resend', 'smtp']).default('log'),
     RESEND_API_KEY: z.string().optional(),
     CORREO_DESDE: z.string().trim().optional(),
     RESEND_MAX_RPS: z.coerce.number().int().positive().default(2),
+    SMTP_HOST: z.string().trim().optional(),
+    SMTP_PORT: z.coerce.number().int().positive().max(65535).default(587),
+    SMTP_SECURE: booleanEnv.default(false),
+    SMTP_USER: z.string().trim().optional(),
+    SMTP_PASSWORD: z.string().optional(),
+    SMTP_REJECT_UNAUTHORIZED: booleanEnv.default(true),
     FRONTEND_URL: z.string().url().default('http://localhost:3000'),
     WORKER_BATCH_SIZE: z.coerce.number().int().positive().max(500).default(50),
     WORKER_RUN_ON_START: booleanEnv.default(true),
@@ -41,11 +47,29 @@ const WorkerEnvSchema = z
           message: 'RESEND_API_KEY es obligatoria con CORREO_CANAL=resend',
         });
       }
+    }
+    if (env.CORREO_CANAL === 'resend' || env.CORREO_CANAL === 'smtp') {
       if (!env.CORREO_DESDE?.trim()) {
         ctx.addIssue({
           code: 'custom',
           path: ['CORREO_DESDE'],
-          message: 'CORREO_DESDE es obligatorio con CORREO_CANAL=resend',
+          message: 'CORREO_DESDE es obligatorio con CORREO_CANAL=resend|smtp',
+        });
+      }
+    }
+    if (env.CORREO_CANAL === 'smtp') {
+      if (!env.SMTP_HOST) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SMTP_HOST'],
+          message: 'SMTP_HOST es obligatorio con CORREO_CANAL=smtp',
+        });
+      }
+      if (Boolean(env.SMTP_USER) !== Boolean(env.SMTP_PASSWORD)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SMTP_USER'],
+          message: 'SMTP_USER y SMTP_PASSWORD deben configurarse juntos',
         });
       }
     }

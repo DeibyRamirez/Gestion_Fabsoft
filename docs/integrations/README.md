@@ -99,9 +99,123 @@ curl -s -X POST https://api.fabsoft.example/api/v1/renewal-requests \
 
 ## 6. Auditoría y datos
 
-- Lecturas: log de acceso (`pino-http`, con `integrationId`, ruta, estado, latencia). Escrituras: `audit_logs` con `actor_type='integration'`.
+- Lecturas: logs JSON del API (con `integrationId`, ruta, estado y latencia cuando se instrumente). Escrituras: `audit_logs` con `actor_type='integration'`.
 - Las integraciones nunca reciben `supplierCostAmount` ni notas internas.
 
 ## 7. Futuro (no MVP)
 
 Webhooks (sólo si aparece un consumidor real, §6.9) y OAuth2 *client credentials*. Requieren ADR.
+
+## 8. Pruebas manuales de una integración
+
+### 8.1 Para qué sirve el módulo
+
+El módulo de integraciones permite que un CRM, ERP, mesa de ayuda o cualquier sistema externo consulte clientes, productos, suscripciones, tareas y solicitudes **sin conectarse a PostgreSQL**. Cada integración tiene:
+
+- identidad propia (no usa el usuario de una persona),
+- API keys con hash HMAC y revocación,
+- scopes mínimos,
+- alcance de clientes (`all` u `own`),
+- rate limit,
+- idempotencia en escrituras,
+- auditoría de sus operaciones.
+
+No es un webhook ni un conector específico con Microsoft/Google: es una **API REST de solo lectura + creación de solicitudes de renovación** para sistemas externos.
+
+### 8.2 Crear la integración en local
+
+1. Levanta API (`pnpm --filter @fabsoft/backend dev`), frontend (`pnpm --filter @fabsoft/frontend dev`) y la base local.
+2. Entra como admin a `http://localhost:3000/admin/integrations`.
+3. Crea una integración con un manifest como este:
+
+```json
+{
+  "manifest_schema_version": 1,
+  "integration": "crm-acme",
+  "version": "1.0.0",
+  "display_name": "CRM Acme",
+  "description": "Prueba de integración externa",
+  "scopes": [
+    "clients:read",
+    "subscriptions:read",
+    "renewal-requests:read",
+    "renewal-requests:write"
+  ],
+  "client_scope": "all",
+  "rate_limit_per_minute": 60
+}
+```
+
+4. Abre el detalle de la integración y emite una credencial. La API key se muestra **una sola vez**; guárdala en una variable de entorno, nunca en el repositorio.
+
+### 8.3 Consumir la API como sistema externo
+
+PowerShell:
+
+```powershell
+$env:FABSOFT_API_KEY = 'fsk_test_...'
+$base = 'http://localhost:4000/api/v1'
+
+curl.exe -s "$base/subscriptions/expiring?withinDays=30&page=1&pageSize=50" `
+  -H "X-Api-Key: $env:FABSOFT_API_KEY"
+```
+
+Bash:
+
+```bash
+export FABSOFT_API_KEY='fsk_test_...'
+curl -s "http://localhost:4000/api/v1/subscriptions/expiring?withinDays=30&page=1&pageSize=50" \
+  -H "X-Api-Key: $FABSOFT_API_KEY"
+```
+
+Reglas de autenticación:
+
+- Usa **solo** `X-Api-Key`; no envíes `Authorization: Bearer` en la misma petición.
+- La API key no es un usuario humano y no sirve para rutas de administración.
+- Si la integración está `deshabilitada`, la key está revocada o expiró, la respuesta es `401 unauthenticated`.
+- Si falta un scope, la respuesta es `403 insufficient_scope`.
+
+### 8.4 Matriz mínima de pruebas
+
+| Caso | Acción | Resultado esperado |
+|---|---|---|
+| Lectura permitida | `GET /clients` con `clients:read` | `200` con solo los clientes del alcance |
+| Scope faltante | Quitar `clients:read` del manifest y repetir | `403 insufficient_scope` |
+| Alcance `own` | Manifest con `client_scope=own` y `client_ids` | Solo esos clientes; otro id ⇒ `404` |
+| Key inválida | Enviar `X-Api-Key` incorrecta | `401 unauthenticated` |
+| Key revocada | Revocar credencial y repetir | `401 unauthenticated` |
+| Integración deshabilitada | `PATCH /integrations/{id}` con `status: "deshabilitada"` | `401` en todas las rutas |
+| Rate limit | Superar `rate_limit_per_minute` | `429 rate_limited` + `Retry-After` |
+| Idempotencia | Repetir `POST /renewal-requests` con la misma `Idempotency-Key` y cuerpo | Misma respuesta, `Idempotency-Replayed: true` |
+| Idempotencia reusable | Misma key con cuerpo distinto | `422 idempotency_key_reused` |
+| Auditoría | Consultar `GET /audit-logs?actorType=integration` | Evento de la integración |
+| Datos internos | Revisar una suscripción devuelta | Sin `supplierCostAmount` ni `notes` |
+
+### 8.5 Simular un sistema externo real
+
+Para una prueba de concepto puedes usar Postman, Insomnia o un script Node:
+
+```js
+const base = 'http://localhost:4000/api/v1';
+const res = await fetch(`${base}/subscriptions/expiring?withinDays=30`, {
+  headers: { 'X-Api-Key': process.env.FABSOFT_API_KEY },
+});
+if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+console.log(await res.json());
+```
+
+Para probar desde otra máquina o desde un sistema externo real:
+
+1. Despliega la API en un entorno accesible por HTTPS (staging/VPS).
+2. Crea la integración allí y emite una key de ese entorno.
+3. Configura el sistema externo con la URL base y la key en su gestor de secretos.
+4. Verifica firewall/TLS; el consumo es servidor-a-servidor, no depende de CORS.
+5. Si el sistema externo necesita reaccionar a cambios sin consultar, eso requiere webhooks: **no están implementados en el MVP**.
+
+### 8.6 Limitaciones actuales
+
+- No hay webhooks ni suscripciones push.
+- No hay OAuth2 *client credentials*; se usa API key.
+- El rate limit se aplica en memoria por instancia de API; con varias réplicas cada una tiene su propia ventana.
+- Las integraciones no pueden cancelar, renovar ni modificar suscripciones; solo crear solicitudes de renovación.
+- Las lecturas no reemplazan la auditoría de negocio; las escrituras sí quedan en `audit_logs`.

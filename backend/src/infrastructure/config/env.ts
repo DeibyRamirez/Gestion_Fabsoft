@@ -18,10 +18,6 @@ const EnvSchema = z
     APP_VERSION: z.string().default('0.1.0'),
     DB_PROVIDER: z.enum(['supabase', 'postgres']).default('postgres'),
     DATABASE_URL: z.string().url().optional(),
-    /** Rol fabsoft_worker (0003 M1): sólo el worker; pg-boss en el esquema pgboss. */
-    WORKER_DATABASE_URL: z.string().url().optional(),
-    /** Rol fabsoft_bootstrap (0005): sólo scripts/create-admin.ts. Nunca en la API. */
-    BOOTSTRAP_DATABASE_URL: z.string().url().optional(),
     DATABASE_SSL_MODE: z.enum(['disable', 'require', 'verify-full']).default('disable'),
     DATABASE_SSL_CA: z.string().optional(),
     DB_POOL_MAX: z.coerce.number().int().positive().default(10),
@@ -53,20 +49,9 @@ const EnvSchema = z
     LOGIN_IP_BLOCK_MINUTES: z.coerce.number().int().positive().default(15),
   })
   .superRefine((env, ctx) => {
-    if (
-      env.WORKER_DATABASE_URL &&
-      !/^postgres(ql)?:\/\/fabsoft_worker[.:@]/.test(env.WORKER_DATABASE_URL)
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['WORKER_DATABASE_URL'],
-        message: 'Debe usar el rol fabsoft_worker',
-      });
-    }
     if (env.APP_ENV === 'staging' || env.APP_ENV === 'prod') {
       for (const key of [
         'DATABASE_URL',
-        'WORKER_DATABASE_URL',
         'JWT_PRIVATE_KEY',
         'JWT_PUBLIC_KEYS',
         'API_KEY_PEPPER',

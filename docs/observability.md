@@ -2,7 +2,9 @@
 
 > Alcance proporcional al tamaño (2–5 usuarios internos, pocas integraciones): logs estructurados, health checks, métricas derivadas de la BD y alertas operativas simples. Sin stack de métricas dedicado en el MVP.
 
-## 1. Logs (pino + pino-http)
+## 1. Logs (JSON a stdout)
+
+> El MVP actual emite JSON con `console.log`; pino/pino-http y `LOG_LEVEL` quedan como mejora posterior.
 
 - Formato JSON a `stdout` (Docker recoge y rota). En desarrollo, `pino-pretty` sólo vía `pnpm dev` (no dependencia de producción).
 - Campos estándar: `time`, `level`, `msg`, `service` (`api` | `worker`), `env`, `version` (git SHA), `requestId`, `actorType`, `userId` | `integrationId`, `route` (plantilla, p. ej. `/api/v1/subscriptions/:id`), `status`, `durationMs`, `job` (worker), `notificationId`.
@@ -11,11 +13,11 @@
 - Niveles:
   | Nivel | Uso |
   |---|---|
-  | `error` | Excepción no controlada (500), fallo de job, credencial Resend inválida, fallo de conexión a BD. |
+  | `error` | Excepción no controlada (500), fallo de job, credencial del proveedor de correo inválida, fallo de conexión a BD. |
   | `warn` | Violación RLS (`42501`, indica bug de autorización), `reuse_detected`, rate limit excedido, notificación pasada a `fallida`, `version_conflict` repetido. |
   | `info` | Petición completada (pino-http), arranque/parada, ejecución de cron con contadores. |
   | `debug` | Sólo en desarrollo (SQL de repositorios sin parámetros sensibles). |
-- `LOG_LEVEL` por entorno: `debug` (dev), `warn` (test), `info` (prod).
+- Los niveles de log no se filtran en el MVP (ver nota al inicio de esta sección).
 
 ## 2. Auditoría ≠ logs
 
