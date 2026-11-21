@@ -24,6 +24,25 @@ describe('ChangePasswordForm', () => {
     router.replace.mockReset();
   });
 
+  it('permite mostrar y ocultar ambas contraseñas de forma independiente', async () => {
+    render(<ChangePasswordForm />);
+    const current = screen.getByLabelText('Contraseña actual');
+    const next = screen.getByLabelText('Nueva contraseña');
+    expect(current).toHaveAttribute('type', 'password');
+    expect(next).toHaveAttribute('type', 'password');
+
+    const [showCurrent, showNext] = screen.getAllByRole('button', {
+      name: 'Mostrar contraseña',
+    });
+    await userEvent.click(showCurrent!);
+    expect(current).toHaveAttribute('type', 'text');
+    expect(next).toHaveAttribute('type', 'password');
+
+    await userEvent.click(showNext!);
+    expect(next).toHaveAttribute('type', 'text');
+    expect(screen.getAllByRole('button', { name: 'Ocultar contraseña' })).toHaveLength(2);
+  });
+
   it('avisa del cambio obligatorio y rechaza contraseñas cortas sin llamar a la API', async () => {
     render(<ChangePasswordForm />);
     expect(screen.getByText(/contraseña temporal/)).toBeInTheDocument();

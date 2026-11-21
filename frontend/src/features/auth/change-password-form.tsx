@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import { ChangePasswordInputSchema, homePathForRole, PASSWORD_MIN_LENGTH } from '@fabsoft/shared';
 import { apiFetch } from '@/shared/api/client';
 import { FormField } from '@/shared/components/form-field';
+import { PasswordInput } from '@/shared/components/password-input';
 import { Alert, AlertDescription } from '@/shared/ui/alert';
 import { Button } from '@/shared/ui/button';
-import { Input } from '@/shared/ui/input';
 import { useAuth } from './auth-provider';
 
 export function ChangePasswordForm() {
@@ -63,10 +63,9 @@ export function ChangePasswordForm() {
         </div>
       ) : null}
       <FormField label="Contraseña actual" htmlFor="current-password">
-        <Input
+        <PasswordInput
           id="current-password"
           name="currentPassword"
-          type="password"
           autoComplete="current-password"
           required
         />
@@ -76,10 +75,9 @@ export function ChangePasswordForm() {
         htmlFor="new-password"
         hint={`Mínimo ${PASSWORD_MIN_LENGTH} caracteres.`}
       >
-        <Input
+        <PasswordInput
           id="new-password"
           name="newPassword"
-          type="password"
           autoComplete="new-password"
           minLength={PASSWORD_MIN_LENGTH}
           required
