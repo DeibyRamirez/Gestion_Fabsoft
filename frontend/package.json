@@ -22,11 +22,11 @@
     "@tailwindcss/postcss": "^4.3.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.74.0",
+    "lucide-react": "^1.79.0",
     "next": "^16.4.6",
     "react": "^19",
     "react-dom": "^19",
-    "tailwind-merge": "^3.7.0",
+    "tailwind-merge": "^3.7.1",
     "tailwindcss": "^4.3.5"
   },
   "devDependencies": {
