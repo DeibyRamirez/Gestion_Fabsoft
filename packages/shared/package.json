@@ -27,6 +27,6 @@
   "devDependencies": {
     "@fabsoft/config": "workspace:*",
     "eslint": "^10",
-    "typescript": "^5.9"
+    "typescript": "^6.0"
   }
 }
