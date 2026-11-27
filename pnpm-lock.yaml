@@ -113,7 +113,7 @@ importers:
         version: 10.1.0
       dbmate:
         specifier: ^2
-        version: 2.38.1
+        version: 2.38.2
       eslint:
         specifier: ^10
         version: 10.15.0(jiti@2.7.0)
@@ -197,8 +197,8 @@ importers:
         specifier: ^16
         version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@testing-library/user-event':
-        specifier: ^14.6.12
-        version: 14.6.12(@testing-library/dom@10.4.2)
+        specifier: ^14.6.13
+        version: 14.6.13(@testing-library/dom@10.4.2)
       '@types/node':
         specifier: ^22
         version: 22.20.5
@@ -404,38 +404,38 @@ packages:
     resolution: {integrity: sha512-OoKoR0f76dCY666JlcbhmVTs2drYj1GUXZTYTcbUgJjh9Nv41aFfZ21bPQTERm5+L5cBDo466NltB2lplS5GBw==}
     engines: {node: '>=20.19.0'}
 
-  '@dbmate/darwin-arm64@2.38.1':
-    resolution: {integrity: sha512-cf8e23w/FtJMvP+jJY59bBHLp2XYgP3pVdTppOUekI/6vZnFA5G/3fQfBAM2e/xRpOhAyT8ctwpJITD3TqGruw==}
+  '@dbmate/darwin-arm64@2.38.2':
+    resolution: {integrity: sha512-J6vHOsuiVwibLay//AONoj2/c+EZBzLc22EM9XfzxsLVFqvgbKBXmJ/JjQh+TYB3QUSnP4Y2yfZhsUoG8cPGJQ==}
     cpu: [arm64]
     os: [darwin]
 
-  '@dbmate/darwin-x64@2.38.1':
-    resolution: {integrity: sha512-89+RF3wPsChEz44tf0qAi6Co5KTtq9WBuMwE8PioNMnIj+I6iPeJo9u4XIEvDudHiWGHE5ZtXon8RePiXFRpEA==}
+  '@dbmate/darwin-x64@2.38.2':
+    resolution: {integrity: sha512-+bRt04DRp184X4+pC7lmUvHpPjKxoAPV1QbEbmolMPOG069N+dDdET1yc36eZuUJ5AwyVrjEJk1Y0WSsiZkINg==}
     cpu: [x64]
     os: [darwin]
 
-  '@dbmate/linux-arm64@2.38.1':
-    resolution: {integrity: sha512-xxUbU1w/tpzUHU1hyVFwG1mjW8CKHMxgCiGQxMCjy2pfckHA9sInveK0+bCC8M3jz48475tg85Lr5xXAQaNR+A==}
+  '@dbmate/linux-arm64@2.38.2':
+    resolution: {integrity: sha512-Qm4EdX3HYcShYB90SB9FkWRD0z6voXU3QpNyOoFJeQeJL/FCcImrClQSlZJzp9feDWvAubDqxzuvDuXlSBK5Lw==}
     cpu: [arm64]
     os: [linux]
 
-  '@dbmate/linux-arm@2.38.1':
-    resolution: {integrity: sha512-E7l7u+AMuAmBBFAxT6QLEMeIE3gbjfHDa+gEFlrtfrEKcCOuVCVy/FOPYQ1yxNdjBPwdkufR3GamUw0dXOgRFQ==}
+  '@dbmate/linux-arm@2.38.2':
+    resolution: {integrity: sha512-dXIM2NJHWmssRYKmkxOX75H3KCcreuAwrrvIhNk14BIUK/hI9YvV7uVxBJtzlXi0mOacZB4vH54KaEAoEekktQ==}
     cpu: [arm]
     os: [linux]
 
-  '@dbmate/linux-ia32@2.38.1':
-    resolution: {integrity: sha512-UbPEmOHWW6qlB8nrZ+Q6IZUA3q5JVOL9VtNs2h6bib9VjNkbQToFhP8nZt7s3WGlnh0+3KRDUA+6mppKfIDleg==}
+  '@dbmate/linux-ia32@2.38.2':
+    resolution: {integrity: sha512-3rDcwb1aNXiHtcHKK3EJJYoW7IwN0p5B0y8Xwn6HXtQ8fleKOoCeWMYV+rF3QCQEGj1F6I8ekcd/nsBmrqfzfw==}
     cpu: [ia32]
     os: [linux]
 
-  '@dbmate/linux-x64@2.38.1':
-    resolution: {integrity: sha512-cAdmtTOQou2QqnJdwEiNDpspR/nfcBIPtAk+XaStayUrl/UbD+oxy33xPt/i7D6YCP9JayIi3mY6GPu/vSL/iA==}
+  '@dbmate/linux-x64@2.38.2':
+    resolution: {integrity: sha512-z7oFo2D3HaXpQM0O9qb8zUyOtX4RHZMBgg3vZyzLIwId9+MtkGBXaNeqiMCl1XvV+2svUtSR484HtbkTBUcDQg==}
     cpu: [x64]
     os: [linux]
 
-  '@dbmate/win32-x64@2.38.1':
-    resolution: {integrity: sha512-ffckode/IxMhPbefXb7Q4BNJpoe9D73kwXjW5EsacjC1W5Hx8P6Y0vX1F0NvJFC4Vm+ow05THp7xOmDf8Ovf3Q==}
+  '@dbmate/win32-x64@2.38.2':
+    resolution: {integrity: sha512-Qktcxv9/ZykQx/p3EXvdO6KAs5z6m9AeARAiITWODpglztRsyvmOvLSqOzBTJfon1Kve/2E/bwJt4aqhjaLdhw==}
     cpu: [x64]
     os: [win32]
 
@@ -1508,8 +1508,8 @@ packages:
       '@types/react-dom':
         optional: true
 
-  '@testing-library/user-event@14.6.12':
-    resolution: {integrity: sha512-8yQV8v+eToBhsUO4oYrZY7fzhpTEMZx4IDx0/iuER/x0Xuy0NdqQOhsaaUNlvXE03N7vQ+4RCXUieKC0NJty9w==}
+  '@testing-library/user-event@14.6.13':
+    resolution: {integrity: sha512-2LVZGptuB5un1Cu/u31o9adkCwbsUTMp4B4p04xupI7uobvTIpgKidSdShqZiReo/mQmvR9xjgdgTgge4oAbYA==}
     engines: {node: '>=12', npm: '>=6'}
     peerDependencies:
       '@testing-library/dom': '>=7.21.4'
@@ -1928,8 +1928,8 @@ packages:
     resolution: {integrity: sha512-JQUCCK+/CAGbGGx618PlFZMXH81Jtj7t73CHv9dd/zVWvxgGT2zLFRjnKb+Ng46GIwcy+f7f88qd4duqllK+WQ==}
     engines: {node: ^22.14.0 || >=24.0.0}
 
-  dbmate@2.38.1:
-    resolution: {integrity: sha512-wBKWyHkE8BV1d1McXCkaKhP4aTHxi+jcejzcKYjned+tZVCrU65fytVC1S0DrNzV6E0X8z5mLhjRHQJj2F72ww==}
+  dbmate@2.38.2:
+    resolution: {integrity: sha512-HSyo+R4qqu469y1js65zxDooU8JBM5ii5oxxYnaKLBDzlrB8h5gZXzTt/T6R0kT47RCee7Y3PTcnAi+xietgEw==}
     hasBin: true
 
   debug@4.4.3:
@@ -3545,25 +3545,25 @@ snapshots:
 
   '@csstools/css-tokenizer@4.0.2': {}
 
-  '@dbmate/darwin-arm64@2.38.1':
+  '@dbmate/darwin-arm64@2.38.2':
     optional: true
 
-  '@dbmate/darwin-x64@2.38.1':
+  '@dbmate/darwin-x64@2.38.2':
     optional: true
 
-  '@dbmate/linux-arm64@2.38.1':
+  '@dbmate/linux-arm64@2.38.2':
     optional: true
 
-  '@dbmate/linux-arm@2.38.1':
+  '@dbmate/linux-arm@2.38.2':
     optional: true
 
-  '@dbmate/linux-ia32@2.38.1':
+  '@dbmate/linux-ia32@2.38.2':
     optional: true
 
-  '@dbmate/linux-x64@2.38.1':
+  '@dbmate/linux-x64@2.38.2':
     optional: true
 
-  '@dbmate/win32-x64@2.38.1':
+  '@dbmate/win32-x64@2.38.2':
     optional: true
 
   '@emnapi/runtime@1.11.3':
@@ -4385,7 +4385,7 @@ snapshots:
       '@types/react': 19.3.0
       '@types/react-dom': 19.3.0(@types/react@19.3.0)
 
-  '@testing-library/user-event@14.6.12(@testing-library/dom@10.4.2)':
+  '@testing-library/user-event@14.6.13(@testing-library/dom@10.4.2)':
     dependencies:
       '@testing-library/dom': 10.4.2
 
@@ -4873,15 +4873,15 @@ snapshots:
     transitivePeerDependencies:
       - '@noble/hashes'
 
-  dbmate@2.38.1:
+  dbmate@2.38.2:
     optionalDependencies:
-      '@dbmate/darwin-arm64': 2.38.1
-      '@dbmate/darwin-x64': 2.38.1
-      '@dbmate/linux-arm': 2.38.1
-      '@dbmate/linux-arm64': 2.38.1
-      '@dbmate/linux-ia32': 2.38.1
-      '@dbmate/linux-x64': 2.38.1
-      '@dbmate/win32-x64': 2.38.1
+      '@dbmate/darwin-arm64': 2.38.2
+      '@dbmate/darwin-x64': 2.38.2
+      '@dbmate/linux-arm': 2.38.2
+      '@dbmate/linux-arm64': 2.38.2
+      '@dbmate/linux-ia32': 2.38.2
+      '@dbmate/linux-x64': 2.38.2
+      '@dbmate/win32-x64': 2.38.2
 
   debug@4.4.3:
     dependencies:
